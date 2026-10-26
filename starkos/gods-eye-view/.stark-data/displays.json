@@ -89,12 +89,22 @@
       ],
       "tokenHash": "abdd4ca0befaa626966ebe5b18a4c0d3234dad8b7b53dc5c17941e95099e43fb",
       "pairedAt": "2026-10-26T01:24:46.966Z",
-      "lastSeenAt": "2026-10-26T01:25:10.805Z",
+      "lastSeenAt": "2026-10-26T01:33:06.907Z",
       "state": {
-        "status": "standby",
-        "current": null,
+        "status": "presenting",
+        "current": {
+          "sessionId": "O2XIhL-JLp5p33Bo",
+          "title": "R.jpg",
+          "type": "image/jpeg",
+          "mode": "show"
+        },
         "playback": null,
-        "transform": null
+        "transform": {
+          "zoom": 1,
+          "x": 0,
+          "y": 0,
+          "rotation": 0
+        }
       }
     }
   ]
