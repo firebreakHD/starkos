@@ -81,6 +81,13 @@ export class DisplayStore {
     this.save();
     return device;
   }
+  rename(id, name) {
+    const device = this.get(id);
+    if (!device) return null;
+    device.name = String(name).trim().slice(0, 60);
+    this.save();
+    return device;
+  }
   revoke(id) {
     const device = this.get(id);
     if (!device) return false;

@@ -1,4 +1,4 @@
-import { randomBytes, randomInt } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import { WebSocketServer, WebSocket } from 'ws';
 import { DisplayStore, createDeviceToken } from './display-store.js';
 import {
@@ -11,11 +11,31 @@ import {
 } from './protocol.js';
 import { DISPLAY_ADAPTERS } from './adapters.js';
 import { STARK_DISPLAY_TOOLS } from './tool-contract.js';
+import {
+  MediaSourceStore,
+  browseWebDav,
+  fetchWebDavFile,
+  readResponseBuffer,
+} from './media-source-store.js';
 
 const MAX_BODY = 20 * 1024 * 1024;
-const pairs = new Map();
 const claims = new Map();
+const claimRequests = new Map();
 const sessions = new Map();
+
+function admitClaim(req) {
+  const now = Date.now();
+  for (const [id, claim] of claims)
+    if (claim.expiresAt < now) claims.delete(id);
+  const address = String(req.socket.remoteAddress || 'unknown');
+  const recent = (claimRequests.get(address) || []).filter(
+    (timestamp) => now - timestamp < 60_000,
+  );
+  if (recent.length >= 20 || claims.size >= 100) return false;
+  recent.push(now);
+  claimRequests.set(address, recent);
+  return true;
+}
 
 function json(res, status, payload) {
   res.statusCode = status;
@@ -205,9 +225,12 @@ export function createDisplayService({ store = new DisplayStore() } = {}) {
   return { store, sockets, sessions, sendCommand, executeTool };
 }
 
-export function starkReceiverPlugin({ service = createDisplayService() } = {}) {
+export function starkReceiverPlugin({
+  service = createDisplayService(),
+  mediaSources = new MediaSourceStore(),
+} = {}) {
   const install = (server) => {
-    const wss = new WebSocketServer({ noServer: true });
+    const wss = new WebSocketServer({ noServer: true, maxPayload: MAX_BODY });
     server.httpServer?.on('upgrade', (req, socket, head) => {
       const url = new URL(req.url || '/', 'http://stark.local');
       if (url.pathname !== '/api/stark/ws') return;
@@ -273,32 +296,20 @@ export function starkReceiverPlugin({ service = createDisplayService() } = {}) {
       try {
         if (
           req.method === 'POST' &&
-          url.pathname === '/api/stark/receivers/pair'
-        ) {
-          let code;
-          do {
-            code = String(randomInt(0, 1_000_000)).padStart(6, '0');
-          } while (pairs.has(code));
-          const pair = { code, expiresAt: Date.now() + 5 * 60_000 };
-          pairs.set(code, pair);
-          return json(res, 201, pair);
-        }
-        if (
-          req.method === 'POST' &&
           url.pathname === '/api/stark/receiver/claim'
         ) {
-          const input = await readBody(req);
-          const code = String(input.code || '').replace(/\D/g, '');
-          const pair = pairs.get(code);
-          if (!pair || pair.expiresAt < Date.now())
-            return json(res, 404, {
-              error: 'Pairing-Code ist ungültig oder abgelaufen.',
+          if (!admitClaim(req))
+            return json(res, 429, {
+              error: 'Zu viele Displayanfragen. Bitte kurz warten.',
             });
-          pairs.delete(code);
+          const input = await readBody(req);
           const claim = {
             id: randomBytes(9).toString('base64url'),
             secret: randomBytes(24).toString('base64url'),
-            name: String(input.name || 'STARK DISPLAY').slice(0, 60),
+            suggestedName: String(input.suggestedName || 'NEUES DISPLAY').slice(
+              0,
+              60,
+            ),
             capabilities: sanitizeCapabilities(
               input.capabilities?.length
                 ? input.capabilities
@@ -348,9 +359,9 @@ export function starkReceiverPlugin({ service = createDisplayService() } = {}) {
                 (claim) =>
                   claim.status === 'pending' && claim.expiresAt > Date.now(),
               )
-              .map(({ id, name, capabilities, expiresAt }) => ({
+              .map(({ id, suggestedName, capabilities, expiresAt }) => ({
                 id,
-                name,
+                suggestedName,
                 capabilities,
                 expiresAt,
               })),
@@ -360,6 +371,7 @@ export function starkReceiverPlugin({ service = createDisplayService() } = {}) {
           /^\/api\/stark\/pairing\/([^/]+)\/confirm$/,
         );
         if (req.method === 'POST' && confirm) {
+          const input = await readBody(req);
           const claim = claims.get(confirm[1]);
           if (
             !claim ||
@@ -371,9 +383,16 @@ export function starkReceiverPlugin({ service = createDisplayService() } = {}) {
             });
           const token = createDeviceToken();
           const id = randomBytes(9).toString('base64url');
+          const name = String(input.name || '')
+            .trim()
+            .slice(0, 60);
+          if (!name)
+            return json(res, 400, {
+              error: 'Vergib am Handy einen Namen für das Display.',
+            });
           service.store.addDevice({
             id,
-            name: claim.name,
+            name,
             token,
             capabilities: claim.capabilities,
           });
@@ -381,11 +400,11 @@ export function starkReceiverPlugin({ service = createDisplayService() } = {}) {
           claim.device = {
             id,
             token,
-            name: claim.name,
+            name,
             capabilities: claim.capabilities,
             protocol: STARK_DISPLAY_PROTOCOL,
           };
-          return json(res, 200, { approved: true, id, name: claim.name });
+          return json(res, 200, { approved: true, id, name });
         }
         if (req.method === 'GET' && url.pathname === '/api/stark/receivers')
           return json(
@@ -395,7 +414,83 @@ export function starkReceiverPlugin({ service = createDisplayService() } = {}) {
               .list()
               .map((device) => publicDevice(device, service.sockets)),
           );
+        if (req.method === 'GET' && url.pathname === '/api/stark/media-sources')
+          return json(res, 200, mediaSources.list());
+        if (
+          req.method === 'POST' &&
+          url.pathname === '/api/stark/media-sources'
+        ) {
+          const input = await readBody(req);
+          if (input.type && input.type !== 'webdav')
+            return json(res, 400, {
+              error: 'Dieser NAS-Adapter ist noch nicht aktiviert.',
+            });
+          return json(res, 201, mediaSources.add(input));
+        }
+        const sourceRoute = url.pathname.match(
+          /^\/api\/stark\/media-sources\/([^/]+)(?:\/(test|browse|file))?$/,
+        );
+        if (sourceRoute) {
+          const sourceId = decodeURIComponent(sourceRoute[1]);
+          const operation = sourceRoute[2];
+          if (req.method === 'PATCH' && !operation) {
+            const updated = mediaSources.update(sourceId, await readBody(req));
+            return updated
+              ? json(res, 200, updated)
+              : json(res, 404, { error: 'Medienquelle nicht gefunden.' });
+          }
+          if (req.method === 'DELETE' && !operation)
+            return mediaSources.remove(sourceId)
+              ? json(res, 200, { removed: true })
+              : json(res, 404, { error: 'Medienquelle nicht gefunden.' });
+          const source = mediaSources.get(sourceId);
+          if (!source)
+            return json(res, 404, { error: 'Medienquelle nicht gefunden.' });
+          if (req.method === 'POST' && operation === 'test') {
+            const entries = await browseWebDav(source, '');
+            return json(res, 200, { connected: true, entries: entries.length });
+          }
+          if (req.method === 'GET' && operation === 'browse')
+            return json(
+              res,
+              200,
+              await browseWebDav(source, url.searchParams.get('path') || ''),
+            );
+          if (req.method === 'GET' && operation === 'file') {
+            const upstream = await fetchWebDavFile(
+              source,
+              url.searchParams.get('path') || '',
+            );
+            const length = Number(upstream.headers.get('content-length') || 0);
+            if (length > MAX_BODY)
+              return json(res, 413, {
+                error: 'NAS-Datei ist größer als 20 MB.',
+              });
+            const content = await readResponseBuffer(upstream, MAX_BODY);
+            res.statusCode = 200;
+            res.setHeader(
+              'Content-Type',
+              upstream.headers.get('content-type') ||
+                'application/octet-stream',
+            );
+            res.setHeader('Content-Length', String(content.length));
+            res.setHeader('Cache-Control', 'no-store');
+            res.setHeader('X-Content-Type-Options', 'nosniff');
+            return res.end(content);
+          }
+        }
         const revoke = url.pathname.match(/^\/api\/stark\/receivers\/([^/]+)$/);
+        if (req.method === 'PATCH' && revoke) {
+          const input = await readBody(req);
+          const name = String(input.name || '')
+            .trim()
+            .slice(0, 60);
+          if (!name) return json(res, 400, { error: 'Displayname fehlt.' });
+          const device = service.store.rename(revoke[1], name);
+          return device
+            ? json(res, 200, { id: device.id, name: device.name })
+            : json(res, 404, { error: 'Display nicht gefunden.' });
+        }
         if (req.method === 'DELETE' && revoke) {
           const socket = service.sockets.get(revoke[1]);
           if (socket) socket.close(4403, 'access revoked');

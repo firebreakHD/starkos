@@ -1,92 +1,194 @@
 <!doctype html>
 <html lang="de">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
-  <meta name="theme-color" content="#02090c">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <title>STARK OS</title>
-  <link rel="stylesheet" href="./stark.css">
-</head>
-<body>
-  <div class="boot-noise" aria-hidden="true"></div>
-  <main class="device" id="device">
-    <header class="telemetry" aria-label="Systemstatus">
-      <span class="mark">STARK<small>OS</small></span>
-      <span id="clock">00:00:00</span>
-      <span class="status"><i></i> LOCAL</span>
-    </header>
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no"
+    />
+    <meta name="theme-color" content="#02090c" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta
+      name="apple-mobile-web-app-status-bar-style"
+      content="black-translucent"
+    />
+    <title>STARK OS</title>
+    <link rel="stylesheet" href="./stark.css" />
+  </head>
+  <body>
+    <div class="boot-noise" aria-hidden="true"></div>
+    <main class="device" id="device">
+      <header class="telemetry" aria-label="Systemstatus">
+        <span class="mark">STARK<small>OS</small></span>
+        <span id="clock">00:00:00</span>
+        <span class="status"><i></i> LOCAL</span>
+      </header>
 
-    <section class="stage" aria-label="STARK OS Medienring">
-      <div class="reticle" aria-hidden="true"><i></i><i></i><i></i></div>
-      <div class="ring" id="ring" role="listbox" aria-label="Funktionsring"></div>
-      <button class="core" id="core" type="button" aria-live="polite">
-        <span class="core-index" id="coreIndex">01 / 05</span>
-        <span class="core-glyph" id="coreGlyph">◉</span>
-        <strong id="coreTitle">MEDIA</strong>
-        <span id="coreDetail">Eigene Bilder und Videos untersuchen</span>
-        <em>DOPPELTIPP ZUM ÖFFNEN</em>
-      </button>
+      <section class="stage" aria-label="STARK OS Medienring">
+        <div class="reticle" aria-hidden="true"><i></i><i></i><i></i></div>
+        <div
+          class="ring"
+          id="ring"
+          role="listbox"
+          aria-label="Funktionsring"
+        ></div>
+        <button class="core" id="core" type="button" aria-live="polite">
+          <span class="core-index" id="coreIndex">01 / 05</span>
+          <span class="core-glyph" id="coreGlyph">◉</span>
+          <strong id="coreTitle">MEDIA</strong>
+          <span id="coreDetail">Eigene Bilder und Videos untersuchen</span>
+          <em>DOPPELTIPP ZUM ÖFFNEN</em>
+        </button>
+      </section>
+
+      <footer class="readout">
+        <span id="hint">RING DREHEN · AUSWAHL EINRASTEN</span>
+        <span class="coordinates">48.2082° N&nbsp;&nbsp;16.3738° E</span>
+      </footer>
+    </main>
+
+    <section class="panel" id="panel" aria-hidden="true">
+      <header>
+        <button id="closePanel" type="button" aria-label="Schließen">×</button>
+        <div>
+          <small id="panelCode">MODULE 01</small>
+          <h1 id="panelTitle">MEDIA</h1>
+        </div>
+        <span class="pulse"></span>
+      </header>
+      <div class="panel-body" id="panelBody"></div>
     </section>
 
-    <footer class="readout">
-      <span id="hint">RING DREHEN · AUSWAHL EINRASTEN</span>
-      <span class="coordinates">48.2082° N&nbsp;&nbsp;16.3738° E</span>
-    </footer>
-  </main>
-
-  <section class="panel" id="panel" aria-hidden="true">
-    <header>
-      <button id="closePanel" type="button" aria-label="Schließen">×</button>
-      <div><small id="panelCode">MODULE 01</small><h1 id="panelTitle">MEDIA</h1></div>
-      <span class="pulse"></span>
-    </header>
-    <div class="panel-body" id="panelBody"></div>
-  </section>
-
-  <template id="mediaTemplate">
-    <div class="module media-module">
-      <div class="drop-zone" id="dropZone">
-        <div class="scanline"></div>
-        <strong>MEDIUM EINSPEISEN</strong>
-        <span>Bild, Video oder Dokument hier ablegen</span>
-        <button type="button" id="pickMedia">DATEI WÄHLEN</button>
-        <input type="file" id="mediaInput" accept="image/*,video/*,.pdf" multiple hidden>
+    <template id="mediaTemplate">
+      <div class="module media-module">
+        <div class="media-toolbar" id="dropZone">
+          <button type="button" id="pickMedia">＋ DATEI</button>
+          <button type="button" id="openSources">▤ MEDIENQUELLEN</button>
+          <span>Datei hier ablegen</span>
+          <input
+            type="file"
+            id="mediaInput"
+            accept="image/*,video/*,.pdf"
+            multiple
+            hidden
+          />
+        </div>
+        <details class="web-media compact-web">
+          <summary>WEBLINK</summary>
+          <form id="webMedia">
+            <input
+              type="url"
+              id="webUrl"
+              placeholder="https://…"
+              required
+            /><button type="submit">HINZUFÜGEN</button>
+          </form>
+        </details>
+        <section class="media-sources" id="mediaSources" hidden>
+          <header>
+            <strong>MEDIENQUELLEN</strong
+            ><button type="button" id="closeSources">×</button>
+          </header>
+          <form id="sourceForm" autocomplete="off">
+            <input
+              id="sourceName"
+              placeholder="NAME · z. B. NAS WOHNZIMMER"
+              maxlength="80"
+              required
+            />
+            <select id="sourceType" aria-label="Protokoll">
+              <option value="webdav">WEBDAV</option>
+              <option value="smb" disabled>
+                SMB · HARDWARETEST AUSSTEHEND
+              </option>
+            </select>
+            <input
+              id="sourceUrl"
+              type="url"
+              placeholder="https://nas.example/dav/"
+              required
+            />
+            <input
+              id="sourceUser"
+              autocomplete="username"
+              placeholder="BENUTZER"
+            />
+            <input
+              id="sourcePassword"
+              type="password"
+              autocomplete="new-password"
+              placeholder="PASSWORT"
+            />
+            <button type="submit">QUELLE SPEICHERN</button>
+            <output id="sourceStatus"></output>
+          </form>
+          <div class="source-list" id="sourceList"></div>
+          <div class="source-browser" id="sourceBrowser" hidden></div>
+        </section>
+        <div class="device-targets" id="deviceTargets">
+          <span>DISPLAY TARGETS</span>
+        </div>
+        <div class="media-strip" id="mediaStrip"></div>
       </div>
-      <form class="web-media" id="webMedia"><input type="url" id="webUrl" placeholder="https://…" required><button type="submit">WEBLINK HINZUFÜGEN</button></form>
-      <div class="device-targets" id="deviceTargets"><span>DISPLAY TARGETS</span></div>
-      <div class="media-strip" id="mediaStrip"></div>
-    </div>
-  </template>
+    </template>
 
-  <template id="investigationTemplate">
-    <div class="module investigation-module">
-      <div class="case-head"><span>CASE // LOCAL</span><button id="saveCase" type="button">PROJEKT SICHERN</button></div>
-      <div class="evidence-field" id="evidenceField">
-        <button class="evidence-node primary" style="--x:50%;--y:45%"><b>+</b><span>MEDIUM</span></button>
-        <button class="evidence-node" style="--x:20%;--y:22%"><b>◈</b><span>ORT</span></button>
-        <button class="evidence-node" style="--x:79%;--y:26%"><b>⌁</b><span>EREIGNIS</span></button>
-        <button class="evidence-node" style="--x:72%;--y:77%"><b>▤</b><span>DOKUMENT</span></button>
-        <svg aria-hidden="true" viewBox="0 0 100 100" preserveAspectRatio="none"><path d="M50 45 L20 22 M50 45 L79 26 M50 45 L72 77"/></svg>
+    <template id="investigationTemplate">
+      <div class="module investigation-module">
+        <div class="case-head">
+          <span>CASE // LOCAL</span
+          ><button id="saveCase" type="button">PROJEKT SICHERN</button>
+        </div>
+        <div class="evidence-field" id="evidenceField">
+          <button class="evidence-node primary" style="--x: 50%; --y: 45%">
+            <b>+</b><span>MEDIUM</span>
+          </button>
+          <button class="evidence-node" style="--x: 20%; --y: 22%">
+            <b>◈</b><span>ORT</span>
+          </button>
+          <button class="evidence-node" style="--x: 79%; --y: 26%">
+            <b>⌁</b><span>EREIGNIS</span>
+          </button>
+          <button class="evidence-node" style="--x: 72%; --y: 77%">
+            <b>▤</b><span>DOKUMENT</span>
+          </button>
+          <svg
+            aria-hidden="true"
+            viewBox="0 0 100 100"
+            preserveAspectRatio="none"
+          >
+            <path d="M50 45 L20 22 M50 45 L79 26 M50 45 L72 77" />
+          </svg>
+        </div>
+        <p class="module-note">
+          Objekte direkt verschieben. Projekte werden lokal auf diesem Gerät
+          gespeichert.
+        </p>
       </div>
-      <p class="module-note">Objekte direkt verschieben. Projekte werden lokal auf diesem Gerät gespeichert.</p>
-    </div>
-  </template>
+    </template>
 
-  <template id="receiverTemplate">
-    <div class="module receiver-module">
-      <div class="receiver-orbit"><i></i><i></i><i></i><strong>PAIR</strong></div>
-      <h2>EXTERNEN BILDSCHIRM KOPPELN</h2>
-      <p>Öffne <b id="receiverUrl">/stark/receiver.html</b> auf deinem eigenen Bildschirm und gib dort den Code ein.</p>
-      <button type="button" id="createPair">PAIRING-CODE ERZEUGEN</button>
-      <output class="pair-code" id="pairCode">— — — — — —</output>
-      <div class="receiver-list" id="receiverList"></div>
-      <button type="button" id="endAll">ALLE PRÄSENTATIONEN BEENDEN</button>
-      <section class="capture-planned"><strong>BILDSCHIRM / FENSTER</strong><span>Separater WebRTC-Bereich vorgesehen; erst nach bestätigter Freigabe und sicherem Signaling aktiv.</span><button type="button" disabled>NOCH NICHT VERFÜGBAR</button></section>
-    </div>
-  </template>
+    <template id="receiverTemplate">
+      <div class="module receiver-module">
+        <div class="receiver-orbit">
+          <i></i><i></i><i></i><strong>LINK</strong>
+        </div>
+        <h2>DISPLAY CONNECT</h2>
+        <p>
+          Öffne <b id="receiverUrl">/stark/receiver.html</b> auf deinem eigenen
+          Bildschirm. Neue Displays erscheinen automatisch und können nur hier
+          am Handy verbunden werden.
+        </p>
+        <div class="receiver-list" id="receiverList"></div>
+        <button type="button" id="endAll">ALLE PRÄSENTATIONEN BEENDEN</button>
+        <section class="capture-planned">
+          <strong>BILDSCHIRM / FENSTER</strong
+          ><span
+            >Separater WebRTC-Bereich vorgesehen; erst nach bestätigter Freigabe
+            und sicherem Signaling aktiv.</span
+          ><button type="button" disabled>NOCH NICHT VERFÜGBAR</button>
+        </section>
+      </div>
+    </template>
 
-  <script type="module" src="./app.js"></script>
-</body>
+    <script type="module" src="./app.js"></script>
+  </body>
 </html>

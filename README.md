@@ -19,12 +19,13 @@ Home Assistant Ingress opens `/stark/` through the authenticated HA session. Dir
 ## Pair and control a display
 
 1. Open STARK OS and rotate the ring to **Receiver**.
-2. Generate a six-digit pairing code.
-3. On your own TV/PC/tablet browser open `http://<HOME_ASSISTANT_IP>:8788/stark/receiver.html` and enter the code.
-4. Confirm the named device on the controller. Pairing is not completed without this confirmation.
-5. In **Media**, import an image, video or PDF. Tap once for preview, double-tap to send to the selected online display, or drag the card onto a display target.
+2. On your own TV/PC/tablet browser open `http://<HOME_ASSISTANT_IP>:8788/stark/receiver.html`. The passive receiver appears automatically on the phone.
+3. Enter your own display name on the phone and press **CONNECT**. Pairing cannot be completed from the receiver.
+4. In **Media**, import an image, video or PDF. Tap once for preview, double-tap to send to the selected online display, or drag the card onto a display target.
 
 Pairings are persisted in `/data/displays.json`; only SHA-256 token hashes are stored. Receiver credentials remain on the paired receiver and can be revoked from STARK OS.
+
+The Media panel also supports encrypted WebDAV NAS sources under **Medienquellen**. NAS credentials stay server-side and are never sent to a receiver. SMB is intentionally disabled until its runtime and real hardware have been tested.
 
 ## Local development
 

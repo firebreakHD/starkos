@@ -71,6 +71,14 @@ test('device tokens persist only as hashes and can be revoked', () => {
     assert.ok(value.store.authenticate('alpha', 'token-alpha'));
     assert.equal(value.store.authenticate('alpha', 'wrong-token'), null);
     assert.equal(value.store.get('alpha').token, undefined);
+    assert.equal(
+      value.store.rename('alpha', 'Living Room').name,
+      'Living Room',
+    );
+    assert.equal(
+      new DisplayStore(value.directory).get('alpha').name,
+      'Living Room',
+    );
     value.store.revoke('alpha');
     assert.equal(value.store.authenticate('alpha', 'token-alpha'), null);
     const reloaded = new DisplayStore(value.directory);

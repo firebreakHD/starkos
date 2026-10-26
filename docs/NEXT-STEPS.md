@@ -1,6 +1,6 @@
 # STARK OS – nächster Arbeitsblock
 
-## Priorität: Pairing und Steuerung ausschließlich vom Handy
+## Erledigt: Pairing und Steuerung ausschließlich vom Handy
 
 - Der Receiver öffnet nur eine passive Bereitschaftsansicht und meldet sich als verfügbares Display am STARK-OS-Server.
 - Am Receiver gibt es weder Kopplungscode noch Connect-, Bestätigungs- oder Steuerknöpfe.
@@ -24,12 +24,12 @@
 8. Zugang am Handy widerrufen: Receiver kann sich nicht erneut authentifizieren.
 9. Unbestätigte und abgelaufene Anfragen können keine Befehle oder Medien abrufen.
 
-## Medienbrowser und NAS-Quellen
+## Teilweise erledigt: Medienbrowser und NAS-Quellen
 
 - Das derzeit große Feld **Medium einspeisen** durch eine kompakte Import-Schaltfläche ersetzen, damit auf dem Handy mehr Platz für den eigentlichen Medienbrowser bleibt.
 - Im Medienbrowser eine eigene Einstellungsansicht **Medienquellen** ergänzen.
 - NAS-Freigaben mit frei wählbarem Namen, Freigabeadresse/Pfad, Protokoll, Benutzername und Passwort hinzufügen, bearbeiten, testen und entfernen können.
-- Zuerst SMB/CIFS und WebDAV vorsehen; NFS nur mit den dafür tatsächlich verfügbaren Optionen und ohne vorgetäuschte Benutzer-/Passwortanmeldung.
+- WebDAV ist implementiert. SMB/CIFS folgt erst nach Auswahl einer gepflegten Bibliothek und echtem Hardwaretest; NFS nur mit den tatsächlich verfügbaren Optionen und ohne vorgetäuschte Benutzer-/Passwortanmeldung.
 - Verbindungsstatus und verständliche Fehler anzeigen, ohne Zugangsdaten offenzulegen.
 - Passwörter ausschließlich serverseitig persistent und geschützt speichern; nie in URLs, Logs, Browser-LocalStorage oder Receiver-Nachrichten übertragen.
 - NAS-Verzeichnisse mobil durchsuchen, unterstützte Bilder/Videos/Dokumente öffnen und direkt an ausgewählte Displays senden.

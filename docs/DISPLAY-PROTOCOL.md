@@ -4,10 +4,10 @@ Protocol identifier: `stark-display/1`. Transport: same-origin WebSocket at `/ap
 
 ## Pairing
 
-1. An authenticated controller creates a six-digit, five-minute code.
-2. The receiver submits the code, display name and declared capabilities.
-3. The controller shows a pending request. A user must explicitly confirm it.
-4. The receiver polls with a random claim secret in the POST body. After approval it receives a random 256-bit device token once through that authenticated claim.
+1. An unpaired receiver creates a random, five-minute claim and advertises its capabilities. It exposes no pairing controls.
+2. The authenticated phone controller shows the pending receiver.
+3. The user assigns the display name and explicitly presses **CONNECT** on the phone.
+4. The receiver polls with its random claim secret in the POST body. After approval it receives a random 256-bit device token through that authenticated claim.
 5. The server persists only the SHA-256 hash. The raw token is not used in a URL or log and can be revoked.
 
 ## WebSocket
@@ -44,4 +44,3 @@ Unsupported commands return an explicit rejected result and are disabled in the 
 ```
 
 Tools: `list_displays`, `show_media`, `control_playback`, `transform_image`, `move_content`, and `end_session`. They call the same `DisplayService` as the UI and therefore use the same pairing, capability and online-state checks. The endpoints are protected by Home Assistant Ingress or the direct-access session cookie; Hermes must call them through that authorized local integration rather than receiving a bypass token.
-

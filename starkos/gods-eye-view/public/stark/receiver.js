@@ -28,6 +28,7 @@ let currentVisual = null;
 const mediaQueue = [];
 let queueIndex = -1;
 let lastReport = 0;
+let advertisement = 0;
 
 function api(path) {
   return new URL(`../api/stark/${path}`, location.href);
@@ -44,42 +45,49 @@ function saveCredentials(value) {
   localStorage.setItem('stark-receiver-device', JSON.stringify(value));
 }
 
-form.addEventListener('submit', async (event) => {
-  event.preventDefault();
+async function advertise() {
+  const generation = ++advertisement;
   error.textContent = '';
   const response = await fetch(api('receiver/claim'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      code: document.querySelector('#pairCode').value,
-      name: navigator.userAgent.includes('Mobile')
-        ? 'MOBILE DISPLAY'
+      suggestedName: navigator.userAgent.includes('Mobile')
+        ? 'TABLET DISPLAY'
         : 'EXTERNAL DISPLAY',
       capabilities: CAPABILITIES,
     }),
   });
   const result = await response.json();
   if (!response.ok) {
-    error.textContent = result.error || 'Pairing fehlgeschlagen.';
+    error.textContent = result.error || 'Display konnte nicht gemeldet werden.';
     return;
   }
-  status.textContent = 'CONFIRM ON CONTROLLER';
-  error.textContent = 'Kopplung am STARK-OS-Controller bestätigen.';
-  await waitForApproval(result);
-});
+  status.textContent = 'CONNECT ON PHONE';
+  error.textContent = 'Warte auf CONNECT am STARK-OS-Handy.';
+  await waitForApproval(result, generation);
+}
 
-async function waitForApproval(claim) {
+async function waitForApproval(claim, generation) {
   const deadline = Date.now() + 5 * 60_000;
-  while (Date.now() < deadline) {
+  while (Date.now() < deadline && generation === advertisement) {
     await new Promise((resolve) => setTimeout(resolve, 1200));
-    const response = await fetch(api('receiver/claim-status'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(claim),
-    });
-    const result = await response.json();
+    let response;
+    let result;
+    try {
+      response = await fetch(api('receiver/claim-status'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(claim),
+      });
+      result = await response.json();
+    } catch {
+      status.textContent = 'RECONNECTING';
+      continue;
+    }
     if (!response.ok) {
-      error.textContent = result.error;
+      error.textContent = `${result.error} Erkennung wird erneuert …`;
+      setTimeout(advertise, 800);
       return;
     }
     if (result.status === 'approved') {
@@ -88,7 +96,8 @@ async function waitForApproval(claim) {
       return;
     }
   }
-  error.textContent = 'Kopplungsanfrage ist abgelaufen.';
+  error.textContent = 'Erkennung wird erneuert …';
+  advertise();
 }
 
 function connect() {
@@ -129,6 +138,10 @@ function connect() {
       event.code === 4403 ? 'ACCESS REVOKED' : 'RECONNECTING';
     if (event.code === 4403) {
       localStorage.removeItem('stark-receiver-device');
+      credentials = null;
+      form.hidden = false;
+      stage.hidden = true;
+      advertise();
       return;
     }
     setTimeout(connect, retry);
@@ -185,7 +198,7 @@ function showMedia(media, mode = 'show', sessionId, fromQueue = false) {
   } else if (media.type.startsWith('video/')) {
     currentVisual = document.createElement('video');
     currentVisual.src = media.data;
-    currentVisual.controls = true;
+    currentVisual.controls = false;
     currentVisual.autoplay = true;
     currentVisual.muted = true;
     currentVisual.playsInline = true;
@@ -289,3 +302,4 @@ function acknowledge(command, extra = {}) {
 }
 
 if (credentials) connect();
+else advertise();

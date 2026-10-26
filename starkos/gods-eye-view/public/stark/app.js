@@ -110,7 +110,185 @@ function mountMedia(body) {
     importedMedia.push(media);
     event.currentTarget.reset();
   });
+  const sourcesPanel = $('#mediaSources', body);
+  $('#openSources', body).addEventListener('click', () => {
+    sourcesPanel.hidden = false;
+    renderMediaSources(body);
+  });
+  $('#closeSources', body).addEventListener('click', () => {
+    sourcesPanel.hidden = true;
+  });
+  $('#sourceForm', body).addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const status = $('#sourceStatus', body);
+    status.textContent = 'VERBINDUNG WIRD GEPRÜFT …';
+    try {
+      const input = {
+        type: $('#sourceType', body).value,
+        name: $('#sourceName', body).value,
+        url: $('#sourceUrl', body).value,
+      };
+      const username = $('#sourceUser', body).value;
+      const password = $('#sourcePassword', body).value;
+      if (!event.currentTarget.dataset.sourceId || username)
+        input.username = username;
+      if (!event.currentTarget.dataset.sourceId || password)
+        input.password = password;
+      const source = event.currentTarget.dataset.sourceId
+        ? await displays.updateMediaSource(
+            event.currentTarget.dataset.sourceId,
+            input,
+          )
+        : await displays.addMediaSource(input);
+      await displays.testMediaSource(source.id);
+      event.currentTarget.reset();
+      delete event.currentTarget.dataset.sourceId;
+      event.currentTarget.querySelector('button[type="submit"]').textContent =
+        'QUELLE SPEICHERN';
+      status.textContent = 'QUELLE VERBUNDEN';
+      renderMediaSources(body);
+    } catch (error) {
+      status.textContent = error.message;
+      renderMediaSources(body);
+    }
+  });
   renderDisplayTargets($('#deviceTargets', body));
+}
+
+async function renderMediaSources(body) {
+  const list = $('#sourceList', body);
+  const sources = await displays.mediaSources().catch(() => []);
+  list.replaceChildren(
+    ...sources.map((source) => {
+      const row = document.createElement('article');
+      row.className = 'source-entry';
+      row.innerHTML = `<div><strong></strong><small></small></div><nav></nav>`;
+      row.querySelector('strong').textContent = source.name;
+      row.querySelector('small').textContent =
+        `WEBDAV · ${new URL(source.url).host}`;
+      const nav = row.querySelector('nav');
+      nav.append(
+        controlButton('ÖFFNEN', () => browseMediaSource(source, '', body)),
+        controlButton('TEST', async (event) => {
+          const button = event?.currentTarget;
+          try {
+            await displays.testMediaSource(source.id);
+            if (button) button.textContent = 'ONLINE';
+          } catch (error) {
+            if (button) button.textContent = error.message;
+          }
+        }),
+        controlButton('BEARBEITEN', () => {
+          const form = $('#sourceForm', body);
+          form.dataset.sourceId = source.id;
+          $('#sourceName', body).value = source.name;
+          $('#sourceUrl', body).value = source.url;
+          $('#sourceUser', body).value = '';
+          $('#sourcePassword', body).value = '';
+          form.querySelector('button[type="submit"]').textContent =
+            'ÄNDERUNGEN SPEICHERN';
+          form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }),
+        controlButton('LÖSCHEN', async () => {
+          await displays.removeMediaSource(source.id);
+          renderMediaSources(body);
+        }),
+      );
+      return row;
+    }),
+  );
+  if (!sources.length) {
+    const empty = document.createElement('p');
+    empty.className = 'module-note';
+    empty.textContent = 'Noch keine NAS-Medienquelle gespeichert.';
+    list.append(empty);
+  }
+}
+
+async function browseMediaSource(source, path, body) {
+  const browser = $('#sourceBrowser', body);
+  browser.hidden = false;
+  browser.replaceChildren();
+  const header = document.createElement('header');
+  const back = controlButton('←', () => {
+    if (!path) {
+      browser.hidden = true;
+      return;
+    }
+    const parent = path.replace(/\/$/, '').split('/').slice(0, -1).join('/');
+    browseMediaSource(source, parent ? `${parent}/` : '', body);
+  });
+  const title = document.createElement('strong');
+  title.textContent = `${source.name} / ${path}`;
+  header.append(back, title);
+  browser.append(header);
+  try {
+    const entries = await displays.browseMediaSource(source.id, path);
+    for (const entry of entries) {
+      const row = document.createElement('article');
+      row.className = `source-file${entry.directory ? ' directory' : ''}`;
+      row.innerHTML = `<div><strong></strong><small></small></div>`;
+      row.querySelector('strong').textContent = entry.name;
+      row.querySelector('small').textContent = entry.directory
+        ? 'ORDNER'
+        : `${entry.type || 'DATEI'} · ${formatBytes(entry.size || 0)}`;
+      const button = controlButton(entry.directory ? 'ÖFFNEN' : 'LADEN', () =>
+        entry.directory
+          ? browseMediaSource(source, entry.path, body)
+          : addNasMedia(source, entry, body, button),
+      );
+      row.append(button);
+      browser.append(row);
+    }
+  } catch (error) {
+    const message = document.createElement('p');
+    message.className = 'module-note';
+    message.textContent = error.message;
+    browser.append(message);
+  }
+}
+
+async function addNasMedia(source, entry, body, button) {
+  button.disabled = true;
+  button.textContent = 'LÄDT …';
+  try {
+    const blob = await displays.mediaSourceFile(source.id, entry.path);
+    const type = blob.type || entry.type || mediaTypeFromName(entry.name);
+    if (!/^(image\/|video\/|application\/pdf$)/.test(type))
+      throw new Error('Dieser Dateityp kann nicht angezeigt werden.');
+    const media = {
+      title: entry.name,
+      type,
+      data: await readDataUrl(blob),
+    };
+    const card = document.createElement('article');
+    card.innerHTML = type.startsWith('image/')
+      ? `<img src="${media.data}" alt=""><div><strong>${escapeHtml(entry.name)}</strong><span>NAS · ${escapeHtml(source.name)}</span></div>`
+      : `<div class="file-glyph">${type.startsWith('video/') ? '▶' : '▤'}</div><div><strong>${escapeHtml(entry.name)}</strong><span>NAS · ${escapeHtml(source.name)}</span></div>`;
+    importedMedia.push(media);
+    prepareMediaCard(card, media, body);
+    $('#mediaStrip', body).prepend(card);
+    $('#mediaSources', body).hidden = true;
+  } catch (error) {
+    button.textContent = error.message;
+    button.disabled = false;
+  }
+}
+
+function mediaTypeFromName(name) {
+  const extension = String(name).split('.').pop().toLowerCase();
+  return (
+    {
+      jpg: 'image/jpeg',
+      jpeg: 'image/jpeg',
+      png: 'image/png',
+      gif: 'image/gif',
+      webp: 'image/webp',
+      mp4: 'video/mp4',
+      webm: 'video/webm',
+      pdf: 'application/pdf',
+    }[extension] || 'application/octet-stream'
+  );
 }
 
 async function addMedia(files, body) {
@@ -418,18 +596,6 @@ function mountReceiver(body) {
     './receiver.html',
     location.href,
   ).href;
-  const code = $('#pairCode', body);
-  const button = $('#createPair', body);
-  button.addEventListener('click', async () => {
-    button.disabled = true;
-    try {
-      const result = await displays.createPair();
-      code.textContent = result.code.split('').join(' ');
-    } catch (error) {
-      code.textContent = error.message;
-    }
-    button.disabled = false;
-  });
   $('#endAll', body).addEventListener('click', async () => {
     const devices = await displays.list().catch(() => []);
     const online = devices
@@ -457,19 +623,26 @@ async function refreshReceivers(body) {
     ...pending.map((claim) => {
       const row = document.createElement('div');
       row.className = 'pair-request';
-      const name = document.createElement('strong');
-      name.textContent = claim.name;
+      const details = document.createElement('label');
+      details.innerHTML = `<small>NEUES DISPLAY</small><input type="text" maxlength="60" autocomplete="off">`;
+      const name = details.querySelector('input');
+      name.value = claim.suggestedName || 'MEIN DISPLAY';
+      name.setAttribute('aria-label', 'Eigener Displayname');
       const approve = document.createElement('button');
       approve.type = 'button';
-      approve.textContent = 'BESTÄTIGEN';
+      approve.textContent = 'CONNECT';
       approve.addEventListener('click', async () => {
+        if (!name.value.trim()) {
+          name.focus();
+          return;
+        }
         approve.disabled = true;
-        await displays.confirm(claim.id).catch((error) => {
+        await displays.confirm(claim.id, name.value.trim()).catch((error) => {
           approve.textContent = error.message;
         });
         refreshReceivers(body);
       });
-      row.append(name, approve);
+      row.append(details, approve);
       return row;
     }),
     ...receivers.map((receiver) => {
@@ -593,6 +766,16 @@ async function refreshReceivers(body) {
       }
       controls.append(
         controlButton('BEENDEN', () => displayCommand(receiver, 'session.end')),
+      );
+      controls.append(
+        controlButton('UMBENENNEN', async () => {
+          const name = window
+            .prompt('Neuer Displayname', receiver.name)
+            ?.trim();
+          if (!name) return;
+          await displays.rename(receiver.id, name);
+          refreshReceivers(body);
+        }),
       );
       const revoke = controlButton('WIDERRUF', async () => {
         await displays.revoke(receiver.id);

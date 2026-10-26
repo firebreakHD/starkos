@@ -10,13 +10,19 @@ Settings and device pairings persist in `/data`. API tokens are not written to U
 
 ## Pairing a receiver
 
-1. In STARK OS choose **Receiver** and generate a six-digit pairing code.
-2. Open `/stark/receiver.html` on your own TV, computer or tablet.
-3. Enter the code and a recognizable device name.
-4. Confirm that exact device in STARK OS.
+1. Open `/stark/receiver.html` on your own TV, computer or tablet. The receiver is passive and has no pairing controls.
+2. In STARK OS on the phone choose **Receiver**.
+3. Give the discovered display your own recognizable name and press **CONNECT**.
+4. All pairing approval and later media control remains on the phone.
 5. Select the connected display in the Media panel.
 
 A receiver can be revoked at any time. A revoked token cannot reconnect or execute commands.
+
+## NAS media sources
+
+In **Media → Medienquellen**, add a WebDAV share with a display name, HTTP(S) address, username and password. STARK OS stores the credentials encrypted in `/data`; they are never returned to the browser, placed in URLs or sent to receivers. You can test, edit, browse and remove each source. Supported images, videos and PDFs are loaded into the same preview and display workflow as local files.
+
+SMB/CIFS remains disabled until a maintained runtime and real NAS hardware have passed the same security and reconnect tests. This is shown explicitly rather than presenting a non-functional integration.
 
 ## Media gestures
 

@@ -1,6 +1,9 @@
 name: Publish Home Assistant app
 
 on:
+  push:
+    tags:
+      - "v*"
   release:
     types: [published]
   workflow_dispatch:
@@ -31,11 +34,12 @@ jobs:
         id: version
         shell: bash
         env:
-          REQUESTED_VERSION: ${{ github.event.release.tag_name || inputs.version }}
+          REQUESTED_VERSION: ${{ github.event_name == 'workflow_dispatch' && inputs.version || github.event.release.tag_name || github.ref_name }}
         run: |
           config_version="$(sed -n 's/^version: "\([^"]*\)"/\1/p' starkos/config.yaml)"
+          requested_version="${REQUESTED_VERSION#v}"
           test -n "${config_version}"
-          if [[ "${REQUESTED_VERSION}" != "${config_version}" ]]; then
+          if [[ "${requested_version}" != "${config_version}" ]]; then
             echo "Release/input version ${REQUESTED_VERSION} does not match config.yaml ${config_version}" >&2
             exit 1
           fi

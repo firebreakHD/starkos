@@ -16,13 +16,11 @@ async function request(path, options = {}) {
 }
 
 async function pairedDevice(name) {
-  const pair = await request('/api/stark/receivers/pair', { method: 'POST' });
   const claim = await request('/api/stark/receiver/claim', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      code: pair.code,
-      name,
+      suggestedName: 'DISCOVERED QA DISPLAY',
       capabilities: [
         'media.image',
         'media.web',
@@ -36,6 +34,8 @@ async function pairedDevice(name) {
   assert.ok(pending.some((item) => item.id === claim.claimId));
   await request(`/api/stark/pairing/${claim.claimId}/confirm`, {
     method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name }),
   });
   const status = await request('/api/stark/receiver/claim-status', {
     method: 'POST',

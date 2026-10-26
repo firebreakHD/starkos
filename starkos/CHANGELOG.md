@@ -9,3 +9,6 @@
 - Added Hermes display tools with shared authorization and capability enforcement.
 - Added direct LAN authentication, Home Assistant Ingress support and persistent settings.
 - Added honest adapter capability reporting; third-party TV adapters remain disabled until their real runtime is included and tested.
+- Replaced pairing codes with passive receiver discovery and phone-only CONNECT/name approval.
+- Removed receiver-side video controls; image and playback control now originate from the phone.
+- Added a compact media toolbar and encrypted WebDAV NAS source settings, browsing and media import.
