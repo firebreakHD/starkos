@@ -1,0 +1,96 @@
+name: Publish Home Assistant app
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Existing config.yaml version to publish
+        required: true
+        type: string
+
+env:
+  ARCHITECTURES: '["amd64", "aarch64"]'
+  IMAGE_NAME: starkos
+  REGISTRY_PREFIX: ghcr.io/firebreakhd
+
+permissions:
+  contents: read
+
+jobs:
+  init:
+    name: Validate release and initialize build
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v6
+      - name: Require release tag to match config.yaml
+        id: version
+        shell: bash
+        env:
+          REQUESTED_VERSION: ${{ github.event.release.tag_name || inputs.version }}
+        run: |
+          config_version="$(sed -n 's/^version: "\([^"]*\)"/\1/p' starkos/config.yaml)"
+          test -n "${config_version}"
+          if [[ "${REQUESTED_VERSION}" != "${config_version}" ]]; then
+            echo "Release/input version ${REQUESTED_VERSION} does not match config.yaml ${config_version}" >&2
+            exit 1
+          fi
+          echo "version=${config_version}" >> "${GITHUB_OUTPUT}"
+      - name: Get build matrix
+        id: matrix
+        uses: home-assistant/builder/actions/prepare-multi-arch-matrix@2026.09.0
+        with:
+          architectures: ${{ env.ARCHITECTURES }}
+          image-name: ${{ env.IMAGE_NAME }}
+          registry-prefix: ${{ env.REGISTRY_PREFIX }}
+
+  build:
+    name: Build ${{ matrix.arch }} image
+    needs: init
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.init.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v6
+      - name: Build, publish and sign image
+        uses: home-assistant/builder/actions/build-image@2026.09.0
+        with:
+          arch: ${{ matrix.arch }}
+          container-registry-password: ${{ secrets.GITHUB_TOKEN }}
+          context: ./starkos
+          image: ${{ matrix.image }}
+          image-tags: |
+            ${{ needs.init.outputs.version }}
+            latest
+          push: "true"
+          skip-existing: ${{ needs.init.outputs.version }}
+          version: ${{ needs.init.outputs.version }}
+
+  manifest:
+    name: Publish multi-architecture manifest
+    needs: [init, build]
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      packages: write
+    steps:
+      - name: Publish and sign manifest
+        uses: home-assistant/builder/actions/publish-multi-arch-manifest@2026.09.0
+        with:
+          architectures: ${{ env.ARCHITECTURES }}
+          container-registry-password: ${{ secrets.GITHUB_TOKEN }}
+          image-name: ${{ env.IMAGE_NAME }}
+          image-tags: |
+            ${{ needs.init.outputs.version }}
+            latest
+          registry-prefix: ${{ env.REGISTRY_PREFIX }}
+          skip-existing: ${{ needs.init.outputs.version }}

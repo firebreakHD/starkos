@@ -1,0 +1,44 @@
+name: Validate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  application:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: starkos/gods-eye-view
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: starkos/gods-eye-view/package-lock.json
+      - run: npm ci
+        env:
+          PUPPETEER_SKIP_DOWNLOAD: "1"
+      - run: node --test server/stark/receiver.test.mjs
+      - run: npm run build
+      - run: npm audit --audit-level=high
+
+  metadata:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Check version metadata
+        shell: bash
+        run: |
+          version="$(sed -n 's/^version: "\([^"]*\)"/\1/p' starkos/config.yaml)"
+          test -n "${version}"
+          grep -Fq "## ${version}" starkos/CHANGELOG.md
+          grep -Fq "version: **${version}**" starkos/README.md
+          grep -Fq "version: **${version}**" README.md
+          test "$(sed -n 's/^image: //p' starkos/config.yaml)" = "ghcr.io/firebreakhd/starkos"
