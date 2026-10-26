@@ -53,7 +53,7 @@ Home Assistant reads the latest version from `starkos/config.yaml` and builds th
 1. Update `version` in `starkos/config.yaml` using semantic versioning.
 2. Add the release notes to the top of `starkos/CHANGELOG.md` and update the version shown in this README.
 3. Push the change to `main` and wait for **Validate** to pass.
-4. Optionally create a matching Git tag for the release history, for example `v0.1.1`.
+4. Optionally create a matching Git tag for the release history, for example `v0.1.2`.
 5. Reload the repository in Home Assistant. It will show the newer `config.yaml` version and build it during install/update.
 
 The optional **Publish Home Assistant app** workflow is reserved for a future public pre-built image. It is not required for installation or updates.
