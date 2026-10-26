@@ -27,7 +27,6 @@ function loadAddonOptions() {
   try { options = JSON.parse(readFileSync(path.join(dataDir, 'options.json'), 'utf8')); }
   catch { /* Home Assistant writes this file before the first normal start. */ }
   const mapping = {
-    access_password: 'STARK_ACCESS_PASSWORD',
     google_maps_api_key: 'GOOGLE_MAPS_API_KEY',
     google_maps_server_api_key: 'GOOGLE_MAPS_SERVER_API_KEY',
     cesium_ion_token: 'CESIUM_ION_TOKEN',

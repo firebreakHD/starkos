@@ -2,7 +2,7 @@
 
 STARK OS is a mobile-first media, investigation and geospatial interface for Home Assistant hosting. The supplied God's Eye View project remains the real Cesium/data engine; STARK OS adds the phone-style ring, secured direct access and paired display control.
 
-Current Home Assistant app version: **0.1.1**
+Current Home Assistant app version: **0.1.2**
 
 [![Add the STARK OS repository to Home Assistant](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2FfirebreakHD%2Fstarkos)
 
@@ -11,10 +11,9 @@ Current Home Assistant app version: **0.1.1**
 1. Use the button above, or open **Settings → Apps/Add-ons → App store → Repositories** and add `https://github.com/firebreakHD/starkos`.
 2. Reload the app store if STARK OS does not appear immediately.
 3. Install **STARK OS**.
-4. Set `access_password`. This is mandatory for the direct LAN URL.
-5. Start the app and optionally enable the sidebar entry.
+4. Start the app and optionally enable the sidebar entry.
 
-Home Assistant Ingress opens `/stark/` through the authenticated HA session. Direct access uses `http://<HOME_ASSISTANT_IP>:8788/stark/`. The host-side port can be changed in Home Assistant's network settings without changing the container port.
+Home Assistant Ingress opens the phone-first STARK OS shell through the authenticated HA session; no additional access password is required. Port `8788` remains available for your passive receiver pages. The controller itself stays behind Home Assistant authentication.
 
 ## Pair and control a display
 

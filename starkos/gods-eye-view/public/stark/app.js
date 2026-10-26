@@ -52,7 +52,7 @@ const ring = new InertialRing($('#ring'), modules, (index, item) => {
 
 function openPanel(item = active) {
   if (item.title === 'WORLD') {
-    window.location.assign('../?embed=1&stark=1');
+    window.location.assign('../world?embed=1&stark=1');
     return;
   }
   const panel = $('#panel');

@@ -2,9 +2,9 @@
 
 ## Installation
 
-Add `https://github.com/firebreakHD/starkos` as a Home Assistant app repository, install **STARK OS**, and set a strong `access_password` before exposing the direct LAN port. Start the app and open it through Home Assistant Ingress.
+Add `https://github.com/firebreakHD/starkos` as a Home Assistant app repository, install **STARK OS**, start it and open it through Home Assistant Ingress. Home Assistant supplies the authenticated session, so there is no second STARK OS password.
 
-Direct LAN access is available at `http://<home-assistant-host>:8788/stark/`. Port `8788` can be changed in the app's Network settings. Ingress and direct access use the same application; the direct route requires the configured password.
+Port `8788` is used by passive receiver pages such as `http://<home-assistant-host>:8788/stark/receiver.html` and can be changed in the app's Network settings. The phone controller is opened through authenticated Home Assistant Ingress.
 
 Settings and device pairings persist in `/data`. API tokens are not written to URLs or server logs, and the server stores only hashes of receiver tokens.
 
@@ -44,7 +44,7 @@ Home Assistant compares the installed version with `version` in `config.yaml` an
 
 ## Troubleshooting
 
-- If Ingress works but the LAN address does not, verify the app's Network mapping and `access_password`.
+- If the receiver URL does not open, verify the app's Network mapping for port `8788`.
 - If a receiver is offline, reopen its receiver page and verify it has not been revoked.
 - If a website cannot be embedded, use its external-open action or a future screen-capture adapter; browser security policies cannot be bypassed safely.
 - Pair again after clearing the receiver browser's site data.

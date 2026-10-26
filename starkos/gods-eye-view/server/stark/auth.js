@@ -47,6 +47,17 @@ function ingressRequest(req) {
   return address === '172.30.32.2';
 }
 
+export function addonEntryUrl(rawUrl, addon = process.env.STARK_ADDON === 'true') {
+  if (!addon) return rawUrl;
+  const [pathname, query = ''] = String(rawUrl || '/').split('?', 2);
+  let target = pathname;
+  if (pathname === '/' || pathname === '/index.html')
+    target = '/stark/index.html';
+  else if (pathname === '/world' || pathname === '/world/')
+    target = '/index.html';
+  return `${target}${query ? `?${query}` : ''}`;
+}
+
 function loadSecret(dataDir) {
   const file = path.join(dataDir, 'session-secret');
   try {
@@ -82,7 +93,7 @@ function sessionValid(req, secret) {
 
 function loginPage({ setupRequired = false } = {}) {
   const message = setupRequired
-    ? 'Setze zuerst access_password in der Home-Assistant-Konfiguration.'
+    ? 'Öffne die Steuerung über Home Assistant. Direkter Zugriff ist nur für passive Receiver vorgesehen.'
     : 'Direkter Netzwerkzugriff erfordert dein STARK-OS-Passwort.';
   return `<!doctype html><html lang="de"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#02090c"><title>STARK OS · ACCESS</title><style>*{box-sizing:border-box}body{margin:0;min-height:100dvh;display:grid;place-items:center;background:radial-gradient(circle,#06313b,#010608 55%);color:#d9fbff;font:13px ui-monospace,monospace;letter-spacing:.08em}.card{width:min(90vw,420px);padding:34px;border:1px solid #49dff9;background:#031015;box-shadow:0 0 50px #21d5f322}.mark{font:700 24px system-ui;letter-spacing:.25em}.mark b{color:#69ebff}p{color:#9bcbd3;line-height:1.6}input,button{width:100%;height:48px;margin-top:12px;border:1px solid #42cde7;background:#061a20;color:#d9fbff;padding:0 14px;font:inherit}button{color:#69ebff;cursor:pointer}small{display:block;min-height:18px;margin-top:14px;color:#ffb35f}</style><form class="card" id="login"><div class="mark">STARK <b>OS</b></div><p>${message}</p>${setupRequired ? '' : '<input id="password" type="password" autocomplete="current-password" autofocus placeholder="ACCESS PASSWORD"><button>AUTHENTICATE</button>'}<small id="error"></small></form><script>${setupRequired ? '' : `document.querySelector('#login').addEventListener('submit',async e=>{e.preventDefault();const r=await fetch('/api/stark/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({password:document.querySelector('#password').value})});if(r.ok)location.reload();else document.querySelector('#error').textContent=(await r.json()).error||'Zugriff verweigert';});`}</script></html>`;
 }
@@ -100,7 +111,7 @@ export function starkAuthPlugin() {
         return json(res, 200, {
           status: 'ok',
           engine: 'gods-eye-view',
-          version: '0.1.0',
+          version: '0.1.2',
         });
       if (
         url.pathname === '/api/stark/receiver/claim' ||
@@ -123,7 +134,7 @@ export function starkAuthPlugin() {
       if (url.pathname === '/api/stark/login' && req.method === 'POST') {
         if (!password)
           return json(res, 503, {
-            error: 'access_password ist nicht konfiguriert.',
+            error: 'Direkter Controllerzugriff ist deaktiviert.',
           });
         try {
           const body = JSON.parse(await requestBody(req));
@@ -156,7 +167,7 @@ export function starkAuthPlugin() {
         return json(res, 401, {
           error:
             addon && !password
-              ? 'access_password ist nicht konfiguriert.'
+              ? 'Controller über Home Assistant öffnen.'
               : 'Anmeldung erforderlich.',
         });
       res.statusCode = addon && !password ? 503 : 401;
@@ -168,12 +179,14 @@ export function starkAuthPlugin() {
       );
       res.end(loginPage({ setupRequired: addon && !password }));
     });
-    // Vite's history fallback otherwise serves the God's Eye root document for
-    // the directory URL before its public-file middleware reaches index.html.
+    // Home Assistant may open the proxied root even when ingress_entry is set.
+    // STARK OS is the product shell, so the add-on root always enters it. God's
+    // Eye remains reachable deliberately through the WORLD module at /world.
     server.middlewares.use((req, _res, next) => {
       const [pathname, query = ''] = String(req.url || '').split('?', 2);
       if (pathname === '/stark' || pathname === '/stark/')
         req.url = `/stark/index.html${query ? `?${query}` : ''}`;
+      else req.url = addonEntryUrl(req.url, addon);
       next();
     });
   };

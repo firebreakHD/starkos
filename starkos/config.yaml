@@ -1,7 +1,7 @@
 name: STARK OS
 slug: starkos
 description: Mobile-first research, media and geospatial interface powered by God's Eye View.
-version: "0.1.1"
+version: "0.1.2"
 stage: experimental
 startup: services
 boot: auto
@@ -25,7 +25,6 @@ watchdog: http://[HOST]:[PORT:4173]/api/stark/health
 map:
   - data:rw
 options:
-  access_password: ""
   google_maps_api_key: ""
   google_maps_server_api_key: ""
   cesium_ion_token: ""
@@ -36,7 +35,6 @@ options:
   tomtom_api_key: ""
   ll2_api_token: ""
 schema:
-  access_password: password
   google_maps_api_key: password
   google_maps_server_api_key: password
   cesium_ion_token: password

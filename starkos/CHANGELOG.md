@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.2
+
+- Made the Home Assistant add-on root open the phone-first STARK OS shell instead of God's Eye View.
+- Kept God's Eye View available explicitly through the WORLD ring module.
+- Removed the redundant `access_password` option; the controller now relies on Home Assistant Ingress authentication while receiver commands remain token-protected.
+
 ## 0.1.1
 
 - Switched Home Assistant installation to a repository-local container build so installs and updates do not depend on GHCR package visibility or accounts.
