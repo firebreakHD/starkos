@@ -40,7 +40,7 @@ STARK OS starts with the account-free sources retained by God's Eye View. Provid
 
 ## Updates
 
-Home Assistant compares the installed version with `version` in `config.yaml`. Published versions are pulled from `ghcr.io/firebreakhd/starkos` using that exact tag. Enable automatic updates only if you are comfortable receiving non-breaking releases automatically; breaking versions will be declared in `config.yaml` and explained at the top of `CHANGELOG.md`.
+Home Assistant compares the installed version with `version` in `config.yaml` and builds the repository's Dockerfile locally during installation or update. No container-registry account is required. Enable automatic updates only if you are comfortable receiving non-breaking releases automatically; breaking versions will be declared in `config.yaml` and explained at the top of `CHANGELOG.md`.
 
 ## Troubleshooting
 

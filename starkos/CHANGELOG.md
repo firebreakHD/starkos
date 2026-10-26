@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.1
+
+- Switched Home Assistant installation to a repository-local container build so installs and updates do not depend on GHCR package visibility or accounts.
+- Kept semantic version discovery through `config.yaml`; Home Assistant now builds the checked-in Dockerfile for both supported architectures.
+
 ## 0.1.0
 
 - Initial experimental Home Assistant release.

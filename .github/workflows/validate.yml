@@ -41,4 +41,4 @@ jobs:
           grep -Fq "## ${version}" starkos/CHANGELOG.md
           grep -Fq "version: **${version}**" starkos/README.md
           grep -Fq "version: **${version}**" README.md
-          test "$(sed -n 's/^image: //p' starkos/config.yaml)" = "ghcr.io/firebreakhd/starkos"
+          test -z "$(sed -n 's/^image: //p' starkos/config.yaml)"

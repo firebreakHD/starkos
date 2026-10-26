@@ -2,7 +2,7 @@
 
 STARK OS is a mobile-first media, investigation and geospatial interface for Home Assistant hosting. The supplied God's Eye View project remains the real Cesium/data engine; STARK OS adds the phone-style ring, secured direct access and paired display control.
 
-Current Home Assistant app version: **0.1.0**
+Current Home Assistant app version: **0.1.1**
 
 [![Add the STARK OS repository to Home Assistant](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2FfirebreakHD%2Fstarkos)
 
@@ -49,13 +49,12 @@ Protocol and Hermes details are in [docs/DISPLAY-PROTOCOL.md](docs/DISPLAY-PROTO
 
 ## Updates and releases
 
-Home Assistant reads the latest version from `starkos/config.yaml`. The same version is used as the immutable GHCR image tag. To publish an update:
+Home Assistant reads the latest version from `starkos/config.yaml` and builds the checked-in Dockerfile locally. This avoids private-registry credentials and keeps installation account-free. To publish an update:
 
 1. Update `version` in `starkos/config.yaml` using semantic versioning.
 2. Add the release notes to the top of `starkos/CHANGELOG.md` and update the version shown in this README.
 3. Push the change to `main` and wait for **Validate** to pass.
-4. Create a GitHub Release whose tag is exactly the version, for example `0.1.1` (no `v` prefix).
-5. The **Publish Home Assistant app** workflow builds and signs both architectures and publishes `ghcr.io/firebreakhd/starkos:<version>` plus `latest`.
-6. Make the GHCR package public after the first publish. Home Assistant will then show the newer `config.yaml` version as an available update.
+4. Optionally create a matching Git tag for the release history, for example `v0.1.1`.
+5. Reload the repository in Home Assistant. It will show the newer `config.yaml` version and build it during install/update.
 
-Existing version tags are never overwritten. If release tag and `config.yaml` differ, publication stops before building.
+The optional **Publish Home Assistant app** workflow is reserved for a future public pre-built image. It is not required for installation or updates.
