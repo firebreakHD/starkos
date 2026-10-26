@@ -1,0 +1,49 @@
+name: STARK OS
+slug: starkos
+description: Mobile-first research, media and geospatial interface powered by God's Eye View.
+version: "0.1.0"
+image: ghcr.io/firebreakhd/starkos
+stage: experimental
+startup: services
+boot: auto
+init: false
+ingress: true
+ingress_port: 4173
+ingress_stream: true
+ingress_entry: /stark/
+panel_title: STARK OS
+panel_icon: mdi:orbit
+panel_admin: false
+arch:
+  - amd64
+  - aarch64
+ports:
+  4173/tcp: 8788
+ports_description:
+  4173/tcp: STARK OS direct LAN access
+webui: http://[HOST]:[PORT:4173]/stark/
+watchdog: http://[HOST]:[PORT:4173]/api/stark/health
+map:
+  - data:rw
+options:
+  access_password: ""
+  google_maps_api_key: ""
+  google_maps_server_api_key: ""
+  cesium_ion_token: ""
+  mapillary_client_token: ""
+  opensky_client_id: ""
+  opensky_client_secret: ""
+  aisstream_api_key: ""
+  tomtom_api_key: ""
+  ll2_api_token: ""
+schema:
+  access_password: password
+  google_maps_api_key: password
+  google_maps_server_api_key: password
+  cesium_ion_token: password
+  mapillary_client_token: password
+  opensky_client_id: str
+  opensky_client_secret: password
+  aisstream_api_key: password
+  tomtom_api_key: password
+  ll2_api_token: password
