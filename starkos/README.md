@@ -13,4 +13,4 @@ Mobile-first STARK interface for research, geospatial data and secure control of
 - authenticated direct access and Home Assistant Ingress
 - Hermes display tools using the same authorization and capability checks as the UI
 
-See [DOCS.md](DOCS.md) for installation and operation. Current version: **0.1.3**.
+See [DOCS.md](DOCS.md) for installation and operation. Current version: **0.1.4**.

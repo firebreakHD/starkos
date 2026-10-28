@@ -44,6 +44,7 @@ test('explicit build inputs preserve browser-only defines, plugin order and loop
   }
   assert.ok(!csp.includes("script-src 'self' 'unsafe-inline'"));
   assert.deepEqual(config.preview.headers, config.server.headers);
+  assert.deepEqual(config.preview.allowedHosts, ['localhost', '127.0.0.1']);
   assert.deepEqual(config.define, {
     'import.meta.env.GOOGLE_MAPS_API_KEY': '"browser-fixture"',
     'import.meta.env.CESIUM_ION_TOKEN': '"ion-fixture"',
@@ -74,6 +75,42 @@ test('explicit build inputs preserve browser-only defines, plugin order and loop
   );
 });
 
+test('Home Assistant disables only Vite duplicate host filtering', () => {
+  const config = createBrowserViteConfig({
+    allowedHosts: ['localhost', '127.0.0.1'],
+    trustHomeAssistantIngress: true,
+  });
+  assert.equal(config.server.allowedHosts, true);
+  assert.equal(config.preview.allowedHosts, true);
+  // The source-aware pre-middleware retains the explicit policy separately.
+  const plugin = config.plugins.find(({ name }) => name === 'host-check');
+  let middleware;
+  plugin.configureServer({
+    config: {
+      server: { allowedHosts: true, host: '0.0.0.0' },
+      preview: { allowedHosts: true },
+    },
+    middlewares: { use: (handler) => (middleware = handler) },
+  });
+  const response = {
+    writeHead(status) {
+      this.status = status;
+    },
+    end() {},
+  };
+  let passed = false;
+  middleware(
+    {
+      headers: { host: 'untrusted.example' },
+      socket: { remoteAddress: '192.168.1.10' },
+    },
+    response,
+    () => (passed = true),
+  );
+  assert.equal(passed, false);
+  assert.equal(response.status, 403);
+});
+
 test('build helper does not discover environment values or construct local providers', () => {
   const before = process.env.GOOGLE_MAPS_API_KEY;
   process.env.GOOGLE_MAPS_API_KEY = 'environment-fixture';
@@ -98,8 +135,10 @@ test('root config retains existing named exports and standalone provider order',
     assert.equal(compatibility[name], value, name);
   const config = standaloneConfig({ mode: 'test' });
   const standaloneProviders = config.plugins
-    .slice(4, -5)
+    .slice(6, -5)
     .map((plugin) => plugin.name);
+  assert.equal(config.plugins[4].name, 'stark-auth');
+  assert.equal(config.plugins[5].name, 'stark-receiver');
   assert.equal(
     standaloneProviders.filter((name) => name === 'gemini-live-proxy').length,
     1,

@@ -34,6 +34,7 @@ export default defineConfig(({ command, mode }) => {
     host: process.env.HOST,
     port: process.env.PORT,
     allowedHosts: resolveAllowedHosts(process.env.GEV_ALLOWED_HOSTS),
+    trustHomeAssistantIngress: process.env.STARK_ADDON === 'true',
     command,
   });
 });

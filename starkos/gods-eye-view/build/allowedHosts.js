@@ -76,11 +76,16 @@ export function isHomeAssistantIngress(req) {
  * Host, including a DNS-rebinding name. It runs first (`enforce: 'pre'`) and
  * uses the same allowed hosts as Vite, on the dev and preview servers.
  */
-export function hostCheckPlugin() {
+export function hostCheckPlugin(policyAllowedHosts) {
   const middleware = (config, preview) => {
-    const allowed = preview
+    // Vite's own allowlist may intentionally be `true` behind Home Assistant:
+    // HA forwards the user's public Host header, which cannot be predicted at
+    // build time. Keep this independent policy restricted so only the trusted
+    // ingress source can use such a Host.
+    const configured = preview
       ? config.preview.allowedHosts
       : config.server.allowedHosts;
+    const allowed = policyAllowedHosts ?? configured;
     const additional = [config.server.host, config.preview.host].filter(
       (value) => typeof value === 'string' && value,
     );

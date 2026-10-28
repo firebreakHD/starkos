@@ -126,6 +126,7 @@ export function createBrowserViteConfig({
   host = 'localhost',
   port = 4173,
   allowedHosts = DEFAULT_ALLOWED_HOSTS,
+  trustHomeAssistantIngress = false,
   command,
 } = {}) {
   return {
@@ -137,7 +138,7 @@ export function createBrowserViteConfig({
       // First, so every API response, including a Host refusal, carries them.
       apiResponseHeadersPlugin(),
       // Next, so no provider route answers a Host the server does not allow.
-      hostCheckPlugin(),
+      hostCheckPlugin(allowedHosts),
       cesium(),
       applicationHtmlPlugin(),
       ...plugins,
@@ -167,7 +168,11 @@ export function createBrowserViteConfig({
       // A wildcard bind only chooses interfaces; it never disables Vite's
       // Host-header check. LAN hostnames are added explicitly (see
       // build/allowedHosts.js); IP addresses are always accepted.
-      allowedHosts: [...allowedHosts],
+      // HA Ingress preserves the external DDNS Host. Vite cannot express a
+      // source-aware allowlist, so its duplicate check is disabled only in
+      // this mode; the pre-middleware above still verifies the fixed ingress
+      // proxy source before any provider or application route can answer.
+      allowedHosts: trustHomeAssistantIngress ? true : [...allowedHosts],
       fs: {
         deny: ['.env', '.env.*', '*.{crt,pem}', '**/.git/**', '**/ENVIRONMENT'],
       },
@@ -179,7 +184,10 @@ export function createBrowserViteConfig({
     },
     // The preview server serves the same documents, so it carries the same
     // framing + CSP hardening (one constant, no drift).
-    preview: { headers: BROWSER_HEADERS },
+    preview: {
+      headers: BROWSER_HEADERS,
+      allowedHosts: trustHomeAssistantIngress ? true : [...allowedHosts],
+    },
     define: {
       'import.meta.env.GOOGLE_MAPS_API_KEY': JSON.stringify(googleApiKey),
       'import.meta.env.CESIUM_ION_TOKEN': JSON.stringify(cesiumToken),

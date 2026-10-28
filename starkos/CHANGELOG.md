@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.4
+
+- Fixed Home Assistant Ingress with external/DDNS hostnames by disabling Vite's duplicate hostname filter only behind the authenticated Ingress proxy.
+- Kept the source-aware STARK host check in front of every route, so arbitrary LAN clients and DNS-rebinding hostnames remain blocked.
+
 ## 0.1.3
 
 - Redirected the add-on root to `/stark/` so STARK OS CSS and JavaScript resolve correctly on direct access and through Ingress.
