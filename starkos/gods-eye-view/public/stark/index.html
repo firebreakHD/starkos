@@ -61,29 +61,62 @@
 
     <template id="mediaTemplate">
       <div class="module media-module">
-        <div class="media-toolbar" id="dropZone">
-          <button type="button" id="pickMedia">＋ DATEI</button>
-          <button type="button" id="openSources">▤ MEDIENQUELLEN</button>
-          <span>Datei hier ablegen</span>
-          <input
-            type="file"
-            id="mediaInput"
-            accept="image/*,video/*,.pdf"
-            multiple
-            hidden
-          />
+        <div class="adaptive-media-browser" id="dropZone">
+          <section class="media-focus-pane" aria-label="Medienvorschau">
+            <header>
+              <span>MEDIA // PREVIEW</span
+              ><strong id="mediaFocusTitle">BIBLIOTHEK</strong>
+            </header>
+            <div class="media-focus-screen" id="mediaFocus">
+              <div class="media-empty-state">
+                <i>◉</i>
+                <strong>MEDIEN AUSWÄHLEN</strong>
+                <span>NAS-Quelle öffnen oder eine lokale Datei hinzufügen</span>
+              </div>
+            </div>
+          </section>
+          <aside class="media-wheel-pane" aria-label="Mediennavigation">
+            <header>
+              <span>SELECTION WHEEL</span><b id="mediaCount">00 / 00</b>
+            </header>
+            <div class="media-wheel-frame">
+              <button
+                type="button"
+                id="previousMedia"
+                aria-label="Vorheriges Medium"
+              >
+                ‹
+              </button>
+              <div class="media-strip" id="mediaStrip" role="listbox"></div>
+              <button type="button" id="nextMedia" aria-label="Nächstes Medium">
+                ›
+              </button>
+            </div>
+            <div class="media-toolbar">
+              <button type="button" id="pickMedia">＋ DATEI</button>
+              <button type="button" id="openSources">▤ NAS / QUELLEN</button>
+              <span>DROP</span>
+              <input
+                type="file"
+                id="mediaInput"
+                accept="image/*,video/*,.pdf"
+                multiple
+                hidden
+              />
+            </div>
+            <details class="web-media compact-web">
+              <summary>＋ WEBLINK</summary>
+              <form id="webMedia">
+                <input
+                  type="url"
+                  id="webUrl"
+                  placeholder="https://…"
+                  required
+                /><button type="submit">HINZUFÜGEN</button>
+              </form>
+            </details>
+          </aside>
         </div>
-        <details class="web-media compact-web">
-          <summary>WEBLINK</summary>
-          <form id="webMedia">
-            <input
-              type="url"
-              id="webUrl"
-              placeholder="https://…"
-              required
-            /><button type="submit">HINZUFÜGEN</button>
-          </form>
-        </details>
         <section class="media-sources" id="mediaSources" hidden>
           <header>
             <strong>MEDIENQUELLEN</strong
@@ -135,7 +168,6 @@
           </div>
           <div class="display-monitor-controls"></div>
         </section>
-        <div class="media-strip" id="mediaStrip"></div>
       </div>
     </template>
 

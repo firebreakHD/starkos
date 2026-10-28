@@ -41,6 +41,7 @@ const importedMedia = [];
 const displays = new DisplayApi();
 const selectedDisplays = new Set();
 const receiverPreviewCache = new Map();
+let selectedMediaIndex = -1;
 
 const ring = new InertialRing($('#ring'), modules, (index, item) => {
   active = item;
@@ -85,6 +86,12 @@ function mountMedia(body) {
   const input = $('#mediaInput', body);
   const zone = $('#dropZone', body);
   $('#pickMedia', body).addEventListener('click', () => input.click());
+  $('#previousMedia', body).addEventListener('click', () =>
+    selectMediaAt(selectedMediaIndex - 1, body),
+  );
+  $('#nextMedia', body).addEventListener('click', () =>
+    selectMediaAt(selectedMediaIndex + 1, body),
+  );
   input.addEventListener('change', () => addMedia(input.files, body));
   zone.addEventListener('dragover', (event) => {
     event.preventDefault();
@@ -103,12 +110,11 @@ function mountMedia(body) {
       title: new URL(url).hostname,
       type: 'text/uri-list',
       data: url,
+      source: 'WEBLINK · EXTERN ÖFFNEN',
     };
-    const card = document.createElement('article');
-    card.innerHTML = `<div class="file-glyph">↗</div><div><strong>${escapeHtml(media.title)}</strong><span>WEBLINK · EXTERN ÖFFNEN</span></div>`;
-    prepareMediaCard(card, media, body);
-    $('#mediaStrip', body).append(card);
     importedMedia.push(media);
+    selectedMediaIndex = importedMedia.length - 1;
+    renderMediaLibrary(body);
     event.currentTarget.reset();
   });
   const sourcesPanel = $('#mediaSources', body);
@@ -154,6 +160,7 @@ function mountMedia(body) {
     }
   });
   renderDisplayTargets($('#deviceTargets', body));
+  renderMediaLibrary(body);
   refreshMediaMonitor(body);
   const monitorTimer = setInterval(() => refreshMediaMonitor(body), 1500);
   body.closest('.panel')?.addEventListener('transitionend', () => {
@@ -231,28 +238,71 @@ async function browseMediaSource(source, path, body) {
   browser.append(header);
   try {
     const entries = await displays.browseMediaSource(source.id, path);
-    for (const entry of entries) {
-      const row = document.createElement('article');
-      row.className = `source-file${entry.directory ? ' directory' : ''}`;
-      row.innerHTML = `<div><strong></strong><small></small></div>`;
-      row.querySelector('strong').textContent = entry.name;
-      row.querySelector('small').textContent = entry.directory
-        ? 'ORDNER'
-        : `${entry.type || 'DATEI'} · ${formatBytes(entry.size || 0)}`;
-      const button = controlButton(entry.directory ? 'ÖFFNEN' : 'LADEN', () =>
-        entry.directory
-          ? browseMediaSource(source, entry.path, body)
-          : addNasMedia(source, entry, body, button),
-      );
-      row.append(button);
-      browser.append(row);
-    }
+    mountSourceWheel(browser, entries, source, body);
   } catch (error) {
     const message = document.createElement('p');
     message.className = 'module-note';
     message.textContent = error.message;
     browser.append(message);
   }
+}
+
+function mountSourceWheel(browser, entries, source, body) {
+  const stage = document.createElement('section');
+  stage.className = 'source-wheel-stage';
+  stage.innerHTML = `
+    <div class="source-wheel-focus"><small>CURRENT SELECTION</small><strong></strong><span></span></div>
+    <div class="source-wheel-nav"><button type="button" aria-label="Vorheriger Eintrag">‹</button><div role="listbox"></div><button type="button" aria-label="Nächster Eintrag">›</button><button type="button" class="source-load">LOAD</button></div>`;
+  browser.append(stage);
+  if (!entries.length) {
+    stage.querySelector('.source-wheel-focus strong').textContent =
+      'LEERER ORDNER';
+    stage.querySelector('.source-load').disabled = true;
+    return;
+  }
+  let selected = 0;
+  const list = stage.querySelector('[role="listbox"]');
+  const load = stage.querySelector('.source-load');
+  const activate = () => {
+    const entry = entries[selected];
+    if (entry.directory) browseMediaSource(source, entry.path, body);
+    else addNasMedia(source, entry, body, load);
+  };
+  const render = () => {
+    const entry = entries[selected];
+    stage.querySelector('.source-wheel-focus strong').textContent = entry.name;
+    stage.querySelector('.source-wheel-focus span').textContent =
+      entry.directory
+        ? `ORDNER · ${entries.length} EINTRÄGE AUF DIESER EBENE`
+        : `${entry.type || 'DATEI'} · ${formatBytes(entry.size || 0)}`;
+    list.replaceChildren(
+      ...entries.map((item, index) => {
+        const option = document.createElement('button');
+        option.type = 'button';
+        option.setAttribute('role', 'option');
+        option.setAttribute('aria-selected', String(index === selected));
+        option.className = index === selected ? 'selected' : '';
+        option.textContent = `${item.directory ? '▰' : '◉'} ${item.name}`;
+        option.addEventListener('click', () => {
+          selected = index;
+          render();
+        });
+        option.addEventListener('dblclick', activate);
+        return option;
+      }),
+    );
+    list.children[selected]?.scrollIntoView({ block: 'center' });
+    load.textContent = entry.directory ? 'LOAD ORDNER' : 'LOAD MEDIUM';
+  };
+  const move = (delta) => {
+    selected = (selected + delta + entries.length) % entries.length;
+    render();
+  };
+  const buttons = stage.querySelectorAll('.source-wheel-nav > button');
+  buttons[0].addEventListener('click', () => move(-1));
+  buttons[1].addEventListener('click', () => move(1));
+  load.addEventListener('click', activate);
+  render();
 }
 
 async function addNasMedia(source, entry, body, button) {
@@ -267,14 +317,11 @@ async function addNasMedia(source, entry, body, button) {
       title: entry.name,
       type,
       data: await readDataUrl(blob),
+      source: `NAS · ${source.name}`,
     };
-    const card = document.createElement('article');
-    card.innerHTML = type.startsWith('image/')
-      ? `<img src="${media.data}" alt=""><div><strong>${escapeHtml(entry.name)}</strong><span>NAS · ${escapeHtml(source.name)}</span></div>`
-      : `<div class="file-glyph">${type.startsWith('video/') ? '▶' : '▤'}</div><div><strong>${escapeHtml(entry.name)}</strong><span>NAS · ${escapeHtml(source.name)}</span></div>`;
     importedMedia.push(media);
-    prepareMediaCard(card, media, body);
-    $('#mediaStrip', body).prepend(card);
+    selectedMediaIndex = importedMedia.length - 1;
+    renderMediaLibrary(body);
     $('#mediaSources', body).hidden = true;
   } catch (error) {
     button.textContent = error.message;
@@ -299,13 +346,7 @@ function mediaTypeFromName(name) {
 }
 
 async function addMedia(files, body) {
-  const strip = $('#mediaStrip', body);
   for (const file of files) {
-    const card = document.createElement('article');
-    const url = URL.createObjectURL(file);
-    card.innerHTML = file.type.startsWith('image/')
-      ? `<img src="${url}" alt=""><div><strong>${escapeHtml(file.name)}</strong><span>${formatBytes(file.size)} · LOCAL</span></div>`
-      : `<div class="file-glyph">${file.type.startsWith('video/') ? '▶' : '▤'}</div><div><strong>${escapeHtml(file.name)}</strong><span>${formatBytes(file.size)} · LOCAL</span></div>`;
     const media = {
       title: file.name,
       type:
@@ -314,11 +355,88 @@ async function addMedia(files, body) {
           ? 'application/pdf'
           : 'application/octet-stream'),
       data: await readDataUrl(file),
+      source: `${formatBytes(file.size)} · LOCAL`,
     };
     importedMedia.push(media);
-    prepareMediaCard(card, media, body);
-    strip.append(card);
+    selectedMediaIndex = importedMedia.length - 1;
   }
+  renderMediaLibrary(body);
+}
+
+function renderMediaLibrary(body) {
+  const strip = $('#mediaStrip', body);
+  if (!strip) return;
+  strip.replaceChildren(
+    ...importedMedia.map((media, index) => createMediaCard(media, index, body)),
+  );
+  if (!importedMedia.length) selectedMediaIndex = -1;
+  else if (selectedMediaIndex < 0 || selectedMediaIndex >= importedMedia.length)
+    selectedMediaIndex = 0;
+  selectMediaAt(selectedMediaIndex, body, false);
+}
+
+function createMediaCard(media, index, body) {
+  const card = document.createElement('article');
+  card.dataset.mediaIndex = String(index);
+  card.setAttribute('role', 'option');
+  card.innerHTML = media.type.startsWith('image/')
+    ? `<img src="${media.data}" alt=""><div><strong>${escapeHtml(media.title)}</strong><span>${escapeHtml(media.source || 'MEDIA')}</span></div>`
+    : `<div class="file-glyph">${media.type.startsWith('video/') ? '▶' : media.type === 'text/uri-list' ? '↗' : '▤'}</div><div><strong>${escapeHtml(media.title)}</strong><span>${escapeHtml(media.source || 'MEDIA')}</span></div>`;
+  prepareMediaCard(card, media, body);
+  return card;
+}
+
+function selectMediaAt(index, body, scroll = true) {
+  const total = importedMedia.length;
+  const focus = $('#mediaFocus', body);
+  if (!focus) return;
+  if (!total) {
+    $('#mediaCount', body).textContent = '00 / 00';
+    $('#mediaFocusTitle', body).textContent = 'BIBLIOTHEK';
+    return;
+  }
+  selectedMediaIndex = (index + total) % total;
+  const media = importedMedia[selectedMediaIndex];
+  const cards = [...body.querySelectorAll('#mediaStrip article')];
+  cards.forEach((card, cardIndex) => {
+    const selected = cardIndex === selectedMediaIndex;
+    card.classList.toggle('selected', selected);
+    card.setAttribute('aria-selected', String(selected));
+  });
+  const selectedCard = cards[selectedMediaIndex];
+  if (scroll)
+    selectedCard?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'nearest',
+      inline: 'center',
+    });
+  $('#mediaCount', body).textContent =
+    `${String(selectedMediaIndex + 1).padStart(2, '0')} / ${String(total).padStart(2, '0')}`;
+  $('#mediaFocusTitle', body).textContent = media.title;
+  focus.replaceChildren();
+  let visual;
+  if (media.type.startsWith('image/')) {
+    visual = document.createElement('img');
+    visual.src = media.data;
+    visual.alt = media.title;
+    enableRemoteImageGestures(visual);
+  } else if (media.type.startsWith('video/')) {
+    visual = document.createElement('video');
+    visual.src = media.data;
+    visual.controls = true;
+    visual.playsInline = true;
+  } else if (media.type === 'text/uri-list') {
+    visual = document.createElement('a');
+    visual.href = media.data;
+    visual.target = '_blank';
+    visual.rel = 'noopener';
+    visual.textContent = 'WEBINHALT EXTERN ÖFFNEN';
+  } else {
+    visual = document.createElement('iframe');
+    visual.src = media.data;
+    visual.title = media.title;
+  }
+  focus.append(visual);
 }
 
 function prepareMediaCard(card, media, body) {
@@ -374,7 +492,7 @@ function bindMediaGestures(card, media, body) {
       firstTap = now;
       singleTimer = setTimeout(() => {
         firstTap = 0;
-        previewMedia(media, body);
+        selectMediaAt(importedMedia.indexOf(media), body);
       }, 350);
     }
   });
@@ -467,6 +585,7 @@ async function refreshMediaMonitor(body) {
   const screen = monitor.querySelector('.display-monitor-screen');
   const controls = monitor.querySelector('.display-monitor-controls');
   if (!receiver) {
+    monitor.classList.add('empty');
     header.innerHTML =
       '<strong>AKTIVER RECEIVER</strong><span>NICHT VERBUNDEN</span>';
     screen.replaceChildren(
@@ -482,6 +601,7 @@ async function refreshMediaMonitor(body) {
     `${receiver.connected ? 'ONLINE' : 'OFFLINE'} · ${receiver.state?.status || 'STANDBY'}`;
   const current = receiver.state?.current;
   if (!current) {
+    monitor.classList.add('empty');
     monitor.dataset.session = '';
     screen.replaceChildren(
       Object.assign(document.createElement('span'), {
@@ -491,6 +611,7 @@ async function refreshMediaMonitor(body) {
     controls.replaceChildren();
     return;
   }
+  monitor.classList.remove('empty');
   let preview = receiverPreviewCache.get(current.sessionId);
   if (!preview) {
     preview = await displays.preview(receiver.id).catch(() => null);

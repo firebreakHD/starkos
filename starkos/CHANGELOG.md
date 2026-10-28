@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.7
+
+- Rebuilt the Media panel as one adaptive browser: large preview plus selection wheel in landscape and a thumb-reachable stacked arrangement in portrait.
+- Added persistent in-memory media selection, previous/next navigation and live pinch/pan/rotation on the selected image without remounting on orientation changes.
+- Replaced NAS directory tiles with a responsive folder/file wheel and a connected LOAD control.
+- Reduced the disconnected receiver monitor to a compact status strip while retaining the live receiver preview and controls when media is active.
+
 ## 0.1.6
 
 - Replaced the Vite development server in the Home Assistant add-on with a runtime production build and preview server.
