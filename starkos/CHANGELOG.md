@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.5
+
+- Allowed STARK OS documents from the authenticated Home Assistant Ingress proxy to render inside Home Assistant's same-origin iframe.
+- Retained `DENY`/`frame-ancestors 'none'` framing protection for direct access, assets and untrusted requests.
+
 ## 0.1.4
 
 - Fixed Home Assistant Ingress with external/DDNS hostnames by disabling Vite's duplicate hostname filter only behind the authenticated Ingress proxy.

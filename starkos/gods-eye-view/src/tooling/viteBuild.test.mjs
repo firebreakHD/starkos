@@ -185,9 +185,13 @@ test('build export resolves in Node and has no browser fallback', async () => {
   assert.deepEqual(pkg.exports['./build/vite'], { node: './build/vite.js' });
 });
 
-test('only embed-mode documents may be framed, and only by the allowed ancestors', async () => {
-  const { embedFramingPlugin, isEmbedDocumentRequest } =
+test('only approved documents may be framed, and only by the allowed ancestors', async () => {
+  const { embedFramingPlugin, isDocumentRequest, isEmbedDocumentRequest } =
     await import('../../build/embed-framing.js');
+  assert.equal(isDocumentRequest('/stark/'), true);
+  assert.equal(isDocumentRequest('/stark/index.html'), true);
+  assert.equal(isDocumentRequest('/stark/app.js'), false);
+  assert.equal(isDocumentRequest('/api/stark/auth'), false);
   assert.equal(isEmbedDocumentRequest('/?embed=1'), true);
   assert.equal(isEmbedDocumentRequest('/index.html?embed=1#v=2'), true);
   assert.equal(isEmbedDocumentRequest('/?embed=0'), false);
@@ -257,6 +261,32 @@ test('only embed-mode documents may be framed, and only by the allowed ancestors
     assert.equal(plugin.configureServer, undefined);
     assert.equal(plugin.configurePreviewServer, undefined);
   }
+
+  let ingress;
+  embedFramingPlugin({
+    allowHomeAssistantIngress: true,
+    isHomeAssistantIngress: () => true,
+  }).configureServer({
+    middlewares: { use: (handler) => (ingress = handler) },
+  });
+  const ingressDocument = response();
+  ingress({ url: '/stark/index.html' }, ingressDocument, () => {});
+  ingressDocument.setHeader('X-Frame-Options', 'DENY');
+  ingressDocument.setHeader('Content-Security-Policy', full);
+  assert.deepEqual(Object.fromEntries(ingressDocument.headers), {
+    'content-security-policy':
+      "default-src 'self'; script-src 'self'; frame-ancestors 'self'",
+    'x-frame-options': 'SAMEORIGIN',
+  });
+
+  const ingressAsset = response();
+  ingress({ url: '/stark/app.js' }, ingressAsset, () => {});
+  ingressAsset.setHeader('X-Frame-Options', 'DENY');
+  ingressAsset.setHeader('Content-Security-Policy', full);
+  assert.deepEqual(Object.fromEntries(ingressAsset.headers), {
+    'content-security-policy': full,
+    'x-frame-options': 'DENY',
+  });
 });
 
 test('the CSP admits the event media embeds and the Maps JavaScript API, and no other script origin', async () => {

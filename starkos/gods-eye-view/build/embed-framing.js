@@ -34,18 +34,42 @@ export function isEmbedDocumentRequest(url) {
   );
 }
 
+/** Whether a request targets an HTML document rather than an asset/API. */
+export function isDocumentRequest(url) {
+  let parsed;
+  try {
+    parsed = new URL(url || '/', 'http://localhost');
+  } catch {
+    return false;
+  }
+  return (
+    parsed.pathname === '/' ||
+    parsed.pathname.endsWith('/') ||
+    parsed.pathname.endsWith('.html')
+  );
+}
+
 /** Vite plugin applying the embed framing policy on dev and preview servers. */
 export function embedFramingPlugin({
   ancestors = process.env.GEV_EMBED_FRAME_ANCESTORS || '',
+  allowHomeAssistantIngress = false,
+  isHomeAssistantIngress = () => false,
 } = {}) {
   const allowed = ancestors.trim();
   // Unset: embed documents keep the server's framing protection.
-  if (!allowed) return { name: 'embed-framing' };
+  if (!allowed && !allowHomeAssistantIngress) return { name: 'embed-framing' };
   const anywhere = allowed === '*';
   const policy = `frame-ancestors ${allowed}`;
   const install = (server) => {
     server.middlewares.use((req, res, next) => {
-      if (!isEmbedDocumentRequest(req.url)) return next();
+      const homeAssistant =
+        allowHomeAssistantIngress &&
+        isDocumentRequest(req.url) &&
+        isHomeAssistantIngress(req);
+      const embedded = Boolean(allowed) && isEmbedDocumentRequest(req.url);
+      if (!homeAssistant && !embedded) return next();
+      const framingPolicy = homeAssistant ? "frame-ancestors 'self'" : policy;
+      const unrestricted = !homeAssistant && anywhere;
       // The server's own headers are written when the response is sent, so
       // intercept them rather than setting ours first.
       const setHeader = res.setHeader.bind(res);
@@ -56,12 +80,12 @@ export function embedFramingPlugin({
           // Keep every other directive of the server's policy (script-src,
           // connect-src, ...) and only swap the framing rule.
           const kept = withoutFraming(value);
-          const next = anywhere ? kept : [...kept, policy];
+          const next = unrestricted ? kept : [...kept, framingPolicy];
           return next.length ? setHeader(name, next.join('; ')) : res;
         }
-        return res;
+        return homeAssistant ? setHeader(name, 'SAMEORIGIN') : res;
       };
-      if (!anywhere) setHeader('Content-Security-Policy', policy);
+      if (!unrestricted) setHeader('Content-Security-Policy', framingPolicy);
       next();
     });
   };

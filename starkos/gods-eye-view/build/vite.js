@@ -1,6 +1,10 @@
 import { applicationHtmlPlugin } from './application-html.js';
 import cesium from 'vite-plugin-cesium';
-import { DEFAULT_ALLOWED_HOSTS, hostCheckPlugin } from './allowedHosts.js';
+import {
+  DEFAULT_ALLOWED_HOSTS,
+  hostCheckPlugin,
+  isHomeAssistantIngress,
+} from './allowedHosts.js';
 import { embedFramingPlugin } from './embed-framing.js';
 import { panelBuildPlugin } from './panel.js';
 
@@ -142,7 +146,10 @@ export function createBrowserViteConfig({
       cesium(),
       applicationHtmlPlugin(),
       ...plugins,
-      embedFramingPlugin(),
+      embedFramingPlugin({
+        allowHomeAssistantIngress: trustHomeAssistantIngress,
+        isHomeAssistantIngress,
+      }),
       panelBuildPlugin(),
     ],
     ...(publicDir === undefined ? {} : { publicDir }),
