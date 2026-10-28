@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.6
+
+- Replaced the Vite development server in the Home Assistant add-on with a runtime production build and preview server.
+- Ensured CSS, JavaScript, workers and media assets use relative URLs under Home Assistant's installation-specific Ingress path.
+- Kept runtime add-on options available to the production build and retained the development server outside Home Assistant.
+
 ## 0.1.5
 
 - Allowed STARK OS documents from the authenticated Home Assistant Ingress proxy to render inside Home Assistant's same-origin iframe.

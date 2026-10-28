@@ -10,7 +10,13 @@
  * routing table and declares exactly that one address trusted, then starts
  * Vite the way scripts/pinokio-start.mjs does.
  */
-import { accessSync, constants, readFileSync, realpathSync, statSync } from 'node:fs';
+import {
+  accessSync,
+  constants,
+  readFileSync,
+  realpathSync,
+  statSync,
+} from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isDirectInvocation } from './pinokio-install.mjs';
@@ -24,8 +30,13 @@ function loadAddonOptions() {
   if (process.env.STARK_ADDON !== 'true') return;
   const dataDir = process.env.STARK_DATA_DIR || '/data';
   let options = {};
-  try { options = JSON.parse(readFileSync(path.join(dataDir, 'options.json'), 'utf8')); }
-  catch { /* Home Assistant writes this file before the first normal start. */ }
+  try {
+    options = JSON.parse(
+      readFileSync(path.join(dataDir, 'options.json'), 'utf8'),
+    );
+  } catch {
+    /* Home Assistant writes this file before the first normal start. */
+  }
   const mapping = {
     google_maps_api_key: 'GOOGLE_MAPS_API_KEY',
     google_maps_server_api_key: 'GOOGLE_MAPS_SERVER_API_KEY',
@@ -53,7 +64,9 @@ function loadAddonOptions() {
  * @returns {string|null} Dotted-quad gateway, or null.
  */
 export function defaultGatewayFromRouteTable(text) {
-  const lines = String(text || '').split(/\r?\n/).slice(1);
+  const lines = String(text || '')
+    .split(/\r?\n/)
+    .slice(1);
   for (const line of lines) {
     const fields = line.trim().split(/\s+/);
     if (fields.length < 4) continue;
@@ -78,7 +91,10 @@ export function defaultGatewayFromRouteTable(text) {
  * @param {{env?: NodeJS.ProcessEnv, routeTable?: string}} input
  * @returns {string} Value for GEV_KEY_SETUP_TRUSTED_PEERS ('' trusts nothing).
  */
-export function resolveTrustedPeers({ env = process.env, routeTable = '' } = {}) {
+export function resolveTrustedPeers({
+  env = process.env,
+  routeTable = '',
+} = {}) {
   const explicit = String(env.GEV_KEY_SETUP_TRUSTED_PEERS ?? '').trim();
   if (explicit.toLowerCase() === 'none') return '';
   if (explicit) return explicit;
@@ -145,24 +161,43 @@ async function start() {
         : `[Docker] Provider Settings trusts the container gateway (${trustedPeers}).`,
     );
   } else if (fromOperator) {
-    console.log('[Docker] Provider Settings trusts no additional peers (GEV_KEY_SETUP_TRUSTED_PEERS=none).');
+    console.log(
+      '[Docker] Provider Settings trusts no additional peers (GEV_KEY_SETUP_TRUSTED_PEERS=none).',
+    );
   } else {
-    console.log('[Docker] No default gateway; Provider Settings stays loopback-only.');
+    console.log(
+      '[Docker] No default gateway; Provider Settings stays loopback-only.',
+    );
   }
 
   const port = Number.parseInt(process.env.PORT, 10) || 4173;
-  const { createServer } = await loadViteFromCanonicalRoot(ROOT);
-  const server = await createServer({
-    root: ROOT,
-    server: {
-      // The container's own namespace. compose publishes this to the host's
-      // 127.0.0.1 only; widening that mapping is the LAN opt-in.
-      host: '0.0.0.0',
-      port,
-      strictPort: true,
-    },
-  });
-  await server.listen();
+  const vite = await loadViteFromCanonicalRoot(ROOT);
+  let server;
+  if (process.env.STARK_ADDON === 'true') {
+    // Vite's development server emits root-absolute module, CSS and HMR URLs.
+    // Those escape Home Assistant's per-installation Ingress path. Build only
+    // after options have been loaded so browser-facing keys are embedded from
+    // the current add-on configuration, then serve the relative production
+    // bundle. Provider and STARK plugins support the preview middleware hooks.
+    console.log('[Docker] Building the Home Assistant Ingress bundle.');
+    await vite.build({ root: ROOT });
+    server = await vite.preview({
+      root: ROOT,
+      preview: { host: '0.0.0.0', port, strictPort: true },
+    });
+  } else {
+    server = await vite.createServer({
+      root: ROOT,
+      server: {
+        // The container's own namespace. compose publishes this to the host's
+        // 127.0.0.1 only; widening that mapping is the LAN opt-in.
+        host: '0.0.0.0',
+        port,
+        strictPort: true,
+      },
+    });
+    await server.listen();
+  }
   server.printUrls();
   console.log(`[Docker] Ready at http://localhost:${port}/`);
 
