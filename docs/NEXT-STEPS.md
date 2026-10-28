@@ -46,6 +46,48 @@
 6. Abgelaufene Medienfreigabe kann vom Receiver nicht erneut geladen werden.
 7. Quelle entfernen und prüfen, dass gespeicherte Zugangsdaten gelöscht werden.
 
+## Verbindlich: adaptiver Media Browser in Portrait und Landscape
+
+Diese Vorgabe ersetzt jede frühere Einschränkung auf ausschließliche Querformat-Bedienung. Es gibt genau **einen** Media Browser und einen gemeinsamen Laufzeitzustand; Portrait und Landscape sind ausschließlich unterschiedliche responsive Darstellungen desselben Zustands.
+
+### Gemeinsame Architektur
+
+- Medien-/NAS-Daten, Ordnerauswahl, aktuelles Bild, Bildtransform, Receiver-Auswahl, laufende Sitzung und Übertragungsstatus werden außerhalb der Layoutdarstellung gehalten.
+- Wheel- und Gestenlogik werden einmal implementiert und von beiden Layouts verwendet. Ein Orientierungswechsel darf keine zweite Browserinstanz erzeugen.
+- CSS Media Queries steuern die Anordnung; `matchMedia('(orientation: landscape)')` darf nur für notwendige Messungen und Fokuskorrekturen verwendet werden.
+- Beim Drehen bleiben NAS-Pfad, geladener Ordner, Bildindex, Zoom/Pan/Rotation, ausgewählte Receiver und aktive Präsentationen unverändert.
+- Kein Reload, kein erneuter NAS-Abruf und kein Neuaufbau großer Bilddaten allein aufgrund eines Layoutwechsels.
+- Wheel-Updates laufen über `requestAnimationFrame`; Bildtransformationen verwenden `transform`/GPU-Komposition und verändern nicht fortlaufend das Dokumentlayout.
+
+### Landscape – Modus A: NAS-Ordnerauswahl
+
+- Linke Hälfte: ausgewählter Ordnername prominent auf Höhe der Wheel-Mitte, darunter dezente Metadaten wie Anzahl unterstützter Medien; keine klassischen Ordnerkacheln.
+- Rechte Hälfte: großes vertikal zentriertes STARK-Wheel für Ordnernavigation, darunter ein optisch verbundenes rechteckiges **LOAD**-Element.
+- Wheel-Bewegung aktualisiert den Ordnernamen links flüssig. Erst Doppeltipp/-druck auf **LOAD** lädt den Ordner.
+
+### Landscape – Modus B: geladener Fotoordner
+
+- Linke Hälfte: große Vorschau des aktiven Bildes mit Pinch-Zoom, Pan und Pinch-to-Transmit. Nach dem Senden bleiben Zoom und Pan mit den ausgewählten Receivern synchronisiert.
+- Rechte Hälfte: dasselbe Wheel navigiert dauerhaft durch die Bilder. Links/rechts daneben liegen Vorheriges-/Nächstes-Tasten.
+- Eine gut erreichbare Zurück-/Abbruchfunktion oben wechselt zur Ordnerauswahl, ohne NAS-Quelle oder Receiver-Sitzung zu verlieren.
+
+### Portrait
+
+- Eigene platzsparende Anordnung auf Basis desselben DOM-/Zustandsmodells, nicht eine zweite Smartphone- oder Fernseheransicht.
+- Wheel skaliert für die schmale Breite; LOAD beziehungsweise Vor/Zurück bleiben direkt am Wheel und im Daumenbereich.
+- Ordnername beziehungsweise Bildvorschau erhält den verbleibenden Hauptbereich. Bedienelemente dürfen Pinch-Zoom und Pan nicht verdecken.
+- Funktionsumfang entspricht Landscape vollständig: Ordnerwahl, Doppeltipp-LOAD, Bildnavigation, Vorschaugesten, Übertragung und Receiver-Synchronisierung.
+
+### Orientierungs- und Geräteabnahme
+
+1. Im Portrait NAS-Quelle und Unterordner auswählen, ins Landscape drehen: Pfad und Wheel-Auswahl bleiben identisch.
+2. Foto laden, zoomen und verschieben, mehrfach zwischen Portrait/Landscape drehen: Bildindex und Transform bleiben exakt erhalten.
+3. Während einer laufenden Receiver-Präsentation drehen: keine Unterbrechung, kein erneutes Senden und keine neue Sitzung.
+4. Nach dem Drehen funktionieren Single Tap, Double Tap, Drag, Pinch und Pan weiterhin unterscheidbar.
+5. Zwei Receiver bleiben ausgewählt und zeigen weiterhin ihre jeweiligen Inhalte.
+6. iPhone Safari und Home-Screen-Web-App in beiden Orientierungen inklusive Safe Areas und Browserleisten testen.
+7. Große Bilder wechseln und drehen ohne sichtbares Flackern, unnötigen NAS-Neuabruf oder Wheel-Ruckeln.
+
 ## Danach
 
 - Chromecast/CATT, Android TV Remote, LG webOS, Samsung und MeshCentral nur mit real getesteten Fähigkeiten ergänzen.

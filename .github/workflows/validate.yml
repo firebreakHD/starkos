@@ -25,7 +25,7 @@ jobs:
       - run: npm ci
         env:
           PUPPETEER_SKIP_DOWNLOAD: "1"
-      - run: node --test server/stark/auth.test.mjs server/stark/receiver.test.mjs server/stark/media-source-store.test.mjs
+      - run: node --test server/stark/auth.test.mjs server/stark/receiver.test.mjs server/stark/media-source-store.test.mjs src/tooling/allowedHosts.test.mjs
       - run: npm run build
       - run: npm audit --audit-level=high
 

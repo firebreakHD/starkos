@@ -222,7 +222,21 @@ export function createDisplayService({ store = new DisplayStore() } = {}) {
     });
   }
 
-  return { store, sockets, sessions, sendCommand, executeTool };
+  function currentMedia(id) {
+    const device = store.get(id);
+    const sessionId = device?.state?.current?.sessionId;
+    const session = sessionId ? sessions.get(sessionId) : null;
+    if (
+      !device ||
+      !session ||
+      session.expiresAt < Date.now() ||
+      !session.targets.has(id)
+    )
+      return null;
+    return { media: session.media, sessionId, expiresAt: session.expiresAt };
+  }
+
+  return { store, sockets, sessions, sendCommand, executeTool, currentMedia };
 }
 
 export function starkReceiverPlugin({
@@ -414,6 +428,17 @@ export function starkReceiverPlugin({
               .list()
               .map((device) => publicDevice(device, service.sockets)),
           );
+        const receiverPreview = url.pathname.match(
+          /^\/api\/stark\/receivers\/([^/]+)\/preview$/,
+        );
+        if (req.method === 'GET' && receiverPreview) {
+          const preview = service.currentMedia(
+            decodeURIComponent(receiverPreview[1]),
+          );
+          return preview
+            ? json(res, 200, preview)
+            : json(res, 404, { error: 'Kein aktives Medium.' });
+        }
         if (req.method === 'GET' && url.pathname === '/api/stark/media-sources')
           return json(res, 200, mediaSources.list());
         if (

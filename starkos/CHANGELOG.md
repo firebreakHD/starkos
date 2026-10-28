@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.3
+
+- Redirected the add-on root to `/stark/` so STARK OS CSS and JavaScript resolve correctly on direct access and through Ingress.
+- Allowed arbitrary Home Assistant public hostnames only when the request originates from the authenticated Supervisor Ingress proxy.
+- Added an active-receiver preview and image/video controls directly to the phone Media panel.
+- Removed playback, image-transform and move/copy controls from the separate Receiver management panel.
+
 ## 0.1.2
 
 - Made the Home Assistant add-on root open the phone-first STARK OS shell instead of God's Eye View.

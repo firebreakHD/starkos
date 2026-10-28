@@ -60,6 +60,15 @@ export function isAllowedHost(hostHeader, allowedHosts, additional = []) {
   );
 }
 
+export function isHomeAssistantIngress(req) {
+  if (process.env.STARK_ADDON !== 'true') return false;
+  const address = String(req?.socket?.remoteAddress || '').replace(
+    /^::ffff:/,
+    '',
+  );
+  return address === '172.30.32.2';
+}
+
 /**
  * Vite plugin that applies the Host check before every other middleware.
  * Vite installs its own check after the middleware plugins add in
@@ -76,6 +85,10 @@ export function hostCheckPlugin() {
       (value) => typeof value === 'string' && value,
     );
     return (req, res, next) => {
+      // Home Assistant has already authenticated this request. Its public Host
+      // header cannot be known at build time, so trust only the fixed
+      // Supervisor ingress proxy address and never arbitrary LAN clients.
+      if (isHomeAssistantIngress(req)) return next();
       if (isAllowedHost(req.headers.host, allowed, additional)) return next();
       res.writeHead(403, { 'Content-Type': 'text/plain' });
       res.end('Blocked request. This host is not allowed.');

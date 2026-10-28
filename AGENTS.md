@@ -5,7 +5,6 @@
 - STARK OS is a research/media interface, not a Home Assistant dashboard. Do not add smart-home controls.
 - Hermes is the only agent. New automation capabilities must use the authenticated STARK display tool contract; do not add a second agent.
 - A display adapter is enabled only after its pairing, capability detection and commands work on real hardware. Unsupported actions remain disabled and carry a reason.
-- Direct LAN access requires `access_password`; Home Assistant Ingress trusts only the Supervisor address. Never put device tokens in URLs or logs.
+- The phone controller uses authenticated Home Assistant Ingress and trusts only the Supervisor address. Direct LAN routes are limited to passive receivers; never put device tokens in URLs or logs.
 - Keep mobile Safari gestures working: single tap previews, double tap sends, and drag-to-target must remain distinct.
 - Do not commit API keys, receiver tokens, `.env`, `/data`, caches or logs.
-

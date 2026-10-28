@@ -12,6 +12,9 @@ export class DisplayApi {
   list() {
     return this.request('receivers');
   }
+  preview(id) {
+    return this.request(`receivers/${encodeURIComponent(id)}/preview`);
+  }
   pending() {
     return this.request('pairing/pending');
   }

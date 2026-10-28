@@ -47,15 +47,37 @@ function ingressRequest(req) {
   return address === '172.30.32.2';
 }
 
-export function addonEntryUrl(rawUrl, addon = process.env.STARK_ADDON === 'true') {
+export function addonEntryUrl(
+  rawUrl,
+  addon = process.env.STARK_ADDON === 'true',
+) {
   if (!addon) return rawUrl;
-  const [pathname, query = ''] = String(rawUrl || '/').split('?', 2);
+  const parsed = new URL(String(rawUrl || '/'), 'http://stark.local');
+  const pathname = parsed.pathname;
+  const query = parsed.search.slice(1);
   let target = pathname;
-  if (pathname === '/' || pathname === '/index.html')
-    target = '/stark/index.html';
+  if (
+    (pathname === '/' || pathname === '/index.html') &&
+    parsed.searchParams.get('world') === '1'
+  )
+    target = '/index.html';
   else if (pathname === '/world' || pathname === '/world/')
     target = '/index.html';
   return `${target}${query ? `?${query}` : ''}`;
+}
+
+export function addonEntryRedirect(
+  rawUrl,
+  addon = process.env.STARK_ADDON === 'true',
+) {
+  if (!addon) return null;
+  const parsed = new URL(String(rawUrl || '/'), 'http://stark.local');
+  if (
+    (parsed.pathname === '/' || parsed.pathname === '/index.html') &&
+    parsed.searchParams.get('world') !== '1'
+  )
+    return './stark/';
+  return null;
 }
 
 function loadSecret(dataDir) {
@@ -184,6 +206,14 @@ export function starkAuthPlugin() {
     // Eye remains reachable deliberately through the WORLD module at /world.
     server.middlewares.use((req, _res, next) => {
       const [pathname, query = ''] = String(req.url || '').split('?', 2);
+      const redirect = addonEntryRedirect(req.url, addon);
+      if (redirect) {
+        _res.statusCode = 302;
+        _res.setHeader('Location', redirect);
+        _res.setHeader('Cache-Control', 'no-store');
+        _res.end();
+        return;
+      }
       if (pathname === '/stark' || pathname === '/stark/')
         req.url = `/stark/index.html${query ? `?${query}` : ''}`;
       else req.url = addonEntryUrl(req.url, addon);

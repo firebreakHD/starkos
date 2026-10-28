@@ -1,7 +1,7 @@
 name: STARK OS
 slug: starkos
 description: Mobile-first research, media and geospatial interface powered by God's Eye View.
-version: "0.1.2"
+version: "0.1.3"
 stage: experimental
 startup: services
 boot: auto

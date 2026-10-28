@@ -40,6 +40,7 @@ let lastTap = 0;
 const importedMedia = [];
 const displays = new DisplayApi();
 const selectedDisplays = new Set();
+const receiverPreviewCache = new Map();
 
 const ring = new InertialRing($('#ring'), modules, (index, item) => {
   active = item;
@@ -52,7 +53,7 @@ const ring = new InertialRing($('#ring'), modules, (index, item) => {
 
 function openPanel(item = active) {
   if (item.title === 'WORLD') {
-    window.location.assign('../world?embed=1&stark=1');
+    window.location.assign('../?world=1&embed=1&stark=1');
     return;
   }
   const panel = $('#panel');
@@ -153,6 +154,12 @@ function mountMedia(body) {
     }
   });
   renderDisplayTargets($('#deviceTargets', body));
+  refreshMediaMonitor(body);
+  const monitorTimer = setInterval(() => refreshMediaMonitor(body), 1500);
+  body.closest('.panel')?.addEventListener('transitionend', () => {
+    if (!body.closest('.panel')?.classList.contains('open'))
+      clearInterval(monitorTimer);
+  });
 }
 
 async function renderMediaSources(body) {
@@ -439,8 +446,148 @@ async function renderDisplayTargets(container) {
         ? selectedDisplays.delete(device.id)
         : selectedDisplays.add(device.id);
       target.classList.toggle('selected', selectedDisplays.has(device.id));
+      refreshMediaMonitor(container.closest('.panel-body'));
     });
     container.append(target);
+  }
+}
+
+async function refreshMediaMonitor(body) {
+  if (!body?.isConnected) return;
+  const monitor = $('#displayMonitor', body);
+  if (!monitor) return;
+  const devices = await displays.list().catch(() => []);
+  const receiver =
+    devices.find(
+      (device) => selectedDisplays.has(device.id) && device.connected,
+    ) ||
+    devices.find((device) => device.connected) ||
+    devices[0];
+  const header = monitor.querySelector('header');
+  const screen = monitor.querySelector('.display-monitor-screen');
+  const controls = monitor.querySelector('.display-monitor-controls');
+  if (!receiver) {
+    header.innerHTML =
+      '<strong>AKTIVER RECEIVER</strong><span>NICHT VERBUNDEN</span>';
+    screen.replaceChildren(
+      Object.assign(document.createElement('span'), {
+        textContent: 'KEIN RECEIVER VERBUNDEN',
+      }),
+    );
+    controls.replaceChildren();
+    return;
+  }
+  header.querySelector('strong').textContent = receiver.name;
+  header.querySelector('span').textContent =
+    `${receiver.connected ? 'ONLINE' : 'OFFLINE'} · ${receiver.state?.status || 'STANDBY'}`;
+  const current = receiver.state?.current;
+  if (!current) {
+    monitor.dataset.session = '';
+    screen.replaceChildren(
+      Object.assign(document.createElement('span'), {
+        textContent: 'KEIN MEDIUM AKTIV',
+      }),
+    );
+    controls.replaceChildren();
+    return;
+  }
+  let preview = receiverPreviewCache.get(current.sessionId);
+  if (!preview) {
+    preview = await displays.preview(receiver.id).catch(() => null);
+    if (preview) receiverPreviewCache.set(current.sessionId, preview);
+  }
+  if (monitor.dataset.session !== current.sessionId) {
+    monitor.dataset.session = current.sessionId;
+    screen.replaceChildren();
+    const media = preview?.media;
+    let visual;
+    if (media?.type?.startsWith('image/')) {
+      visual = document.createElement('img');
+      visual.src = media.data;
+      visual.alt = media.title;
+      enableRemoteImageGestures(
+        visual,
+        [receiver.id],
+        receiver.state?.transform,
+      );
+    } else if (media?.type?.startsWith('video/')) {
+      visual = document.createElement('video');
+      visual.src = media.data;
+      visual.muted = true;
+      visual.playsInline = true;
+    } else if (media?.type === 'application/pdf') {
+      visual = document.createElement('iframe');
+      visual.src = media.data;
+      visual.title = media.title;
+    } else {
+      visual = document.createElement('span');
+      visual.textContent = media?.title || current.title || 'MEDIUM AKTIV';
+    }
+    screen.append(visual);
+  }
+  const image = screen.querySelector('img');
+  if (image && receiver.state?.transform) {
+    const value = receiver.state.transform;
+    image.style.transform = `translate(${Number(value.x || 0)}px,${Number(value.y || 0)}px) rotate(${Number(value.rotation || 0)}deg) scale(${Number(value.zoom || 1)})`;
+  }
+  controls.replaceChildren();
+  if (
+    current.type?.startsWith('image/') &&
+    capability(receiver, 'image.transform')
+  ) {
+    const transform = receiver.state?.transform || {
+      zoom: 1,
+      x: 0,
+      y: 0,
+      rotation: 0,
+    };
+    controls.append(
+      controlButton('−', () =>
+        displayCommand(receiver, 'image.transform', {
+          zoom: Math.max(0.25, Number(transform.zoom || 1) - 0.25),
+        }),
+      ),
+      controlButton('+', () =>
+        displayCommand(receiver, 'image.transform', {
+          zoom: Math.min(5, Number(transform.zoom || 1) + 0.25),
+        }),
+      ),
+      controlButton('↶', () =>
+        displayCommand(receiver, 'image.transform', {
+          rotation: Number(transform.rotation || 0) - 90,
+        }),
+      ),
+      controlButton('↷', () =>
+        displayCommand(receiver, 'image.transform', {
+          rotation: Number(transform.rotation || 0) + 90,
+        }),
+      ),
+      controlButton('RESET', () => displayCommand(receiver, 'image.reset')),
+    );
+  }
+  if (current.type?.startsWith('video/')) {
+    if (capability(receiver, 'playback.pause'))
+      controls.append(
+        controlButton('PAUSE', () =>
+          displayCommand(receiver, 'playback.pause'),
+        ),
+        controlButton('PLAY', () =>
+          displayCommand(receiver, 'playback.resume'),
+        ),
+      );
+    if (capability(receiver, 'playback.seek')) {
+      const time = Number(receiver.state?.playback?.time || 0);
+      controls.append(
+        controlButton('−10 S', () =>
+          displayCommand(receiver, 'playback.seek', {
+            value: Math.max(0, time - 10),
+          }),
+        ),
+        controlButton('+10 S', () =>
+          displayCommand(receiver, 'playback.seek', { value: time + 10 }),
+        ),
+      );
+    }
   }
 }
 
@@ -478,9 +625,9 @@ function previewMedia(media, body) {
   if (visual instanceof HTMLImageElement) enableRemoteImageGestures(visual);
 }
 
-function enableRemoteImageGestures(image) {
+function enableRemoteImageGestures(image, targetIds = null, initial = null) {
   const pointers = new Map();
-  let transform = { zoom: 1, x: 0, y: 0, rotation: 0 };
+  let transform = { zoom: 1, x: 0, y: 0, rotation: 0, ...(initial || {}) };
   let baseline = null;
   let lastSent = 0;
   image.style.touchAction = 'none';
@@ -528,21 +675,21 @@ function enableRemoteImageGestures(image) {
     image.style.transform = `translate(${transform.x}px,${transform.y}px) rotate(${transform.rotation}deg) scale(${transform.zoom})`;
     if (Date.now() - lastSent > 100) {
       lastSent = Date.now();
-      sendRemoteTransform(transform);
+      sendRemoteTransform(transform, targetIds);
     }
   });
   const release = (event) => {
     pointers.delete(event.pointerId);
     baseline = pointers.size === 2 ? { ...snapshot(), ...transform } : null;
-    sendRemoteTransform(transform);
+    sendRemoteTransform(transform, targetIds);
   };
   image.addEventListener('pointerup', release);
   image.addEventListener('pointercancel', release);
 }
 
-async function sendRemoteTransform(transform) {
+async function sendRemoteTransform(transform, explicitTargets = null) {
   const devices = await displays.list().catch(() => []);
-  const targets = [...selectedDisplays].filter((id) =>
+  const targets = [...(explicitTargets || selectedDisplays)].filter((id) =>
     devices.some((device) => device.id === id && device.connected),
   );
   if (!targets.length) {
@@ -651,119 +798,6 @@ async function refreshReceivers(body) {
       row.innerHTML = `<header><strong></strong><span>${receiver.connected ? 'ONLINE' : 'OFFLINE'} · ${receiver.state?.status || 'STANDBY'}${receiver.state?.current?.title ? ` · ${escapeHtml(receiver.state.current.title)}` : ''}</span></header><div class="control-buttons"></div>`;
       row.querySelector('strong').textContent = receiver.name;
       const controls = row.querySelector('.control-buttons');
-      if (capability(receiver, 'playback.pause')) {
-        controls.append(
-          controlButton('PAUSE', () =>
-            displayCommand(receiver, 'playback.pause'),
-          ),
-          controlButton('PLAY', () =>
-            displayCommand(receiver, 'playback.resume'),
-          ),
-        );
-      }
-      if (capability(receiver, 'playback.seek')) {
-        const time = Number(receiver.state?.playback?.time || 0);
-        controls.append(
-          controlButton('−10 S', () =>
-            displayCommand(receiver, 'playback.seek', {
-              value: Math.max(0, time - 10),
-            }),
-          ),
-          controlButton('+10 S', () =>
-            displayCommand(receiver, 'playback.seek', { value: time + 10 }),
-          ),
-        );
-      }
-      if (capability(receiver, 'playback.volume')) {
-        controls.append(
-          controlButton('VOL 0', () =>
-            displayCommand(receiver, 'playback.volume', { value: 0 }),
-          ),
-          controlButton('VOL 50', () =>
-            displayCommand(receiver, 'playback.volume', { value: 0.5 }),
-          ),
-          controlButton('VOL 100', () =>
-            displayCommand(receiver, 'playback.volume', { value: 1 }),
-          ),
-        );
-      }
-      if (capability(receiver, 'playback.queue')) {
-        controls.append(
-          controlButton('VORHERIGES', () =>
-            displayCommand(receiver, 'playback.previous'),
-          ),
-          controlButton('NÄCHSTES', () =>
-            displayCommand(receiver, 'playback.next'),
-          ),
-        );
-      }
-      if (capability(receiver, 'image.transform')) {
-        const transform = receiver.state?.transform || {
-          zoom: 1,
-          x: 0,
-          y: 0,
-          rotation: 0,
-        };
-        controls.append(
-          controlButton('ZOOM −', () =>
-            displayCommand(receiver, 'image.transform', {
-              zoom: Math.max(0.25, Number(transform.zoom || 1) - 0.25),
-            }),
-          ),
-          controlButton('ZOOM +', () =>
-            displayCommand(receiver, 'image.transform', {
-              zoom: Math.min(5, Number(transform.zoom || 1) + 0.25),
-            }),
-          ),
-          controlButton('←', () =>
-            displayCommand(receiver, 'image.transform', {
-              x: Number(transform.x || 0) - 40,
-            }),
-          ),
-          controlButton('→', () =>
-            displayCommand(receiver, 'image.transform', {
-              x: Number(transform.x || 0) + 40,
-            }),
-          ),
-          controlButton('↑', () =>
-            displayCommand(receiver, 'image.transform', {
-              y: Number(transform.y || 0) - 40,
-            }),
-          ),
-          controlButton('↓', () =>
-            displayCommand(receiver, 'image.transform', {
-              y: Number(transform.y || 0) + 40,
-            }),
-          ),
-          controlButton('ROTATE', () =>
-            displayCommand(receiver, 'image.transform', {
-              rotation: Number(transform.rotation || 0) + 90,
-            }),
-          ),
-          controlButton('RESET', () => displayCommand(receiver, 'image.reset')),
-        );
-      }
-      const other = receivers.find(
-        (candidate) => candidate.id !== receiver.id && candidate.connected,
-      );
-      if (other && receiver.state?.current) {
-        controls.append(
-          controlButton(`COPY → ${other.name}`, () =>
-            displays.tool('move_content', {
-              source_display_id: receiver.id,
-              target_display_ids: [other.id],
-              move: false,
-            }),
-          ),
-          controlButton(`MOVE → ${other.name}`, () =>
-            displays.tool('move_content', {
-              source_display_id: receiver.id,
-              target_display_ids: [other.id],
-              move: true,
-            }),
-          ),
-        );
-      }
       controls.append(
         controlButton('BEENDEN', () => displayCommand(receiver, 'session.end')),
       );

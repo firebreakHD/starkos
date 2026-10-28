@@ -60,6 +60,8 @@ test('two displays receive independent media sessions', () => {
     );
     assert.equal(value.store.get('alpha').state.current.title, 'Alpha');
     assert.equal(value.store.get('beta').state.current.title, 'Beta');
+    assert.equal(value.service.currentMedia('alpha').media.title, 'Alpha');
+    assert.equal(value.service.currentMedia('beta').media.title, 'Beta');
   } finally {
     rmSync(value.directory, { recursive: true, force: true });
   }

@@ -6,8 +6,31 @@ import {
   DEFAULT_ALLOWED_HOSTS,
   hostCheckPlugin,
   isAllowedHost,
+  isHomeAssistantIngress,
   resolveAllowedHosts,
 } from '../../build/allowedHosts.js';
+
+test('only the Home Assistant ingress proxy bypasses the public host allowlist', () => {
+  const previous = process.env.STARK_ADDON;
+  process.env.STARK_ADDON = 'true';
+  try {
+    assert.equal(
+      isHomeAssistantIngress({ socket: { remoteAddress: '172.30.32.2' } }),
+      true,
+    );
+    assert.equal(
+      isHomeAssistantIngress({ socket: { remoteAddress: '172.30.32.1' } }),
+      false,
+    );
+    assert.equal(
+      isHomeAssistantIngress({ socket: { remoteAddress: '192.168.1.184' } }),
+      false,
+    );
+  } finally {
+    if (previous === undefined) delete process.env.STARK_ADDON;
+    else process.env.STARK_ADDON = previous;
+  }
+});
 
 test('uses the restricted local host allowlist by default', () => {
   assert.deepEqual(resolveAllowedHosts(), DEFAULT_ALLOWED_HOSTS);
