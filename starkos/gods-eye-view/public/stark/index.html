@@ -74,6 +74,30 @@
                 <span>NAS-Quelle öffnen oder eine lokale Datei hinzufügen</span>
               </div>
             </div>
+            <div class="media-focus-controls" id="mediaFocusControls">
+              <button
+                type="button"
+                id="mediaRotateLeft"
+                aria-label="Bild links drehen"
+                disabled
+              >
+                ↶
+              </button>
+              <label
+                >ZOOM
+                <input
+                  id="mediaZoom"
+                  type="range"
+                  min="25"
+                  max="500"
+                  value="100"
+                  disabled
+              /></label>
+              <output id="mediaZoomValue">100%</output>
+              <button type="button" id="mediaResetTransform" disabled>
+                RESET
+              </button>
+            </div>
           </section>
           <aside class="media-wheel-pane" aria-label="Mediennavigation">
             <header>
@@ -94,7 +118,7 @@
             </div>
             <div class="media-toolbar">
               <button type="button" id="pickMedia">＋ DATEI</button>
-              <button type="button" id="openSources">▤ NAS / QUELLEN</button>
+              <button type="button" id="openSources">▤ MEDIENBROWSER</button>
               <span>DROP</span>
               <input
                 type="file"
@@ -119,10 +143,16 @@
         </div>
         <section class="media-sources" id="mediaSources" hidden>
           <header>
-            <strong>MEDIENQUELLEN</strong
+            <strong>MEDIENBROWSER</strong
             ><button type="button" id="closeSources">×</button>
           </header>
-          <form id="sourceForm" autocomplete="off">
+          <div class="media-source-actions">
+            <span>ORDNER WÄHLEN · WHEEL DREHEN · LOAD</span>
+            <button type="button" id="toggleSourceSettings">
+              NAS EINSTELLUNGEN
+            </button>
+          </div>
+          <form id="sourceForm" autocomplete="off" hidden>
             <input
               id="sourceName"
               placeholder="NAME · z. B. NAS WOHNZIMMER"

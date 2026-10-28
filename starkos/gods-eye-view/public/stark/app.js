@@ -92,6 +92,9 @@ function mountMedia(body) {
   $('#nextMedia', body).addEventListener('click', () =>
     selectMediaAt(selectedMediaIndex + 1, body),
   );
+  bindWheelGesture($('#mediaStrip', body), (step) =>
+    selectMediaAt(selectedMediaIndex + step, body),
+  );
   input.addEventListener('change', () => addMedia(input.files, body));
   zone.addEventListener('dragover', (event) => {
     event.preventDefault();
@@ -121,6 +124,10 @@ function mountMedia(body) {
   $('#openSources', body).addEventListener('click', () => {
     sourcesPanel.hidden = false;
     renderMediaSources(body);
+  });
+  $('#toggleSourceSettings', body).addEventListener('click', () => {
+    const form = $('#sourceForm', body);
+    form.hidden = !form.hidden;
   });
   $('#closeSources', body).addEventListener('click', () => {
     sourcesPanel.hidden = true;
@@ -212,6 +219,7 @@ async function renderMediaSources(body) {
     }),
   );
   if (!sources.length) {
+    $('#sourceForm', body).hidden = false;
     const empty = document.createElement('p');
     empty.className = 'module-note';
     empty.textContent = 'Noch keine NAS-Medienquelle gespeichert.';
@@ -263,9 +271,14 @@ function mountSourceWheel(browser, entries, source, body) {
   let selected = 0;
   const list = stage.querySelector('[role="listbox"]');
   const load = stage.querySelector('.source-load');
-  const activate = () => {
+  const openSelected = () => {
     const entry = entries[selected];
     if (entry.directory) browseMediaSource(source, entry.path, body);
+    else addNasMedia(source, entry, body, load);
+  };
+  const loadSelected = () => {
+    const entry = entries[selected];
+    if (entry.directory) loadNasFolder(source, entry, body, load);
     else addNasMedia(source, entry, body, load);
   };
   const render = () => {
@@ -287,7 +300,7 @@ function mountSourceWheel(browser, entries, source, body) {
           selected = index;
           render();
         });
-        option.addEventListener('dblclick', activate);
+        option.addEventListener('dblclick', openSelected);
         return option;
       }),
     );
@@ -301,7 +314,8 @@ function mountSourceWheel(browser, entries, source, body) {
   const buttons = stage.querySelectorAll('.source-wheel-nav > button');
   buttons[0].addEventListener('click', () => move(-1));
   buttons[1].addEventListener('click', () => move(1));
-  load.addEventListener('click', activate);
+  load.addEventListener('click', loadSelected);
+  bindWheelGesture(list, move);
   render();
 }
 
@@ -309,16 +323,7 @@ async function addNasMedia(source, entry, body, button) {
   button.disabled = true;
   button.textContent = 'LÄDT …';
   try {
-    const blob = await displays.mediaSourceFile(source.id, entry.path);
-    const type = blob.type || entry.type || mediaTypeFromName(entry.name);
-    if (!/^(image\/|video\/|application\/pdf$)/.test(type))
-      throw new Error('Dieser Dateityp kann nicht angezeigt werden.');
-    const media = {
-      title: entry.name,
-      type,
-      data: await readDataUrl(blob),
-      source: `NAS · ${source.name}`,
-    };
+    const media = await fetchNasMedia(source, entry);
     importedMedia.push(media);
     selectedMediaIndex = importedMedia.length - 1;
     renderMediaLibrary(body);
@@ -326,6 +331,46 @@ async function addNasMedia(source, entry, body, button) {
   } catch (error) {
     button.textContent = error.message;
     button.disabled = false;
+  }
+}
+
+async function fetchNasMedia(source, entry) {
+  const blob = await displays.mediaSourceFile(source.id, entry.path);
+  const type = blob.type || entry.type || mediaTypeFromName(entry.name);
+  if (!/^(image\/|video\/|application\/pdf$)/.test(type))
+    throw new Error('Dieser Dateityp kann nicht angezeigt werden.');
+  return {
+    title: entry.name,
+    type,
+    data: await readDataUrl(blob),
+    source: `NAS · ${source.name}`,
+  };
+}
+
+async function loadNasFolder(source, entry, body, button) {
+  button.disabled = true;
+  button.textContent = 'ORDNER WIRD GELADEN …';
+  try {
+    const entries = await displays.browseMediaSource(source.id, entry.path);
+    const supported = entries.filter(
+      (item) =>
+        !item.directory &&
+        /^(image\/|video\/|application\/pdf$)/.test(
+          item.type || mediaTypeFromName(item.name),
+        ),
+    );
+    if (!supported.length)
+      throw new Error('Keine unterstützten Medien in diesem Ordner.');
+    for (let index = 0; index < supported.length; index += 1) {
+      button.textContent = `LÄDT ${index + 1} / ${supported.length}`;
+      importedMedia.push(await fetchNasMedia(source, supported[index]));
+    }
+    selectedMediaIndex = importedMedia.length - supported.length;
+    renderMediaLibrary(body);
+    $('#mediaSources', body).hidden = true;
+  } catch (error) {
+    button.disabled = false;
+    button.textContent = error.message;
   }
 }
 
@@ -414,12 +459,56 @@ function selectMediaAt(index, body, scroll = true) {
     `${String(selectedMediaIndex + 1).padStart(2, '0')} / ${String(total).padStart(2, '0')}`;
   $('#mediaFocusTitle', body).textContent = media.title;
   focus.replaceChildren();
+  const rotate = $('#mediaRotateLeft', body);
+  const reset = $('#mediaResetTransform', body);
+  const zoom = $('#mediaZoom', body);
+  const zoomValue = $('#mediaZoomValue', body);
+  for (const control of [rotate, reset, zoom]) control.disabled = true;
+  zoom.value = '100';
+  zoomValue.textContent = '100%';
   let visual;
   if (media.type.startsWith('image/')) {
     visual = document.createElement('img');
     visual.src = media.data;
     visual.alt = media.title;
-    enableRemoteImageGestures(visual);
+    let transmitted = false;
+    const sendSelected = () => {
+      if (transmitted) return;
+      transmitted = true;
+      transmit(media, selectedCard);
+    };
+    const transform = enableRemoteImageGestures(
+      visual,
+      null,
+      null,
+      sendSelected,
+      (value) => {
+        zoom.value = String(Math.round(Number(value.zoom || 1) * 100));
+        zoomValue.textContent = `${zoom.value}%`;
+      },
+    );
+    visual.addEventListener('dblclick', sendSelected);
+    let previewTap = 0;
+    visual.addEventListener('pointerup', () => {
+      const now = performance.now();
+      if (now - previewTap < 340) {
+        previewTap = 0;
+        sendSelected();
+      } else previewTap = now;
+    });
+    for (const control of [rotate, reset, zoom]) control.disabled = false;
+    zoom.addEventListener('input', () => {
+      sendSelected();
+      transform.update({ zoom: Number(zoom.value) / 100 });
+    });
+    rotate.addEventListener('click', () => {
+      sendSelected();
+      transform.update({ rotation: transform.get().rotation - 90 });
+    });
+    reset.addEventListener('click', () => {
+      sendSelected();
+      transform.update({ zoom: 1, x: 0, y: 0, rotation: 0 });
+    });
   } else if (media.type.startsWith('video/')) {
     visual = document.createElement('video');
     visual.src = media.data;
@@ -454,6 +543,41 @@ function prepareMediaCard(card, media, body) {
     });
   if (media.type !== 'text/uri-list') card.append(transfer);
   bindMediaGestures(card, media, body);
+}
+
+function bindWheelGesture(element, onStep) {
+  let pointerId = null;
+  let previous = 0;
+  const coordinate = (event) =>
+    getComputedStyle(element).flexDirection === 'row'
+      ? event.clientX
+      : event.clientY;
+  element.addEventListener('pointerdown', (event) => {
+    pointerId = event.pointerId;
+    previous = coordinate(event);
+  });
+  element.addEventListener('pointermove', (event) => {
+    if (event.pointerId !== pointerId) return;
+    const current = coordinate(event);
+    const delta = current - previous;
+    if (Math.abs(delta) < 32) return;
+    previous = current;
+    onStep(delta > 0 ? 1 : -1);
+  });
+  const release = (event) => {
+    if (event.pointerId === pointerId) pointerId = null;
+  };
+  element.addEventListener('pointerup', release);
+  element.addEventListener('pointercancel', release);
+  element.addEventListener(
+    'wheel',
+    (event) => {
+      if (Math.abs(event.deltaY) < 2) return;
+      event.preventDefault();
+      onStep(event.deltaY > 0 ? 1 : -1);
+    },
+    { passive: false },
+  );
 }
 
 function bindMediaGestures(card, media, body) {
@@ -746,12 +870,23 @@ function previewMedia(media, body) {
   if (visual instanceof HTMLImageElement) enableRemoteImageGestures(visual);
 }
 
-function enableRemoteImageGestures(image, targetIds = null, initial = null) {
+function enableRemoteImageGestures(
+  image,
+  targetIds = null,
+  initial = null,
+  onTransmit = null,
+  onTransform = null,
+) {
   const pointers = new Map();
   let transform = { zoom: 1, x: 0, y: 0, rotation: 0, ...(initial || {}) };
   let baseline = null;
   let lastSent = 0;
   image.style.touchAction = 'none';
+  const apply = (send = true) => {
+    image.style.transform = `translate(${transform.x}px,${transform.y}px) rotate(${transform.rotation}deg) scale(${transform.zoom})`;
+    onTransform?.({ ...transform });
+    if (send) sendRemoteTransform(transform, targetIds);
+  };
   const snapshot = () => {
     const values = [...pointers.values()];
     if (values.length < 2) return null;
@@ -770,6 +905,7 @@ function enableRemoteImageGestures(image, targetIds = null, initial = null) {
       previousY: event.clientY,
     });
     baseline = pointers.size === 2 ? { ...snapshot(), ...transform } : null;
+    if (pointers.size === 2) onTransmit?.();
   });
   image.addEventListener('pointermove', (event) => {
     const point = pointers.get(event.pointerId);
@@ -793,7 +929,7 @@ function enableRemoteImageGestures(image, targetIds = null, initial = null) {
       );
       transform.rotation = baseline.rotation + current.angle - baseline.angle;
     }
-    image.style.transform = `translate(${transform.x}px,${transform.y}px) rotate(${transform.rotation}deg) scale(${transform.zoom})`;
+    apply(false);
     if (Date.now() - lastSent > 100) {
       lastSent = Date.now();
       sendRemoteTransform(transform, targetIds);
@@ -806,6 +942,15 @@ function enableRemoteImageGestures(image, targetIds = null, initial = null) {
   };
   image.addEventListener('pointerup', release);
   image.addEventListener('pointercancel', release);
+  apply(false);
+  return {
+    get: () => ({ ...transform }),
+    update: (next) => {
+      transform = { ...transform, ...next };
+      transform.zoom = Math.max(0.25, Math.min(5, Number(transform.zoom || 1)));
+      apply(true);
+    },
+  };
 }
 
 async function sendRemoteTransform(transform, explicitTargets = null) {

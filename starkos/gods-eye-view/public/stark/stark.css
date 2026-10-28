@@ -601,6 +601,29 @@ body::before {
   border-bottom: 1px solid var(--line);
   letter-spacing: 0.16em;
 }
+.media-source-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  color: rgba(203, 242, 249, 0.52);
+  font:
+    8px/1.5 ui-monospace,
+    monospace;
+  letter-spacing: 0.12em;
+}
+.media-source-actions button {
+  min-height: 38px;
+  border: 1px solid var(--dim);
+  background: rgba(55, 205, 234, 0.06);
+  color: var(--cyan);
+  padding: 8px 11px;
+  font:
+    8px ui-monospace,
+    monospace;
+  letter-spacing: 0.1em;
+}
 .media-sources header button {
   width: 40px;
   height: 40px;
@@ -705,7 +728,7 @@ body::before {
 }
 .source-wheel-stage {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(280px, 0.9fr);
+  grid-template-columns: minmax(280px, 0.9fr) minmax(0, 1fr);
   min-height: min(62dvh, 560px);
   border: 1px solid var(--line);
   background: radial-gradient(
@@ -715,12 +738,13 @@ body::before {
   );
 }
 .source-wheel-focus {
+  grid-column: 2;
   display: flex;
   flex-direction: column;
   justify-content: center;
   min-width: 0;
   padding: clamp(20px, 6vw, 72px);
-  border-right: 1px solid var(--line);
+  border-left: 1px solid var(--line);
 }
 .source-wheel-focus small,
 .source-wheel-focus span {
@@ -738,6 +762,8 @@ body::before {
   letter-spacing: 0.08em;
 }
 .source-wheel-nav {
+  grid-column: 1;
+  grid-row: 1;
   position: relative;
   display: grid;
   grid-template-columns: 38px minmax(0, 1fr) 38px;
@@ -1402,7 +1428,7 @@ body::before {
 .adaptive-media-browser {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 1.25fr) minmax(300px, 0.75fr);
+  grid-template-columns: minmax(300px, 0.75fr) minmax(0, 1.25fr);
   min-height: clamp(390px, 61dvh, 610px);
   overflow: hidden;
   border: 1px solid var(--line);
@@ -1431,10 +1457,11 @@ body::before {
   min-height: 0;
 }
 .media-focus-pane {
+  grid-column: 2;
   display: grid;
-  grid-template-rows: auto 1fr;
+  grid-template-rows: auto 1fr auto;
   padding: clamp(14px, 2.2vw, 26px);
-  border-right: 1px solid var(--line);
+  border-left: 1px solid var(--line);
 }
 .media-focus-pane > header,
 .media-wheel-pane > header {
@@ -1487,6 +1514,47 @@ body::before {
   text-decoration: none;
   letter-spacing: 0.12em;
 }
+.media-focus-controls {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) 45px auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 48px;
+  padding-top: 9px;
+}
+.media-focus-controls button {
+  min-height: 36px;
+  border: 1px solid var(--dim);
+  background: rgba(50, 196, 225, 0.07);
+  color: var(--cyan);
+  font:
+    8px ui-monospace,
+    monospace;
+}
+.media-focus-controls label {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 8px;
+  color: var(--cyan);
+  font:
+    7px ui-monospace,
+    monospace;
+  letter-spacing: 0.1em;
+}
+.media-focus-controls input {
+  width: 100%;
+  accent-color: var(--cyan);
+}
+.media-focus-controls output {
+  color: var(--ice);
+  font:
+    8px ui-monospace,
+    monospace;
+}
+.media-focus-controls :disabled {
+  opacity: 0.3;
+}
 .media-empty-state {
   display: grid;
   place-items: center;
@@ -1510,6 +1578,8 @@ body::before {
     monospace;
 }
 .media-wheel-pane {
+  grid-column: 1;
+  grid-row: 1;
   display: grid;
   grid-template-rows: auto 1fr auto auto;
   padding: clamp(14px, 2vw, 24px);
@@ -1561,6 +1631,7 @@ body::before {
   margin: 0;
   overflow: hidden;
   perspective: 700px;
+  touch-action: none;
 }
 .media-wheel-pane .media-strip:empty::after {
   content: 'NO MEDIA';
@@ -1641,11 +1712,15 @@ body::before {
     min-height: 0;
   }
   .media-focus-pane {
+    grid-column: 1;
+    grid-row: 1;
     padding: 12px;
-    border-right: 0;
+    border-left: 0;
     border-bottom: 1px solid var(--line);
   }
   .media-wheel-pane {
+    grid-column: 1;
+    grid-row: 2;
     grid-template-rows: auto auto auto auto;
     padding: 11px;
   }
@@ -1692,12 +1767,16 @@ body::before {
     min-height: 0;
   }
   .source-wheel-focus {
+    grid-column: 1;
+    grid-row: 1;
     min-height: 190px;
     padding: 22px;
-    border-right: 0;
+    border-left: 0;
     border-bottom: 1px solid var(--line);
   }
   .source-wheel-nav {
+    grid-column: 1;
+    grid-row: 2;
     min-height: 270px;
     padding: 12px;
   }

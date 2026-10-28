@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.8
+
+- Added a clearly labelled MEDIENBROWSER entry inside MEDIA and separated NAS browsing from optional NAS connection settings.
+- Moved the draggable selection wheel and LOAD control to the left in landscape, with folder/file or image preview on the right; portrait keeps the compact stacked layout.
+- LOAD ORDNER now imports the supported images, videos and PDFs from the selected NAS folder into the persistent media wheel.
+- Added double-tap-to-send on the image preview, pinch-to-transmit, live pinch/pan/rotation synchronization and an always-visible zoom/rotate/reset bar on the phone.
+
 ## 0.1.7
 
 - Rebuilt the Media panel as one adaptive browser: large preview plus selection wheel in landscape and a thumb-reachable stacked arrangement in portrait.
