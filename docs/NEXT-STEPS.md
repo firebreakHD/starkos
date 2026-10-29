@@ -44,6 +44,8 @@ Geprüfte Pakete:
 | `node-smbx` 0.3.0 | 23.03.2026 | Natives libsmb2-Binding; benötigt eine Build-Kette im Add-on-Image für amd64 und aarch64. |
 | `samba-client` 7.2.0 | 15.04.2023 | Wrapper um das `smbclient`-Binary; erfordert eine zusätzliche Systemabhängigkeit im Dockerfile. |
 
+Gegen Samba-Freigaben (Synology, QNAP, OpenMediaVault) hängt `smb3-client` 0.2.0 Füllbytes hinter den letzten Negotiate-Kontext; Samba prüft die Länge und lehnt die gesamte Aushandlung mit STATUS_INVALID_PARAMETER ab, noch vor jeder Anmeldung. Gemessen am NAS: 112 Byte abgelehnt, dieselbe Anfrage auf 108 Byte gekürzt angenommen (Dialekt 0x311). `scripts/patch-smb3-client.mjs` entfernt die Bytes beim Installieren, `server/stark/smb-negotiate.test.mjs` schlägt fehl, falls sie zurückkommen. Das Skript entfällt, sobald der Fehler upstream behoben ist.
+
 Umgesetzt mit `smb3-client`, exakt auf 0.2.0 gepinnt: Transport hinter `browseSource`/`readSourceFile`, Pfadprüfung in `smbTarget()` gegen `..`, Backslashes und Laufwerksbuchstaben, NT-Statuscodes werden in HTTP-Status übersetzt. Offen bleibt der Test an echter NAS-Hardware; die Alpha-Kennzeichnung der Bibliothek bleibt bestehen.
 
 - Verbindungsstatus und verständliche Fehler anzeigen, ohne Zugangsdaten offenzulegen.

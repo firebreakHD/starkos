@@ -424,7 +424,7 @@ function smbFailure(error) {
   if (error?.statusName === 'STATUS_INVALID_PARAMETER')
     return Object.assign(
       new Error(
-        'Die Freigabe lehnt die SMB-Aushandlung ab. Bekannte Unverträglichkeit der SMB-Bibliothek mit Samba-Freigaben; WebDAV funktioniert an derselben Freigabe.',
+        'Die Freigabe lehnt die SMB-Aushandlung ab. Das deutet darauf hin, dass der Patch scripts/patch-smb3-client.mjs beim Installieren nicht gelaufen ist.',
       ),
       { status: 502 },
     );

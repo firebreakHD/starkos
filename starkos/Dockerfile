@@ -10,6 +10,8 @@ ENV PUPPETEER_SKIP_DOWNLOAD=1 \
 
 WORKDIR /app
 COPY gods-eye-view/package.json gods-eye-view/package-lock.json ./
+# The postinstall step patches a dependency, so it must be present before install.
+COPY gods-eye-view/scripts/patch-smb3-client.mjs ./scripts/
 RUN npm ci
 COPY gods-eye-view/ ./
 

@@ -2,7 +2,7 @@
 
 STARK OS is a mobile-first media, investigation and geospatial interface for Home Assistant hosting. The supplied God's Eye View project remains the real Cesium/data engine; STARK OS adds the phone-style ring, secured direct access and paired display control.
 
-Current Home Assistant app version: **0.1.12**
+Current Home Assistant app version: **0.1.13**
 
 [![Add the STARK OS repository to Home Assistant](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2FfirebreakHD%2Fstarkos)
 
@@ -24,7 +24,7 @@ Home Assistant Ingress opens the phone-first STARK OS shell through the authenti
 
 Pairings are persisted in `/data/displays.json`; only SHA-256 token hashes are stored. Receiver credentials remain on the paired receiver and can be revoked from STARK OS.
 
-The Media panel also supports encrypted WebDAV NAS sources under **Medienquellen**. NAS credentials stay server-side and are never sent to a receiver. SMB shares are supported as well, over SMB 2.1 to 3.1.1 with NTLMv2, message signing and encryption. Enter the share as `smb://host/share/`; the account may carry a domain as `DOMAIN\user`. The SMB path has not yet been verified against real NAS hardware.
+The Media panel also supports encrypted WebDAV NAS sources under **Medienquellen**. NAS credentials stay server-side and are never sent to a receiver. SMB shares are supported as well, over SMB 2.1 to 3.1.1 with NTLMv2, message signing and encryption. Enter the share as `smb://host/share/`; the account may carry a domain as `DOMAIN\user`. Samba servers reject the negotiate request that the SMB dependency sends, so a postinstall patch (`scripts/patch-smb3-client.mjs`) removes the offending padding; the negotiation is verified against a Samba NAS, signing in with real credentials is not.
 
 ## Local development
 

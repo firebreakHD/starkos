@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.13
+
+- Fixed SMB shares on Samba servers, which is what Synology, QNAP and OpenMediaVault run. The `smb3-client` dependency appends padding after the last SMB2 negotiate context; Samba validates the message length and refused the whole negotiation with STATUS_INVALID_PARAMETER, before any authentication. A postinstall patch removes those bytes, and a unit test fails if an install or a version bump brings them back.
+- SMB errors now name what actually happened instead of surfacing the raw protocol wording.
+
 ## 0.1.12
 
 - STARK OS no longer opens God’s Eye View in embed mode, so the engine shows its own interface again: layers, cameras, context, address search and settings are reachable on desktop and on the phone.

@@ -32,6 +32,7 @@
     "visualization"
   ],
   "scripts": {
+    "postinstall": "node scripts/patch-smb3-client.mjs",
     "doctor": "node scripts/setup-doctor.mjs",
     "format": "node scripts/format.mjs --write",
     "format:check": "node scripts/format.mjs --check",
