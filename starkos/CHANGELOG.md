@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.9
+
+- Rebuilt the media browser around two wheels: a folder wheel that shows at most three folder names without wrap-around, and an image wheel whose amber selection marker stays fixed at twelve o'clock while reused thumbnail segments travel underneath it.
+- The empty circle at the wheel centre loads the selected folder, and only while the wheel is at rest; in the image selection a single tap switches between manual transfer and auto-switch, a double tap returns to the folder selection.
+- Added the pinch-to-open gesture on the framed preview: it sends the image in manual mode and keeps the enlarged view open, where further two-finger gestures zoom, one finger pans and a double tap returns to the image selection without closing the receiver's content.
+- Zoom and pan of the opened image are forwarded to the paired receiver through the existing image transform commands, bound to the current media session and coalesced instead of sent per movement event.
+- Added a discreet top display for the receiver's confirmed content; in manual mode it deliberately does not follow the local selection and only updates after the receiver confirms.
+- The layout follows the measured container size, so portrait and landscape also reflow correctly inside Home Assistant Ingress without reloading or losing the selection.
+- Removed the display target row and receiver monitor below the wheel; sending now addresses the selected or first connected receiver.
+
 ## 0.1.8
 
 - Added a clearly labelled MEDIENBROWSER entry inside MEDIA and separated NAS browsing from optional NAS connection settings.
