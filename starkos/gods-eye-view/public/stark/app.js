@@ -126,6 +126,16 @@ function mountMedia(body) {
     mediaBrowser?.showLibrary();
     event.currentTarget.reset();
   });
+  const sourceType = $('#sourceType', body);
+  const sourceUrl = $('#sourceUrl', body);
+  const applySourceHint = () => {
+    sourceUrl.placeholder =
+      sourceType.value === 'smb'
+        ? 'smb://nas.example/Freigabe/'
+        : 'https://nas.example/dav/';
+  };
+  sourceType.addEventListener('change', applySourceHint);
+  applySourceHint();
   $('#toggleSourceSettings', body).addEventListener('click', () => {
     const form = $('#sourceForm', body);
     form.hidden = !form.hidden;
@@ -185,7 +195,7 @@ async function renderMediaSources(body) {
       row.innerHTML = `<div><strong></strong><small></small></div><nav></nav>`;
       row.querySelector('strong').textContent = source.name;
       row.querySelector('small').textContent =
-        `WEBDAV · ${new URL(source.url).host}`;
+        `${String(source.type || 'webdav').toUpperCase()} · ${new URL(source.url).host}`;
       const nav = row.querySelector('nav');
       nav.append(
         controlButton('ÖFFNEN', () => {
@@ -205,6 +215,9 @@ async function renderMediaSources(body) {
           const form = $('#sourceForm', body);
           form.dataset.sourceId = source.id;
           $('#sourceName', body).value = source.name;
+          const type = $('#sourceType', body);
+          type.value = source.type || 'webdav';
+          type.dispatchEvent(new Event('change'));
           $('#sourceUrl', body).value = source.url;
           $('#sourceUser', body).value = '';
           $('#sourcePassword', body).value = '';

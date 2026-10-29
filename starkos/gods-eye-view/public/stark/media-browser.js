@@ -106,6 +106,13 @@ export function createMediaBrowser(options) {
     shownZoom: 1,
   };
 
+  // Eine einzige, wiederverwendete Vorschau; sie wird beim Wechsel nicht
+  // ersetzt, damit zwischen zwei Bildern keine schwarze Fläche steht.
+  const previewImage = document.createElement('img');
+  previewImage.draggable = false;
+  previewImage.alt = '';
+  previewImage.decoding = 'async';
+
   const fileCache = new Map(); // key -> { url, blob }
   const imageCache = new Map(); // key -> HTMLImageElement
   const pendingFiles = new Map();
@@ -279,7 +286,7 @@ export function createMediaBrowser(options) {
     if (!item || !item.type.startsWith('image/')) return null;
     const cached = imageCache.get(item.key);
     if (cached) return cached;
-    const url = item.data || fileCache.get(item.key)?.url;
+    const url = cachedUrl(item);
     if (!url) {
       loadFile(item)
         .then(() => schedule())
@@ -317,15 +324,49 @@ export function createMediaBrowser(options) {
     draw();
   }
 
+  /**
+   * Die Vorschau wird nicht neu aufgebaut, sondern wiederverwendet. Beim
+   * Drehen wird nur ein bereits geladenes Bild gesetzt; das vorherige bleibt
+   * sichtbar, bis das neue da ist. So bleibt das Durchschalten flüssig und
+   * die Fläche wird nie schwarz.
+   */
   function renderPreview() {
     const item = itemAt(state.index);
     if (!item) {
       previewCanvas.replaceChildren();
       previewCanvas.dataset.key = '';
+      previewImage.removeAttribute('src');
       return;
     }
     if (previewCanvas.dataset.key === item.key) return;
     previewCanvas.dataset.key = item.key;
+
+    if (item.type.startsWith('image/')) {
+      if (previewImage.parentNode !== previewCanvas)
+        previewCanvas.replaceChildren(previewImage);
+      previewImage.alt = item.name;
+      previewImage.dataset.key = item.key;
+      const ready = cachedUrl(item);
+      if (ready) {
+        previewImage.src = ready;
+        return;
+      }
+      // Während des Drehens keine neue Übertragung anstoßen; das Bild wird
+      // beim Einrasten nachgeladen, daher den Merker zurücksetzen.
+      if (dragging) {
+        previewCanvas.dataset.key = '';
+        return;
+      }
+      loadFile(item)
+        .then((url) => {
+          if (previewImage.dataset.key === item.key) previewImage.src = url;
+        })
+        .catch((error) => {
+          if (previewCanvas.dataset.key === item.key) setStatus(error.message);
+        });
+      return;
+    }
+
     previewCanvas.replaceChildren();
     const show = (node, apply) => {
       previewCanvas.append(node);
@@ -338,14 +379,7 @@ export function createMediaBrowser(options) {
           previewCanvas.replaceChildren(note(error.message));
         });
     };
-    if (item.type.startsWith('image/')) {
-      const picture = document.createElement('img');
-      picture.alt = item.name;
-      picture.draggable = false;
-      show(picture, (url) => {
-        picture.src = url;
-      });
-    } else if (item.type.startsWith('video/')) {
+    if (item.type.startsWith('video/')) {
       const video = document.createElement('video');
       video.controls = true;
       video.playsInline = true;
@@ -791,12 +825,8 @@ export function createMediaBrowser(options) {
     const item = itemAt(index);
     if (!item) return;
     overlayImage.alt = item.name;
-    if (item.data) {
-      overlayImage.src = item.data;
-      return;
-    }
-    const cached = fileCache.get(item.key);
-    if (cached) overlayImage.src = cached.url;
+    const cached = cachedUrl(item);
+    if (cached) overlayImage.src = cached;
     else
       loadFile(item)
         .then((url) => {
@@ -807,14 +837,25 @@ export function createMediaBrowser(options) {
 
   /* ------------------------------------------------------------- Dateien */
 
+  /** Bereits verfügbare Anzeige-URL, ohne etwas anzustoßen. */
+  function cachedUrl(item) {
+    return fileCache.get(item.key)?.url || null;
+  }
+
+  /**
+   * Liefert eine Objekt-URL zum Anzeigen. Lokale Medien liegen als Daten-URL
+   * vor; die wird einmalig in einen Blob überführt, damit das Bild beim
+   * Durchschalten nicht jedes Mal neu dekodiert werden muss.
+   */
   function loadFile(item) {
-    if (item.data) return Promise.resolve(item.data);
     const cached = fileCache.get(item.key);
     if (cached) return Promise.resolve(cached.url);
     const running = pendingFiles.get(item.key);
     if (running) return running;
-    const request = displays
-      .mediaSourceFile(item.sourceId, item.path)
+    const source = item.data
+      ? fetch(item.data).then((response) => response.blob())
+      : displays.mediaSourceFile(item.sourceId, item.path);
+    const request = source
       .then((blob) => {
         const url = URL.createObjectURL(blob);
         fileCache.set(item.key, { url, blob });

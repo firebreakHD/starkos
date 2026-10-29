@@ -68,6 +68,7 @@
     "mgrs": "^2.1.0",
     "pbf": "^5.1.2",
     "satellite.js": "^6.0.2",
+    "smb3-client": "0.2.0",
     "ws": "^8.21.0"
   },
   "devDependencies": {

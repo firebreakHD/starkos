@@ -13,9 +13,9 @@ import { DISPLAY_ADAPTERS } from './adapters.js';
 import { STARK_DISPLAY_TOOLS } from './tool-contract.js';
 import {
   MediaSourceStore,
-  browseWebDav,
-  fetchWebDavFile,
-  readResponseBuffer,
+  SOURCE_TYPES,
+  browseSource,
+  readSourceFile,
 } from './media-source-store.js';
 
 const MAX_BODY = 20 * 1024 * 1024;
@@ -446,7 +446,7 @@ export function starkReceiverPlugin({
           url.pathname === '/api/stark/media-sources'
         ) {
           const input = await readBody(req);
-          if (input.type && input.type !== 'webdav')
+          if (input.type && !SOURCE_TYPES.includes(input.type))
             return json(res, 400, {
               error: 'Dieser NAS-Adapter ist noch nicht aktiviert.',
             });
@@ -472,32 +472,23 @@ export function starkReceiverPlugin({
           if (!source)
             return json(res, 404, { error: 'Medienquelle nicht gefunden.' });
           if (req.method === 'POST' && operation === 'test') {
-            const entries = await browseWebDav(source, '');
+            const entries = await browseSource(source, '');
             return json(res, 200, { connected: true, entries: entries.length });
           }
           if (req.method === 'GET' && operation === 'browse')
             return json(
               res,
               200,
-              await browseWebDav(source, url.searchParams.get('path') || ''),
+              await browseSource(source, url.searchParams.get('path') || ''),
             );
           if (req.method === 'GET' && operation === 'file') {
-            const upstream = await fetchWebDavFile(
+            const { content, type } = await readSourceFile(
               source,
               url.searchParams.get('path') || '',
+              MAX_BODY,
             );
-            const length = Number(upstream.headers.get('content-length') || 0);
-            if (length > MAX_BODY)
-              return json(res, 413, {
-                error: 'NAS-Datei ist größer als 20 MB.',
-              });
-            const content = await readResponseBuffer(upstream, MAX_BODY);
             res.statusCode = 200;
-            res.setHeader(
-              'Content-Type',
-              upstream.headers.get('content-type') ||
-                'application/octet-stream',
-            );
+            res.setHeader('Content-Type', type || 'application/octet-stream');
             res.setHeader('Content-Length', String(content.length));
             res.setHeader('Cache-Control', 'no-store');
             res.setHeader('X-Content-Type-Options', 'nosniff');

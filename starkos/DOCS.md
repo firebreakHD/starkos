@@ -22,7 +22,7 @@ A receiver can be revoked at any time. A revoked token cannot reconnect or execu
 
 In **Media → Medienquellen**, add a WebDAV share with a display name, HTTP(S) address, username and password. STARK OS stores the credentials encrypted in `/data`; they are never returned to the browser, placed in URLs or sent to receivers. You can test, edit, browse and remove each source. Supported images, videos and PDFs are loaded into the same preview and display workflow as local files.
 
-SMB/CIFS remains disabled until a maintained runtime and real NAS hardware have passed the same security and reconnect tests. This is shown explicitly rather than presenting a non-functional integration.
+SMB/CIFS is implemented on top of the `smb3-client` library (SMB 2.1 to 3.1.1, NTLMv2, signing and encryption). Credentials stay server-side, requested paths cannot leave the configured share, and files are size-capped exactly like WebDAV. The SMB path has not yet been verified against real NAS hardware, so report problems rather than assuming it is proven.
 
 ## Media gestures
 

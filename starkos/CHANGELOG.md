@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.11
+
+- Added SMB media sources next to WebDAV, built on the pinned `smb3-client` library: SMB 2.1 to 3.1.1 with NTLMv2, message signing and encryption. Credentials stay encrypted server-side and are never placed in a URL, a log or a receiver message.
+- Requested paths cannot leave the configured share, and SMB files are size-capped like WebDAV ones. NT status codes are translated into real HTTP statuses instead of surfacing raw protocol numbers.
+- Stepping through images no longer stalls and the preview no longer goes black: the preview element is reused instead of rebuilt, local media are decoded once into an object URL, and no new load is started while the wheel is turning.
+
 ## 0.1.10
 
 - Rebuilt the media browser to match the approved reference design: the wheel is drawn on canvas with its rings, tick marks, wedge segments and thumbnails, and the amber selection marker stays fixed at twelve o'clock.

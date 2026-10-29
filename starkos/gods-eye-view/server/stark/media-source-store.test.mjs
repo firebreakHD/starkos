@@ -8,6 +8,7 @@ import {
   MediaSourceStore,
   browseWebDav,
   fetchWebDavFile,
+  smbTarget,
   sourceUrl,
 } from './media-source-store.js';
 
@@ -81,5 +82,73 @@ test('WebDAV browsing and file loading keep credentials in authorization headers
     assert.throws(() => sourceUrl(source, '../private'), /außerhalb/);
   } finally {
     await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test('SMB sources keep their address inside the configured share', () => {
+  const directory = mkdtempSync(path.join(tmpdir(), 'stark-smb-'));
+  try {
+    const store = new MediaSourceStore(directory);
+    const added = store.add({
+      type: 'smb',
+      name: 'NAS Wohnzimmer',
+      url: 'smb://nas.local/Fotos/Urlaub',
+      username: String.raw`WORKGROUP\mt`,
+      password: 'klartext-passwort',
+    });
+    assert.equal(added.type, 'smb');
+    assert.equal(added.url, 'smb://nas.local/Fotos/Urlaub/');
+    assert.equal(added.password, undefined);
+    assert.equal(added.secret, undefined);
+
+    const source = store.get(added.id);
+    const target = smbTarget(source, 'Sommer/bild.jpg');
+    assert.equal(target.host, 'nas.local');
+    assert.equal(target.port, 445);
+    assert.equal(target.domain, 'WORKGROUP');
+    assert.equal(target.username, 'mt');
+    assert.equal(target.path, 'Fotos/Urlaub/Sommer/bild.jpg');
+
+    for (const escape of [
+      '../../etc/passwd',
+      String.raw`..\..\windows`,
+      'Sommer/../../../root',
+      'C:/Windows',
+    ])
+      assert.throws(
+        () => smbTarget(source, escape),
+        (error) => error.status === 400,
+        `escape accepted: ${escape}`,
+      );
+
+    const stored = JSON.parse(
+      readFileSync(path.join(directory, 'media-sources.json'), 'utf8'),
+    );
+    assert.ok(!JSON.stringify(stored).includes('klartext-passwort'));
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('SMB addresses without a share or with inline credentials are refused', () => {
+  const directory = mkdtempSync(path.join(tmpdir(), 'stark-smb-'));
+  try {
+    const store = new MediaSourceStore(directory);
+    for (const url of [
+      'smb://nas.local/',
+      'smb://user:pw@nas.local/Fotos/',
+      'https://nas.local/Fotos/',
+    ])
+      assert.throws(
+        () => store.add({ type: 'smb', name: 'NAS', url }),
+        (error) => error.status === 400,
+        `address accepted: ${url}`,
+      );
+    assert.throws(
+      () => store.add({ type: 'nfs', name: 'NAS', url: 'smb://nas/Fotos/' }),
+      (error) => error.status === 400,
+    );
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
   }
 });

@@ -29,9 +29,9 @@
 - Das derzeit große Feld **Medium einspeisen** durch eine kompakte Import-Schaltfläche ersetzen, damit auf dem Handy mehr Platz für den eigentlichen Medienbrowser bleibt.
 - Im Medienbrowser eine eigene Einstellungsansicht **Medienquellen** ergänzen.
 - NAS-Freigaben mit frei wählbarem Namen, Freigabeadresse/Pfad, Protokoll, Benutzername und Passwort hinzufügen, bearbeiten, testen und entfernen können.
-- WebDAV ist implementiert. SMB/CIFS folgt erst nach Auswahl einer gepflegten Bibliothek und echtem Hardwaretest; NFS nur mit den tatsächlich verfügbaren Optionen und ohne vorgetäuschte Benutzer-/Passwortanmeldung.
+- WebDAV und SMB sind implementiert. SMB läuft über `smb3-client` (SMB 2.1 bis 3.1.1, NTLMv2, Signing, Verschlüsselung) und ist noch nicht an echter NAS-Hardware bestätigt. NFS nur mit den tatsächlich verfügbaren Optionen und ohne vorgetäuschte Benutzer-/Passwortanmeldung.
 
-#### Stand der SMB-Bibliotheksauswahl (29.10.2026)
+#### Umgesetzt: SMB-Quellen (29.10.2026)
 
 Node bringt keinen SMB-Client mit, und SMB ist an drei Stellen gesperrt: die deaktivierte Option im Quellenformular (`public/stark/index.html`), die Ablehnung jedes Typs außer `webdav` in der Route `POST /api/stark/media-sources` (`server/stark/receiver.js`) und der Store selbst, der `type` hart auf `webdav` setzt, nur `http(s)` erlaubt und allein `browseWebDav`/`fetchWebDavFile` kennt (`server/stark/media-source-store.js`). Die Option freizuschalten genügt also nicht.
 
@@ -44,7 +44,7 @@ Geprüfte Pakete:
 | `node-smbx` 0.3.0 | 23.03.2026 | Natives libsmb2-Binding; benötigt eine Build-Kette im Add-on-Image für amd64 und aarch64. |
 | `samba-client` 7.2.0 | 15.04.2023 | Wrapper um das `smbclient`-Binary; erfordert eine zusätzliche Systemabhängigkeit im Dockerfile. |
 
-Falls SMB umgesetzt wird: Version exakt pinnen, den Transport hinter `browseSource`/`fetchSourceFile` kapseln, die Pfadprüfung aus `sourceUrl()` für Freigabenpfade nachbilden (Ausbruch über `..` und Backslashes) und vor dem Freischalten der Formularoption an echter Hardware testen. Der pragmatische Weg bleibt, WebDAV am NAS zu aktivieren.
+Umgesetzt mit `smb3-client`, exakt auf 0.2.0 gepinnt: Transport hinter `browseSource`/`readSourceFile`, Pfadprüfung in `smbTarget()` gegen `..`, Backslashes und Laufwerksbuchstaben, NT-Statuscodes werden in HTTP-Status übersetzt. Offen bleibt der Test an echter NAS-Hardware; die Alpha-Kennzeichnung der Bibliothek bleibt bestehen.
 
 - Verbindungsstatus und verständliche Fehler anzeigen, ohne Zugangsdaten offenzulegen.
 - Passwörter ausschließlich serverseitig persistent und geschützt speichern; nie in URLs, Logs, Browser-LocalStorage oder Receiver-Nachrichten übertragen.
