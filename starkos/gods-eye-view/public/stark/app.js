@@ -1,5 +1,6 @@
 import { InertialRing } from './ring.js';
 import { DisplayApi, capability } from './display-api.js';
+import { createMediaBrowser } from './media-browser.js';
 
 const modules = [
   {
@@ -41,7 +42,7 @@ const importedMedia = [];
 const displays = new DisplayApi();
 const selectedDisplays = new Set();
 const receiverPreviewCache = new Map();
-let selectedMediaIndex = -1;
+let mediaBrowser = null;
 
 const ring = new InertialRing($('#ring'), modules, (index, item) => {
   active = item;
@@ -84,17 +85,22 @@ $('#closePanel').addEventListener('click', () => {
 function mountMedia(body) {
   body.append($('#mediaTemplate').content.cloneNode(true));
   const input = $('#mediaInput', body);
-  const zone = $('#dropZone', body);
+  const zone = $('#starkBrowser', body);
+  const sourcesPanel = $('#mediaSources', body);
+  mediaBrowser?.destroy();
+  mediaBrowser = createMediaBrowser({
+    root: body,
+    displays,
+    library: importedMedia,
+    selectedDisplays,
+    pickLocal: () => input.click(),
+    openSources: () => {
+      sourcesPanel.hidden = false;
+      renderMediaSources(body);
+      sourcesPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    },
+  });
   $('#pickMedia', body).addEventListener('click', () => input.click());
-  $('#previousMedia', body).addEventListener('click', () =>
-    selectMediaAt(selectedMediaIndex - 1, body),
-  );
-  $('#nextMedia', body).addEventListener('click', () =>
-    selectMediaAt(selectedMediaIndex + 1, body),
-  );
-  bindWheelGesture($('#mediaStrip', body), (step) =>
-    selectMediaAt(selectedMediaIndex + step, body),
-  );
   input.addEventListener('change', () => addMedia(input.files, body));
   zone.addEventListener('dragover', (event) => {
     event.preventDefault();
@@ -116,14 +122,8 @@ function mountMedia(body) {
       source: 'WEBLINK · EXTERN ÖFFNEN',
     };
     importedMedia.push(media);
-    selectedMediaIndex = importedMedia.length - 1;
-    renderMediaLibrary(body);
+    mediaBrowser?.showLibrary();
     event.currentTarget.reset();
-  });
-  const sourcesPanel = $('#mediaSources', body);
-  $('#openSources', body).addEventListener('click', () => {
-    sourcesPanel.hidden = false;
-    renderMediaSources(body);
   });
   $('#toggleSourceSettings', body).addEventListener('click', () => {
     const form = $('#sourceForm', body);
@@ -161,18 +161,16 @@ function mountMedia(body) {
         'QUELLE SPEICHERN';
       status.textContent = 'QUELLE VERBUNDEN';
       renderMediaSources(body);
+      mediaBrowser?.refreshSources();
     } catch (error) {
       status.textContent = error.message;
       renderMediaSources(body);
     }
   });
-  renderDisplayTargets($('#deviceTargets', body));
-  renderMediaLibrary(body);
-  refreshMediaMonitor(body);
-  const monitorTimer = setInterval(() => refreshMediaMonitor(body), 1500);
   body.closest('.panel')?.addEventListener('transitionend', () => {
-    if (!body.closest('.panel')?.classList.contains('open'))
-      clearInterval(monitorTimer);
+    if (body.closest('.panel')?.classList.contains('open')) return;
+    mediaBrowser?.destroy();
+    mediaBrowser = null;
   });
 }
 
@@ -189,7 +187,10 @@ async function renderMediaSources(body) {
         `WEBDAV · ${new URL(source.url).host}`;
       const nav = row.querySelector('nav');
       nav.append(
-        controlButton('ÖFFNEN', () => browseMediaSource(source, '', body)),
+        controlButton('ÖFFNEN', () => {
+          $('#mediaSources', body).hidden = true;
+          mediaBrowser?.openSource(source);
+        }),
         controlButton('TEST', async (event) => {
           const button = event?.currentTarget;
           try {
@@ -213,6 +214,7 @@ async function renderMediaSources(body) {
         controlButton('LÖSCHEN', async () => {
           await displays.removeMediaSource(source.id);
           renderMediaSources(body);
+          mediaBrowser?.refreshSources();
         }),
       );
       return row;
@@ -225,169 +227,6 @@ async function renderMediaSources(body) {
     empty.textContent = 'Noch keine NAS-Medienquelle gespeichert.';
     list.append(empty);
   }
-}
-
-async function browseMediaSource(source, path, body) {
-  const browser = $('#sourceBrowser', body);
-  browser.hidden = false;
-  browser.replaceChildren();
-  const header = document.createElement('header');
-  const back = controlButton('←', () => {
-    if (!path) {
-      browser.hidden = true;
-      return;
-    }
-    const parent = path.replace(/\/$/, '').split('/').slice(0, -1).join('/');
-    browseMediaSource(source, parent ? `${parent}/` : '', body);
-  });
-  const title = document.createElement('strong');
-  title.textContent = `${source.name} / ${path}`;
-  header.append(back, title);
-  browser.append(header);
-  try {
-    const entries = await displays.browseMediaSource(source.id, path);
-    mountSourceWheel(browser, entries, source, body);
-  } catch (error) {
-    const message = document.createElement('p');
-    message.className = 'module-note';
-    message.textContent = error.message;
-    browser.append(message);
-  }
-}
-
-function mountSourceWheel(browser, entries, source, body) {
-  const stage = document.createElement('section');
-  stage.className = 'source-wheel-stage';
-  stage.innerHTML = `
-    <div class="source-wheel-focus"><small>CURRENT SELECTION</small><strong></strong><span></span></div>
-    <div class="source-wheel-nav"><button type="button" aria-label="Vorheriger Eintrag">‹</button><div role="listbox"></div><button type="button" aria-label="Nächster Eintrag">›</button><button type="button" class="source-load">LOAD</button></div>`;
-  browser.append(stage);
-  if (!entries.length) {
-    stage.querySelector('.source-wheel-focus strong').textContent =
-      'LEERER ORDNER';
-    stage.querySelector('.source-load').disabled = true;
-    return;
-  }
-  let selected = 0;
-  const list = stage.querySelector('[role="listbox"]');
-  const load = stage.querySelector('.source-load');
-  const openSelected = () => {
-    const entry = entries[selected];
-    if (entry.directory) browseMediaSource(source, entry.path, body);
-    else addNasMedia(source, entry, body, load);
-  };
-  const loadSelected = () => {
-    const entry = entries[selected];
-    if (entry.directory) loadNasFolder(source, entry, body, load);
-    else addNasMedia(source, entry, body, load);
-  };
-  const render = () => {
-    const entry = entries[selected];
-    stage.querySelector('.source-wheel-focus strong').textContent = entry.name;
-    stage.querySelector('.source-wheel-focus span').textContent =
-      entry.directory
-        ? `ORDNER · ${entries.length} EINTRÄGE AUF DIESER EBENE`
-        : `${entry.type || 'DATEI'} · ${formatBytes(entry.size || 0)}`;
-    list.replaceChildren(
-      ...entries.map((item, index) => {
-        const option = document.createElement('button');
-        option.type = 'button';
-        option.setAttribute('role', 'option');
-        option.setAttribute('aria-selected', String(index === selected));
-        option.className = index === selected ? 'selected' : '';
-        option.textContent = `${item.directory ? '▰' : '◉'} ${item.name}`;
-        option.addEventListener('click', () => {
-          selected = index;
-          render();
-        });
-        option.addEventListener('dblclick', openSelected);
-        return option;
-      }),
-    );
-    list.children[selected]?.scrollIntoView({ block: 'center' });
-    load.textContent = entry.directory ? 'LOAD ORDNER' : 'LOAD MEDIUM';
-  };
-  const move = (delta) => {
-    selected = (selected + delta + entries.length) % entries.length;
-    render();
-  };
-  const buttons = stage.querySelectorAll('.source-wheel-nav > button');
-  buttons[0].addEventListener('click', () => move(-1));
-  buttons[1].addEventListener('click', () => move(1));
-  load.addEventListener('click', loadSelected);
-  bindWheelGesture(list, move);
-  render();
-}
-
-async function addNasMedia(source, entry, body, button) {
-  button.disabled = true;
-  button.textContent = 'LÄDT …';
-  try {
-    const media = await fetchNasMedia(source, entry);
-    importedMedia.push(media);
-    selectedMediaIndex = importedMedia.length - 1;
-    renderMediaLibrary(body);
-    $('#mediaSources', body).hidden = true;
-  } catch (error) {
-    button.textContent = error.message;
-    button.disabled = false;
-  }
-}
-
-async function fetchNasMedia(source, entry) {
-  const blob = await displays.mediaSourceFile(source.id, entry.path);
-  const type = blob.type || entry.type || mediaTypeFromName(entry.name);
-  if (!/^(image\/|video\/|application\/pdf$)/.test(type))
-    throw new Error('Dieser Dateityp kann nicht angezeigt werden.');
-  return {
-    title: entry.name,
-    type,
-    data: await readDataUrl(blob),
-    source: `NAS · ${source.name}`,
-  };
-}
-
-async function loadNasFolder(source, entry, body, button) {
-  button.disabled = true;
-  button.textContent = 'ORDNER WIRD GELADEN …';
-  try {
-    const entries = await displays.browseMediaSource(source.id, entry.path);
-    const supported = entries.filter(
-      (item) =>
-        !item.directory &&
-        /^(image\/|video\/|application\/pdf$)/.test(
-          item.type || mediaTypeFromName(item.name),
-        ),
-    );
-    if (!supported.length)
-      throw new Error('Keine unterstützten Medien in diesem Ordner.');
-    for (let index = 0; index < supported.length; index += 1) {
-      button.textContent = `LÄDT ${index + 1} / ${supported.length}`;
-      importedMedia.push(await fetchNasMedia(source, supported[index]));
-    }
-    selectedMediaIndex = importedMedia.length - supported.length;
-    renderMediaLibrary(body);
-    $('#mediaSources', body).hidden = true;
-  } catch (error) {
-    button.disabled = false;
-    button.textContent = error.message;
-  }
-}
-
-function mediaTypeFromName(name) {
-  const extension = String(name).split('.').pop().toLowerCase();
-  return (
-    {
-      jpg: 'image/jpeg',
-      jpeg: 'image/jpeg',
-      png: 'image/png',
-      gif: 'image/gif',
-      webp: 'image/webp',
-      mp4: 'video/mp4',
-      webm: 'video/webm',
-      pdf: 'application/pdf',
-    }[extension] || 'application/octet-stream'
-  );
 }
 
 async function addMedia(files, body) {
@@ -403,263 +242,8 @@ async function addMedia(files, body) {
       source: `${formatBytes(file.size)} · LOCAL`,
     };
     importedMedia.push(media);
-    selectedMediaIndex = importedMedia.length - 1;
   }
-  renderMediaLibrary(body);
-}
-
-function renderMediaLibrary(body) {
-  const strip = $('#mediaStrip', body);
-  if (!strip) return;
-  strip.replaceChildren(
-    ...importedMedia.map((media, index) => createMediaCard(media, index, body)),
-  );
-  if (!importedMedia.length) selectedMediaIndex = -1;
-  else if (selectedMediaIndex < 0 || selectedMediaIndex >= importedMedia.length)
-    selectedMediaIndex = 0;
-  selectMediaAt(selectedMediaIndex, body, false);
-}
-
-function createMediaCard(media, index, body) {
-  const card = document.createElement('article');
-  card.dataset.mediaIndex = String(index);
-  card.setAttribute('role', 'option');
-  card.innerHTML = media.type.startsWith('image/')
-    ? `<img src="${media.data}" alt=""><div><strong>${escapeHtml(media.title)}</strong><span>${escapeHtml(media.source || 'MEDIA')}</span></div>`
-    : `<div class="file-glyph">${media.type.startsWith('video/') ? '▶' : media.type === 'text/uri-list' ? '↗' : '▤'}</div><div><strong>${escapeHtml(media.title)}</strong><span>${escapeHtml(media.source || 'MEDIA')}</span></div>`;
-  prepareMediaCard(card, media, body);
-  return card;
-}
-
-function selectMediaAt(index, body, scroll = true) {
-  const total = importedMedia.length;
-  const focus = $('#mediaFocus', body);
-  if (!focus) return;
-  if (!total) {
-    $('#mediaCount', body).textContent = '00 / 00';
-    $('#mediaFocusTitle', body).textContent = 'BIBLIOTHEK';
-    return;
-  }
-  selectedMediaIndex = (index + total) % total;
-  const media = importedMedia[selectedMediaIndex];
-  const cards = [...body.querySelectorAll('#mediaStrip article')];
-  cards.forEach((card, cardIndex) => {
-    const selected = cardIndex === selectedMediaIndex;
-    card.classList.toggle('selected', selected);
-    card.setAttribute('aria-selected', String(selected));
-  });
-  const selectedCard = cards[selectedMediaIndex];
-  if (scroll)
-    selectedCard?.scrollIntoView({
-      behavior: 'smooth',
-      block: 'nearest',
-      inline: 'center',
-    });
-  $('#mediaCount', body).textContent =
-    `${String(selectedMediaIndex + 1).padStart(2, '0')} / ${String(total).padStart(2, '0')}`;
-  $('#mediaFocusTitle', body).textContent = media.title;
-  focus.replaceChildren();
-  const rotate = $('#mediaRotateLeft', body);
-  const reset = $('#mediaResetTransform', body);
-  const zoom = $('#mediaZoom', body);
-  const zoomValue = $('#mediaZoomValue', body);
-  for (const control of [rotate, reset, zoom]) control.disabled = true;
-  zoom.value = '100';
-  zoomValue.textContent = '100%';
-  let visual;
-  if (media.type.startsWith('image/')) {
-    visual = document.createElement('img');
-    visual.src = media.data;
-    visual.alt = media.title;
-    let transmitted = false;
-    const sendSelected = () => {
-      if (transmitted) return;
-      transmitted = true;
-      transmit(media, selectedCard);
-    };
-    const transform = enableRemoteImageGestures(
-      visual,
-      null,
-      null,
-      sendSelected,
-      (value) => {
-        zoom.value = String(Math.round(Number(value.zoom || 1) * 100));
-        zoomValue.textContent = `${zoom.value}%`;
-      },
-    );
-    visual.addEventListener('dblclick', sendSelected);
-    let previewTap = 0;
-    visual.addEventListener('pointerup', () => {
-      const now = performance.now();
-      if (now - previewTap < 340) {
-        previewTap = 0;
-        sendSelected();
-      } else previewTap = now;
-    });
-    for (const control of [rotate, reset, zoom]) control.disabled = false;
-    zoom.addEventListener('input', () => {
-      sendSelected();
-      transform.update({ zoom: Number(zoom.value) / 100 });
-    });
-    rotate.addEventListener('click', () => {
-      sendSelected();
-      transform.update({ rotation: transform.get().rotation - 90 });
-    });
-    reset.addEventListener('click', () => {
-      sendSelected();
-      transform.update({ zoom: 1, x: 0, y: 0, rotation: 0 });
-    });
-  } else if (media.type.startsWith('video/')) {
-    visual = document.createElement('video');
-    visual.src = media.data;
-    visual.controls = true;
-    visual.playsInline = true;
-  } else if (media.type === 'text/uri-list') {
-    visual = document.createElement('a');
-    visual.href = media.data;
-    visual.target = '_blank';
-    visual.rel = 'noopener';
-    visual.textContent = 'WEBINHALT EXTERN ÖFFNEN';
-  } else {
-    visual = document.createElement('iframe');
-    visual.src = media.data;
-    visual.title = media.title;
-  }
-  focus.append(visual);
-}
-
-function prepareMediaCard(card, media, body) {
-  card.title =
-    'Antippen: Vorschau · Doppeltippen: Anzeigen · Ziehen: Ziel wählen';
-  const transfer = document.createElement('button');
-  transfer.type = 'button';
-  transfer.className = 'file-transfer';
-  transfer.textContent = 'DATEI';
-  transfer.title = 'Datei übertragen, nicht präsentieren';
-  for (const name of ['pointerdown', 'pointerup', 'click'])
-    transfer.addEventListener(name, (event) => {
-      event.stopPropagation();
-      if (name === 'click') transmit(media, card, undefined, 'transfer');
-    });
-  if (media.type !== 'text/uri-list') card.append(transfer);
-  bindMediaGestures(card, media, body);
-}
-
-function bindWheelGesture(element, onStep) {
-  let pointerId = null;
-  let previous = 0;
-  const coordinate = (event) =>
-    getComputedStyle(element).flexDirection === 'row'
-      ? event.clientX
-      : event.clientY;
-  element.addEventListener('pointerdown', (event) => {
-    pointerId = event.pointerId;
-    previous = coordinate(event);
-  });
-  element.addEventListener('pointermove', (event) => {
-    if (event.pointerId !== pointerId) return;
-    const current = coordinate(event);
-    const delta = current - previous;
-    if (Math.abs(delta) < 32) return;
-    previous = current;
-    onStep(delta > 0 ? 1 : -1);
-  });
-  const release = (event) => {
-    if (event.pointerId === pointerId) pointerId = null;
-  };
-  element.addEventListener('pointerup', release);
-  element.addEventListener('pointercancel', release);
-  element.addEventListener(
-    'wheel',
-    (event) => {
-      if (Math.abs(event.deltaY) < 2) return;
-      event.preventDefault();
-      onStep(event.deltaY > 0 ? 1 : -1);
-    },
-    { passive: false },
-  );
-}
-
-function bindMediaGestures(card, media, body) {
-  let firstTap = 0;
-  let singleTimer = 0;
-  let dragging = false;
-  let origin = null;
-  card.addEventListener('pointerdown', (event) => {
-    origin = { x: event.clientX, y: event.clientY };
-    dragging = false;
-    card.setPointerCapture(event.pointerId);
-  });
-  card.addEventListener('pointermove', (event) => {
-    if (!origin) return;
-    if (Math.hypot(event.clientX - origin.x, event.clientY - origin.y) > 14) {
-      dragging = true;
-      card.classList.add('media-dragging');
-    }
-  });
-  card.addEventListener('pointerup', (event) => {
-    card.classList.remove('media-dragging');
-    if (dragging) {
-      const target = document
-        .elementFromPoint(event.clientX, event.clientY)
-        ?.closest('.device-target');
-      if (target) transmit(media, card, [target.dataset.id]);
-      origin = null;
-      return;
-    }
-    const now = performance.now();
-    if (now - firstTap < 330) {
-      clearTimeout(singleTimer);
-      firstTap = 0;
-      transmit(media, card);
-    } else {
-      firstTap = now;
-      singleTimer = setTimeout(() => {
-        firstTap = 0;
-        selectMediaAt(importedMedia.indexOf(media), body);
-      }, 350);
-    }
-  });
-}
-
-async function transmit(media, card, explicitTargets, mode = 'show') {
-  try {
-    const available = await displays.list();
-    const targets = explicitTargets?.length
-      ? explicitTargets
-      : [...selectedDisplays];
-    if (!targets.length) {
-      const fallback = available.find((item) => item.connected);
-      if (fallback) targets.push(fallback.id);
-    }
-    if (!targets.length) {
-      showCardStatus(card, 'KEIN ONLINE-ZIEL');
-      return;
-    }
-    const result = await displays.command(targets, 'media.show', {
-      media,
-      mode,
-    });
-    const accepted = result.results.filter((item) => item.accepted).length;
-    showCardStatus(
-      card,
-      accepted
-        ? `${mode === 'transfer' ? 'ÜBERTRAGEN' : 'ANGEZEIGT'} // ${accepted} DISPLAY${accepted > 1 ? 'S' : ''}`
-        : result.results[0]?.error || 'NICHT GESENDET',
-    );
-  } catch (error) {
-    showCardStatus(card, error.message);
-  }
-}
-
-function showCardStatus(card, text) {
-  let status = card.querySelector('.transfer-status');
-  if (!status) {
-    status = document.createElement('em');
-    status.className = 'transfer-status';
-    card.append(status);
-  }
-  status.textContent = text;
+  mediaBrowser?.showLibrary();
 }
 
 function readDataUrl(file) {
@@ -689,6 +273,7 @@ async function renderDisplayTargets(container) {
         : selectedDisplays.add(device.id);
       target.classList.toggle('selected', selectedDisplays.has(device.id));
       refreshMediaMonitor(container.closest('.panel-body'));
+      mediaBrowser?.refreshReceiver();
     });
     container.append(target);
   }

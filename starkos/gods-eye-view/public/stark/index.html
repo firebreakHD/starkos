@@ -61,86 +61,106 @@
 
     <template id="mediaTemplate">
       <div class="module media-module">
-        <div class="adaptive-media-browser" id="dropZone">
-          <section class="media-focus-pane" aria-label="Medienvorschau">
-            <header>
-              <span>MEDIA // PREVIEW</span
-              ><strong id="mediaFocusTitle">BIBLIOTHEK</strong>
-            </header>
-            <div class="media-focus-screen" id="mediaFocus">
-              <div class="media-empty-state">
-                <i>◉</i>
-                <strong>MEDIEN AUSWÄHLEN</strong>
-                <span>NAS-Quelle öffnen oder eine lokale Datei hinzufügen</span>
+        <section
+          class="stark-browser"
+          id="starkBrowser"
+          data-view="folders"
+          data-orientation="portrait"
+          aria-label="Medienbrowser"
+          data-mode="manual"
+        >
+          <div class="browser-top" id="browserTop" aria-live="polite">
+            <span class="top-receiver" data-online="no" id="receiverChip"
+              ><i aria-hidden="true"></i
+              ><strong id="receiverName">KEIN RECEIVER</strong></span
+            >
+            <span class="top-shown">
+              <img id="receiverThumb" alt="" hidden /><b id="receiverMedia">—</b
+              ><em id="receiverZoom" hidden></em>
+            </span>
+            <span class="top-state" id="receiverState">NICHT VERBUNDEN</span>
+          </div>
+          <div class="browser-stage" id="browserStage">
+            <div class="browser-primary">
+              <div class="folder-stack" id="folderStack" aria-live="polite">
+                <span
+                  class="folder-name is-previous"
+                  id="folderPrevious"
+                ></span>
+                <strong class="folder-name is-current" id="folderCurrent"
+                  >…</strong
+                >
+                <span class="folder-name is-next" id="folderNext"></span>
+              </div>
+              <div class="preview-stack" id="previewStack" hidden>
+                <div class="preview-frame" id="previewFrame">
+                  <div class="preview-canvas" id="previewCanvas"></div>
+                </div>
+                <div class="preview-meta">
+                  <button
+                    type="button"
+                    class="browser-back"
+                    id="browserBack"
+                    aria-label="Zurück zur Ordnerauswahl"
+                  >
+                    ‹
+                  </button>
+                  <button
+                    type="button"
+                    class="browser-transfer"
+                    id="browserTransfer"
+                    title="Datei übertragen, nicht präsentieren"
+                  >
+                    DATEI
+                  </button>
+                </div>
               </div>
             </div>
-            <div class="media-focus-controls" id="mediaFocusControls">
-              <button
-                type="button"
-                id="mediaRotateLeft"
-                aria-label="Bild links drehen"
-                disabled
-              >
-                ↶
-              </button>
-              <label
-                >ZOOM
-                <input
-                  id="mediaZoom"
-                  type="range"
-                  min="25"
-                  max="500"
-                  value="100"
-                  disabled
-              /></label>
-              <output id="mediaZoomValue">100%</output>
-              <button type="button" id="mediaResetTransform" disabled>
-                RESET
-              </button>
+            <div
+              class="browser-wheel"
+              id="browserWheel"
+              role="group"
+              tabindex="0"
+              aria-label="Auswahlrad"
+            >
+              <div class="wheel-dial" id="wheelDial">
+                <div class="wheel-decor" aria-hidden="true">
+                  <i class="wheel-ticks"></i><i class="wheel-spokes"></i
+                  ><i class="wheel-inner"></i>
+                </div>
+                <div class="wheel-segments" id="wheelSegments"></div>
+                <svg
+                  class="wheel-marker"
+                  id="wheelMarker"
+                  viewBox="0 0 100 100"
+                  aria-hidden="true"
+                  hidden
+                >
+                  <path d="M39 8.5 L61 8.5 L56.49 25.5 L43.51 25.5 Z" />
+                </svg>
+                <button
+                  type="button"
+                  class="wheel-core"
+                  id="wheelCore"
+                  aria-label="Ordner laden"
+                >
+                  <span class="core-mode" aria-hidden="true">
+                    <svg class="mode-manual" viewBox="0 0 24 24">
+                      <path
+                        d="M8.5 13.2V6.4a1.4 1.4 0 0 1 2.8 0v4.6m0-5.2a1.4 1.4 0 0 1 2.8 0v5.2m0-3.6a1.4 1.4 0 0 1 2.8 0v6.9a5.8 5.8 0 0 1-5.8 5.8h-.8a4.8 4.8 0 0 1-4-2.2l-2-3a1.5 1.5 0 0 1 2.4-1.8l1.8 2"
+                      />
+                    </svg>
+                    <svg class="mode-auto" viewBox="0 0 24 24">
+                      <path d="M4 9.2h13.4m-3.2-3.4 3.4 3.4-3.4 3.4" />
+                      <path d="M20 15.2H6.6m3.2-3.4-3.4 3.4 3.4 3.4" />
+                    </svg>
+                  </span>
+                </button>
+              </div>
             </div>
-          </section>
-          <aside class="media-wheel-pane" aria-label="Mediennavigation">
-            <header>
-              <span>SELECTION WHEEL</span><b id="mediaCount">00 / 00</b>
-            </header>
-            <div class="media-wheel-frame">
-              <button
-                type="button"
-                id="previousMedia"
-                aria-label="Vorheriges Medium"
-              >
-                ‹
-              </button>
-              <div class="media-strip" id="mediaStrip" role="listbox"></div>
-              <button type="button" id="nextMedia" aria-label="Nächstes Medium">
-                ›
-              </button>
-            </div>
-            <div class="media-toolbar">
-              <button type="button" id="pickMedia">＋ DATEI</button>
-              <button type="button" id="openSources">▤ MEDIENBROWSER</button>
-              <span>DROP</span>
-              <input
-                type="file"
-                id="mediaInput"
-                accept="image/*,video/*,.pdf"
-                multiple
-                hidden
-              />
-            </div>
-            <details class="web-media compact-web">
-              <summary>＋ WEBLINK</summary>
-              <form id="webMedia">
-                <input
-                  type="url"
-                  id="webUrl"
-                  placeholder="https://…"
-                  required
-                /><button type="submit">HINZUFÜGEN</button>
-              </form>
-            </details>
-          </aside>
-        </div>
+          </div>
+          <output class="browser-status" id="browserStatus"></output>
+        </section>
         <section class="media-sources" id="mediaSources" hidden>
           <header>
             <strong>MEDIENBROWSER</strong
@@ -152,6 +172,28 @@
               NAS EINSTELLUNGEN
             </button>
           </div>
+          <div class="media-toolbar">
+            <button type="button" id="pickMedia">＋ DATEI</button>
+            <span>DROP</span>
+            <input
+              type="file"
+              id="mediaInput"
+              accept="image/*,video/*,.pdf"
+              multiple
+              hidden
+            />
+          </div>
+          <details class="web-media compact-web">
+            <summary>＋ WEBLINK</summary>
+            <form id="webMedia">
+              <input
+                type="url"
+                id="webUrl"
+                placeholder="https://…"
+                required
+              /><button type="submit">HINZUFÜGEN</button>
+            </form>
+          </details>
           <form id="sourceForm" autocomplete="off" hidden>
             <input
               id="sourceName"
@@ -186,17 +228,6 @@
             <output id="sourceStatus"></output>
           </form>
           <div class="source-list" id="sourceList"></div>
-          <div class="source-browser" id="sourceBrowser" hidden></div>
-        </section>
-        <div class="device-targets" id="deviceTargets">
-          <span>DISPLAY TARGETS</span>
-        </div>
-        <section class="display-monitor" id="displayMonitor">
-          <header><strong>AKTIVER RECEIVER</strong><span>STANDBY</span></header>
-          <div class="display-monitor-screen">
-            <span>KEIN MEDIUM AKTIV</span>
-          </div>
-          <div class="display-monitor-controls"></div>
         </section>
       </div>
     </template>
