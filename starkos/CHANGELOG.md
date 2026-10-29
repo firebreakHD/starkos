@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.12
+
+- STARK OS no longer opens God’s Eye View in embed mode, so the engine shows its own interface again: layers, cameras, context, address search and settings are reachable on desktop and on the phone.
+- Added a discreet back control to God’s Eye View that returns to the STARK OS ring; it steps aside in the engine’s clean view and resolves correctly behind Home Assistant Ingress.
+
 ## 0.1.11
 
 - Added SMB media sources next to WebDAV, built on the pinned `smb3-client` library: SMB 2.1 to 3.1.1 with NTLMv2, message signing and encryption. Credentials stay encrypted server-side and are never placed in a URL, a log or a receiver message.

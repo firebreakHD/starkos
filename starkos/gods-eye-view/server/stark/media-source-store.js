@@ -418,6 +418,16 @@ function smbFailure(error) {
       new Error('SMB-Anmeldung fehlgeschlagen. Benutzer oder Passwort prüfen.'),
       { status: 401 },
     );
+  // Samba lehnt das NEGOTIATE-Paket von smb3-client 0.2.0 ab: es hängt nach
+  // dem letzten Negotiate-Kontext Füllbytes an, die Windows toleriert und
+  // Samba als ungültige Länge wertet. Siehe docs/NEXT-STEPS.md.
+  if (error?.statusName === 'STATUS_INVALID_PARAMETER')
+    return Object.assign(
+      new Error(
+        'Die Freigabe lehnt die SMB-Aushandlung ab. Bekannte Unverträglichkeit der SMB-Bibliothek mit Samba-Freigaben; WebDAV funktioniert an derselben Freigabe.',
+      ),
+      { status: 502 },
+    );
   if (error?.code === 'ENOENT' || error?.statusName === 'STATUS_NO_SUCH_FILE')
     return Object.assign(new Error('Pfad auf der Freigabe nicht gefunden.'), {
       status: 404,

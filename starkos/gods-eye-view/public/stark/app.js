@@ -55,7 +55,10 @@ const ring = new InertialRing($('#ring'), modules, (index, item) => {
 
 function openPanel(item = active) {
   if (item.title === 'WORLD') {
-    window.location.assign('../?world=1&embed=1&stark=1');
+    // Ohne `embed=1`: God's Eye View zeigt seine eigene Oberfläche mit
+    // Filtern, Adresssuche und Einstellungen. `stark=1` blendet nur den
+    // Rückweg zum STARK-Ring ein.
+    window.location.assign('../?world=1&stark=1');
     return;
   }
   const panel = $('#panel');
