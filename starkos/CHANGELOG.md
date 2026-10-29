@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.14
+
+- Fixed listing a NAS directory over SMB. When it pages through a large folder, `smb3-client` sends no search pattern but still reports a file name offset; MS-SMB2 requires that offset to be 0, and Samba answers STATUS_OBJECT_NAME_INVALID. The install patch now corrects this request as well.
+- SMB addresses are entered as `host/share/folder`. The `smb://` prefix is no longer typed or shown, and saved sources are listed in the same short form.
+
 ## 0.1.13
 
 - Fixed SMB shares on Samba servers, which is what Synology, QNAP and OpenMediaVault run. The `smb3-client` dependency appends padding after the last SMB2 negotiate context; Samba validates the message length and refused the whole negotiation with STATUS_INVALID_PARAMETER, before any authentication. A postinstall patch removes those bytes, and a unit test fails if an install or a version bump brings them back.

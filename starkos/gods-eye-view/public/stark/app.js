@@ -134,7 +134,7 @@ function mountMedia(body) {
   const applySourceHint = () => {
     sourceUrl.placeholder =
       sourceType.value === 'smb'
-        ? 'smb://nas.example/Freigabe/'
+        ? '192.168.1.10/Freigabe/Ordner'
         : 'https://nas.example/dav/';
   };
   sourceType.addEventListener('change', applySourceHint);
@@ -188,6 +188,18 @@ function mountMedia(body) {
   });
 }
 
+/**
+ * SMB-Quellen werden als `Host/Freigabe/Ordner` angezeigt und eingegeben.
+ * Das `smb://` ergänzt der Server; gespeichert bleibt die vollständige Adresse.
+ */
+function plainAddress(source) {
+  return source.type === 'smb'
+    ? String(source.url)
+        .replace(/^smb:\/\//, '')
+        .replace(/\/$/, '')
+    : source.url;
+}
+
 async function renderMediaSources(body) {
   const list = $('#sourceList', body);
   const sources = await displays.mediaSources().catch(() => []);
@@ -198,7 +210,7 @@ async function renderMediaSources(body) {
       row.innerHTML = `<div><strong></strong><small></small></div><nav></nav>`;
       row.querySelector('strong').textContent = source.name;
       row.querySelector('small').textContent =
-        `${String(source.type || 'webdav').toUpperCase()} · ${new URL(source.url).host}`;
+        `${String(source.type || 'webdav').toUpperCase()} · ${plainAddress(source)}`;
       const nav = row.querySelector('nav');
       nav.append(
         controlButton('ÖFFNEN', () => {
@@ -221,7 +233,7 @@ async function renderMediaSources(body) {
           const type = $('#sourceType', body);
           type.value = source.type || 'webdav';
           type.dispatchEvent(new Event('change'));
-          $('#sourceUrl', body).value = source.url;
+          $('#sourceUrl', body).value = plainAddress(source);
           $('#sourceUser', body).value = '';
           $('#sourcePassword', body).value = '';
           form.querySelector('button[type="submit"]').textContent =

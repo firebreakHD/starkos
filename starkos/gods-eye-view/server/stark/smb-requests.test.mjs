@@ -73,3 +73,41 @@ test('the SMB negotiate request carries no padding after the last context', asyn
     `the request is ${body.length - offset} bytes longer than its contexts; Samba refuses that with STATUS_INVALID_PARAMETER`,
   );
 });
+
+test('paging through a directory reports no search pattern offset', async (t) => {
+  const encoderFile = path.join(
+    root,
+    'node_modules/smb3-client/dist/wire/structs/queryDirectory.js',
+  );
+  if (!existsSync(encoderFile)) {
+    t.skip('smb3-client is not installed');
+    return;
+  }
+  const { encodeQueryDirectoryRequest } = await import(
+    pathToFileURL(encoderFile).href
+  );
+  const request = (searchPattern) =>
+    encodeQueryDirectoryRequest({
+      fileInformationClass: 37,
+      flags: 0,
+      fileIndex: 0,
+      fileId: Buffer.alloc(16, 1),
+      searchPattern,
+      outputBufferLength: 65536,
+    });
+
+  const first = request('*');
+  assert.equal(first.readUInt16LE(26), 2, 'the first page carries a pattern');
+  assert.ok(first.readUInt16LE(24) > 0, 'a pattern needs a file name offset');
+
+  // MS-SMB2 2.2.33: without a search pattern the offset must be 0. Samba
+  // answers STATUS_OBJECT_NAME_INVALID otherwise, so listing stops after the
+  // first page of a large directory.
+  const next = request('');
+  assert.equal(next.readUInt16LE(26), 0, 'later pages carry no pattern');
+  assert.equal(
+    next.readUInt16LE(24),
+    0,
+    'FileNameOffset must be 0 when no search pattern is sent',
+  );
+});
