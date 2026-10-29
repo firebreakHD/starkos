@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.15
+
+- Added `scripts/smb-diagnose.mjs`, which walks the SMB steps the media browser takes against a real share and reports where it stops. Credentials are passed on the command line and never stored.
+
 ## 0.1.14
 
 - Fixed listing a NAS directory over SMB. When it pages through a large folder, `smb3-client` sends no search pattern but still reports a file name offset; MS-SMB2 requires that offset to be 0, and Samba answers STATUS_OBJECT_NAME_INVALID. The install patch now corrects this request as well.

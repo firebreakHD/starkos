@@ -2,7 +2,7 @@
 
 STARK OS is a mobile-first media, investigation and geospatial interface for Home Assistant hosting. The supplied God's Eye View project remains the real Cesium/data engine; STARK OS adds the phone-style ring, secured direct access and paired display control.
 
-Current Home Assistant app version: **0.1.14**
+Current Home Assistant app version: **0.1.15**
 
 [![Add the STARK OS repository to Home Assistant](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2FfirebreakHD%2Fstarkos)
 
