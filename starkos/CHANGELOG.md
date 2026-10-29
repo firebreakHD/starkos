@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.10
+
+- Rebuilt the media browser to match the approved reference design: the wheel is drawn on canvas with its rings, tick marks, wedge segments and thumbnails, and the amber selection marker stays fixed at twelve o'clock.
+- Slowed and steadied the rotation to one entry per deliberate turn of the ring, with a quiet snap once the wheel comes to rest.
+- The browser now fills the whole screen on the phone: no panel header, no heading and no inner frame; only the safe areas stay clear.
+- The enlarged image is now its own fixed-size view that stays open after the gesture instead of springing back; further two-finger gestures zoom it, one finger pans and a double tap returns to the image selection.
+- Removed the file transfer button below the preview.
+
 ## 0.1.9
 
 - Rebuilt the media browser around two wheels: a folder wheel that shows at most three folder names without wrap-around, and an image wheel whose amber selection marker stays fixed at twelve o'clock while reused thumbnail segments travel underneath it.

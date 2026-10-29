@@ -66,100 +66,68 @@
           id="starkBrowser"
           data-view="folders"
           data-orientation="portrait"
-          aria-label="Medienbrowser"
           data-mode="manual"
+          aria-label="Medienbrowser"
         >
-          <div class="browser-top" id="browserTop" aria-live="polite">
-            <span class="top-receiver" data-online="no" id="receiverChip"
-              ><i aria-hidden="true"></i
-              ><strong id="receiverName">KEIN RECEIVER</strong></span
-            >
-            <span class="top-shown">
-              <img id="receiverThumb" alt="" hidden /><b id="receiverMedia">—</b
-              ><em id="receiverZoom" hidden></em>
-            </span>
-            <span class="top-state" id="receiverState">NICHT VERBUNDEN</span>
+          <button class="browser-back" id="browserBack" aria-label="Zurück">
+            ‹
+          </button>
+          <div class="tv-now" id="receiverNow" aria-live="polite">
+            <img id="receiverThumb" alt="" hidden />
+            <div>
+              <span id="receiverName">KEIN RECEIVER</span>
+              <strong id="receiverShown">Noch kein Bild übertragen</strong>
+            </div>
           </div>
-          <div class="browser-stage" id="browserStage">
-            <div class="browser-primary">
-              <div class="folder-stack" id="folderStack" aria-live="polite">
-                <span
-                  class="folder-name is-previous"
-                  id="folderPrevious"
-                ></span>
-                <strong class="folder-name is-current" id="folderCurrent"
-                  >…</strong
-                >
-                <span class="folder-name is-next" id="folderNext"></span>
-              </div>
-              <div class="preview-stack" id="previewStack" hidden>
-                <div class="preview-frame" id="previewFrame">
-                  <div class="preview-canvas" id="previewCanvas"></div>
-                </div>
-                <div class="preview-meta">
-                  <button
-                    type="button"
-                    class="browser-back"
-                    id="browserBack"
-                    aria-label="Zurück zur Ordnerauswahl"
-                  >
-                    ‹
-                  </button>
-                  <button
-                    type="button"
-                    class="browser-transfer"
-                    id="browserTransfer"
-                    title="Datei übertragen, nicht präsentieren"
-                  >
-                    DATEI
-                  </button>
-                </div>
+          <div class="view" id="browserView">
+            <div class="folders" id="folderStack" aria-live="polite">
+              <div class="previous" id="folderPrevious"></div>
+              <div class="current" id="folderCurrent">…</div>
+              <div class="next" id="folderNext"></div>
+            </div>
+            <div class="preview-wrap" id="previewStack" hidden>
+              <div
+                class="photo"
+                id="previewFrame"
+                role="img"
+                aria-label="Bildvorschau; mit zwei Fingern aufziehen zum Senden"
+              >
+                <div class="preview-canvas" id="previewCanvas"></div>
               </div>
             </div>
-            <div
-              class="browser-wheel"
-              id="browserWheel"
-              role="group"
-              tabindex="0"
-              aria-label="Auswahlrad"
-            >
-              <div class="wheel-dial" id="wheelDial">
-                <div class="wheel-decor" aria-hidden="true">
-                  <i class="wheel-ticks"></i><i class="wheel-spokes"></i
-                  ><i class="wheel-inner"></i>
-                </div>
-                <div class="wheel-segments" id="wheelSegments"></div>
-                <svg
-                  class="wheel-marker"
-                  id="wheelMarker"
-                  viewBox="0 0 100 100"
-                  aria-hidden="true"
-                  hidden
-                >
-                  <path d="M39 8.5 L61 8.5 L56.49 25.5 L43.51 25.5 Z" />
+            <div class="status" id="browserStatus"></div>
+          </div>
+          <div
+            class="wheel-wrap"
+            id="browserWheel"
+            role="group"
+            tabindex="0"
+            aria-label="Auswahlrad"
+          >
+            <canvas
+              class="wheel"
+              id="wheelCanvas"
+              aria-label="Drehrad: am Ring ziehen oder mit dem Mausrad drehen"
+            ></canvas>
+            <button class="hub" id="wheelCore" aria-label="Ordner laden">
+              <span class="switch-mode" id="modeBadge" aria-hidden="true">
+                <svg class="mode-manual" viewBox="0 0 24 24">
+                  <path
+                    d="M8.5 13.2V6.4a1.4 1.4 0 0 1 2.8 0v4.6m0-5.2a1.4 1.4 0 0 1 2.8 0v5.2m0-3.6a1.4 1.4 0 0 1 2.8 0v6.9a5.8 5.8 0 0 1-5.8 5.8h-.8a4.8 4.8 0 0 1-4-2.2l-2-3a1.5 1.5 0 0 1 2.4-1.8l1.8 2"
+                  />
                 </svg>
-                <button
-                  type="button"
-                  class="wheel-core"
-                  id="wheelCore"
-                  aria-label="Ordner laden"
-                >
-                  <span class="core-mode" aria-hidden="true">
-                    <svg class="mode-manual" viewBox="0 0 24 24">
-                      <path
-                        d="M8.5 13.2V6.4a1.4 1.4 0 0 1 2.8 0v4.6m0-5.2a1.4 1.4 0 0 1 2.8 0v5.2m0-3.6a1.4 1.4 0 0 1 2.8 0v6.9a5.8 5.8 0 0 1-5.8 5.8h-.8a4.8 4.8 0 0 1-4-2.2l-2-3a1.5 1.5 0 0 1 2.4-1.8l1.8 2"
-                      />
-                    </svg>
-                    <svg class="mode-auto" viewBox="0 0 24 24">
-                      <path d="M4 9.2h13.4m-3.2-3.4 3.4 3.4-3.4 3.4" />
-                      <path d="M20 15.2H6.6m3.2-3.4-3.4 3.4 3.4 3.4" />
-                    </svg>
-                  </span>
-                </button>
-              </div>
-            </div>
+                <svg class="mode-auto" viewBox="0 0 24 24">
+                  <path d="M4 9.2h13.4m-3.2-3.4 3.4 3.4-3.4 3.4" />
+                  <path d="M20 15.2H6.6m3.2-3.4-3.4 3.4 3.4 3.4" />
+                </svg>
+              </span>
+            </button>
+            <span class="index" id="wheelIndex"></span>
           </div>
-          <output class="browser-status" id="browserStatus"></output>
+          <div class="expanded" id="expandedView" hidden>
+            <img id="expandedImage" draggable="false" alt="" />
+            <span class="cast-state" id="castState" aria-live="polite"></span>
+          </div>
         </section>
         <section class="media-sources" id="mediaSources" hidden>
           <header>

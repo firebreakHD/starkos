@@ -94,6 +94,7 @@ function mountMedia(body) {
     library: importedMedia,
     selectedDisplays,
     pickLocal: () => input.click(),
+    onExit: () => $('#closePanel').click(),
     openSources: () => {
       sourcesPanel.hidden = false;
       renderMediaSources(body);

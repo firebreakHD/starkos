@@ -1,15 +1,25 @@
 /**
  * STARK OS Medienbrowser.
  *
- * Ordnerauswahl (maximal drei Namen), Bilder-Wheel mit fester Auswahl auf
- * zwölf Uhr, gerahmte Vorschau und Pinch-Sendegeste. Der Browser verwendet
- * ausschließlich die bestehende Display- und Medienquellen-API.
+ * Gestaltung und Bedienabläufe folgen der freigegebenen Referenzdemo: ein auf
+ * Canvas gezeichnetes Wheel mit Ringen, Segmenten und Miniaturen, die feste
+ * gelbe Auswahl auf zwölf Uhr, drei Ordnernamen mit großer fetter Mitte und
+ * eine aufgezogene Bildansicht, die geöffnet bleibt.
+ *
+ * Die Simulationen der Demo sind ersetzt: Einträge kommen aus den vorhandenen
+ * Medienquellen, Übertragungen laufen über die bestehende authentifizierte
+ * Receiver-Steuerung, und angezeigt wird nur, was der Receiver bestätigt hat.
  */
 
-const STEP = 30; // Grad pro Eintrag auf dem Wheel
-const SLOTS = 12; // wiederverwendete Segmente, füllen den Ring genau einmal
-const PRELOAD = 4; // Miniaturen links und rechts der Auswahl
+const STEP = Math.PI / 6; // zwölf Segmente auf dem Ring
+const DRAG_PER_STEP = 0.6; // Bogenmaß Fingerweg je Eintrag (langsam, kontrolliert)
+const SNAP_DELAY = 160; // Stillstand bis zum Einrasten
+const TAP_DELAY = 320; // Fenster zur Unterscheidung Einzel-/Doppeltipp
+const PRELOAD = 4;
 const CACHE_LIMIT = 24;
+const MAX_ZOOM = 4;
+const OPEN_THRESHOLD = 1.04; // ab hier wird die Ansicht sichtbar aufgezogen
+const SEND_THRESHOLD = 1.23; // ab hier gilt die Geste als bewusst abgeschlossen
 const MEDIA_PATTERN = /^(image\/|video\/|application\/pdf$)/;
 const TYPE_BY_EXTENSION = {
   jpg: 'image/jpeg',
@@ -37,13 +47,6 @@ function entryType(entry) {
     : typeFromName(entry.name);
 }
 
-function shortAngle(value) {
-  let delta = value;
-  while (delta > 180) delta -= 360;
-  while (delta < -180) delta += 360;
-  return delta;
-}
-
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
@@ -54,99 +57,89 @@ function clamp(value, min, max) {
  * @param {object} options.displays bestehende DisplayApi-Instanz
  * @param {Array} options.library bereits importierte lokale Medien
  * @param {Set<string>} options.selectedDisplays ausgewählte Receiver
- * @param {() => void} options.openSources öffnet die bestehende Quellenverwaltung
- * @param {() => void} options.pickLocal öffnet den bestehenden Dateidialog
+ * @param {() => void} [options.openSources] öffnet die Quellenverwaltung
+ * @param {() => void} [options.pickLocal] öffnet den Dateidialog
+ * @param {() => void} [options.onExit] verlässt den Medienbrowser
  */
 export function createMediaBrowser(options) {
   const { root, displays, library, selectedDisplays } = options;
   const $ = (selector) => root.querySelector(selector);
 
   const browser = $('#starkBrowser');
-  const stage = $('#browserStage');
-  const folderStack = $('#folderStack');
+  if (!browser) return null;
+
+  const backButton = $('#browserBack');
+  const receiverThumb = $('#receiverThumb');
+  const receiverName = $('#receiverName');
+  const receiverShown = $('#receiverShown');
   const folderPrevious = $('#folderPrevious');
   const folderCurrent = $('#folderCurrent');
   const folderNext = $('#folderNext');
+  const folderStack = $('#folderStack');
   const previewStack = $('#previewStack');
   const previewFrame = $('#previewFrame');
   const previewCanvas = $('#previewCanvas');
-  const browserTop = $('#browserTop');
-  const receiverName = $('#receiverName');
-  const receiverState = $('#receiverState');
-  const receiverChip = $('#receiverChip');
-  const receiverThumb = $('#receiverThumb');
-  const receiverMedia = $('#receiverMedia');
-  const receiverZoom = $('#receiverZoom');
-  const backButton = $('#browserBack');
-  const transferButton = $('#browserTransfer');
+  const statusLine = $('#browserStatus');
   const wheel = $('#browserWheel');
-  const dial = $('#wheelDial');
-  const segmentLayer = $('#wheelSegments');
-  const marker = $('#wheelMarker');
-  const core = $('#wheelCore');
-  const status = $('#browserStatus');
-
-  if (!browser) return null;
+  const canvas = $('#wheelCanvas');
+  const context = canvas.getContext('2d');
+  const hub = $('#wheelCore');
+  const wheelIndex = $('#wheelIndex');
+  const overlay = $('#expandedView');
+  const overlayImage = $('#expandedImage');
+  const castState = $('#castState');
 
   const state = {
     view: 'folders',
-    level: null, // { title, entries, sourceId, path, parent }
-    collection: null, // { title, items, back }
+    level: null,
+    collection: null,
     position: 0,
     index: 0,
-    rotating: false,
-    settling: false,
+    mode: 'manual', // Auto-Switch wird bewusst aktiviert
+    expanded: false,
+    zoom: 1,
+    pan: { x: 0, y: 0 },
     sending: false,
     holdUntil: 0,
     receiver: null,
-    mode: 'manual', // 'manual' | 'auto'; Auto-Switch wird bewusst aktiviert
-    opened: false, // aufgezogene Bildansicht
-    openScale: 1,
-    zoom: 1,
-    pan: { x: 0, y: 0 },
-    // Was der Receiver tatsächlich bestätigt hat, getrennt von der Auswahl.
-    confirmed: null, // { key, name, index, total, url, sessionId }
-    confirmedZoom: 1,
+    shown: null, // bestätigter Inhalt des Receivers
+    shownZoom: 1,
   };
 
   const fileCache = new Map(); // key -> { url, blob }
+  const imageCache = new Map(); // key -> HTMLImageElement
   const pendingFiles = new Map();
-  const segments = [];
-  let animation = 0;
-  let settleTimer = 0;
   let destroyed = false;
   let receiverTimer = 0;
+  let snapTimer = 0;
+  let hubTimer = 0;
+  let autoTimer = 0;
+  let transformTimer = 0;
+  let paintPending = false;
 
   /* ---------------------------------------------------------------- Layout */
 
   function applyLayout() {
-    if (!stage.isConnected) return;
-    const width = stage.clientWidth;
-    const height = stage.clientHeight;
+    if (!browser.isConnected) return;
+    const width = browser.clientWidth;
+    const height = browser.clientHeight;
     if (!width || !height) return;
     const portrait = height >= width;
     browser.dataset.orientation = portrait ? 'portrait' : 'landscape';
-    const gap = 16;
     // Der Faktor hält das vollständige Wheel samt Rand im Container.
     const size = portrait
-      ? Math.min(width * 0.96, (height - gap) * 0.56, 460)
-      : Math.min(height * 0.96, (width - gap) * 0.5, 460);
+      ? Math.min(width - 24, (height - 120) * 0.52, 420)
+      : Math.min(height - 90, (width - 36) * 0.46, 420);
     browser.style.setProperty(
       '--wheel-size',
-      `${Math.max(132, Math.round(size))}px`,
+      `${Math.max(140, Math.round(size))}px`,
     );
-    // Die aufgezogene Ansicht bleibt beim Ausrichtungswechsel geöffnet und
-    // wird nur neu eingepasst.
-    if (state.opened) {
-      state.openScale = openableScale();
-      clampPan();
-      applyOpenTransform();
-    }
+    schedule();
   }
 
-  // Eine laufende Geste wird bei jeder Größenänderung sauber beendet, damit
-  // ein Drehen des Geräts weder lädt noch sendet.
   function handleViewportChange() {
+    // Eine laufende Geste wird sauber beendet, damit das Drehen des Geräts
+    // weder lädt noch sendet.
     cancelGestures();
     applyLayout();
   }
@@ -155,68 +148,11 @@ export function createMediaBrowser(options) {
     typeof ResizeObserver === 'function'
       ? new ResizeObserver(handleViewportChange)
       : null;
-  resizeObserver?.observe(stage);
+  resizeObserver?.observe(browser);
   window.addEventListener('resize', handleViewportChange);
   window.addEventListener('orientationchange', handleViewportChange);
 
-  /* ---------------------------------------------------------------- Status */
-
-  function setStatus(text = '') {
-    status.textContent = text;
-  }
-
-  function setReceiverState(text, busy = false) {
-    receiverState.textContent = text;
-    browserTop.dataset.busy = busy ? 'yes' : 'no';
-  }
-
-  /** Merkt sich, was der Receiver bestätigt angenommen hat. */
-  function markConfirmed(item, index) {
-    state.confirmed = {
-      key: item.key,
-      name: item.name,
-      index,
-      total: count(),
-      url: fileCache.get(item.key)?.url || item.data || null,
-    };
-    state.confirmedZoom = 1;
-    renderTop();
-  }
-
-  function renderTop() {
-    const shown = state.confirmed;
-    if (!shown) {
-      receiverThumb.toggleAttribute('hidden', true);
-      receiverThumb.removeAttribute('src');
-      receiverMedia.textContent = '—';
-      receiverZoom.toggleAttribute('hidden', true);
-      return;
-    }
-    if (shown.url) {
-      if (receiverThumb.getAttribute('src') !== shown.url)
-        receiverThumb.setAttribute('src', shown.url);
-      receiverThumb.toggleAttribute('hidden', false);
-    } else {
-      receiverThumb.toggleAttribute('hidden', true);
-      receiverThumb.removeAttribute('src');
-    }
-    receiverMedia.textContent = shown.total
-      ? `${shown.name} · ${String(shown.index + 1).padStart(2, '0')} / ${shown.total}`
-      : shown.name;
-    const zoom = Number(state.confirmedZoom || 1);
-    receiverZoom.textContent = `ZOOM ${Math.round(zoom * 100)}%`;
-    receiverZoom.toggleAttribute('hidden', Math.abs(zoom - 1) < 0.02);
-  }
-
-  /* ----------------------------------------------------------------- Wheel */
-
-  for (let slot = 0; slot < SLOTS; slot += 1) {
-    const segment = document.createElement('span');
-    segment.className = 'wheel-segment';
-    segment.hidden = true;
-    segmentLayer.append(segment);
-    segments.push(segment);
-  }
+  /* ------------------------------------------------------------- Sammlung */
 
   function count() {
     return state.view === 'images'
@@ -230,126 +166,192 @@ export function createMediaBrowser(options) {
       : state.level?.entries[index];
   }
 
-  function renderWheel() {
+  /* ------------------------------------------------------- Canvas-Zeichnung */
+
+  function point(radius, angle) {
+    return [Math.sin(angle) * radius, -Math.cos(angle) * radius];
+  }
+
+  function wedge(inner, outer, angle, half) {
+    context.beginPath();
+    const start = angle - half - Math.PI / 2;
+    const end = angle + half - Math.PI / 2;
+    context.arc(0, 0, outer, start, end);
+    context.arc(0, 0, inner, end, start, true);
+    context.closePath();
+  }
+
+  function draw() {
+    const box = canvas.getBoundingClientRect();
+    if (!box.width) return;
+    const size = box.width;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = size * dpr;
+    canvas.height = size * dpr;
+    context.setTransform(dpr, 0, 0, dpr, (size * dpr) / 2, (size * dpr) / 2);
+    const R = size * 0.48;
+    context.clearRect(-size, -size, size * 2, size * 2);
+
+    context.lineWidth = 0.8;
+    context.strokeStyle = '#16627b';
+    for (const k of [1, 0.98, 0.95, 0.69, 0.59, 0.4, 0.34]) {
+      context.beginPath();
+      context.arc(0, 0, R * k, 0, Math.PI * 2);
+      context.stroke();
+    }
+    for (let j = 0; j < 120; j += 1) {
+      const a = (j * Math.PI) / 60;
+      const major = j % 5 === 0;
+      context.strokeStyle = major ? '#39bee8' : '#16506a';
+      const inner = point(R * 0.57, a);
+      const innerEnd = point(R * (major ? 0.52 : 0.545), a);
+      context.beginPath();
+      context.moveTo(...inner);
+      context.lineTo(...innerEnd);
+      context.stroke();
+      const outer = point(R * 0.96, a);
+      const outerEnd = point(R * (major ? 0.93 : 0.945), a);
+      context.beginPath();
+      context.moveTo(...outer);
+      context.lineTo(...outerEnd);
+      context.stroke();
+    }
+
     const total = count();
-    dial.style.setProperty('--spin', `${-state.position * STEP}deg`);
+    const images = state.view === 'images';
     const base = Math.round(state.position);
-    const showImages = state.view === 'images';
-    // SVGElement kennt keine hidden-Eigenschaft, daher das Attribut setzen.
-    marker.toggleAttribute('hidden', !showImages || !total);
-    for (let slot = 0; slot < SLOTS; slot += 1) {
-      const segment = segments[slot];
-      const index = base + slot - Math.floor(SLOTS / 2);
-      if (!showImages || index < 0 || index >= total) {
-        segment.hidden = true;
-        segment.style.removeProperty('--a');
-        segment.replaceChildren();
-        segment.dataset.key = '';
-        continue;
+    for (let j = -6; j <= 6; j += 1) {
+      const n = base + j;
+      if (n < 0 || n >= total) continue;
+      const a = (n - state.position) * STEP;
+      wedge(R * 0.69, R * 0.925, a, STEP * 0.47);
+      if (images) {
+        const picture = thumbnailFor(n);
+        if (picture?.complete && picture.naturalWidth) {
+          context.save();
+          context.clip();
+          const centre = point(R * 0.81, a);
+          context.translate(...centre);
+          context.rotate(a);
+          context.drawImage(picture, -R * 0.25, -R * 0.15, R * 0.5, R * 0.3);
+          context.restore();
+        }
       }
-      segment.hidden = false;
-      segment.style.setProperty('--a', `${(index - state.position) * STEP}deg`);
-      const item = itemAt(index);
-      if (segment.dataset.key !== item.key) {
-        segment.dataset.key = item.key;
-        segment.replaceChildren(thumbnail(item));
-      }
+      context.lineWidth = 0.8;
+      context.strokeStyle = '#22677c';
+      context.stroke();
+    }
+
+    if (images && total) {
+      wedge(R * 0.685, R * 0.93, 0, STEP * 0.48);
+      context.strokeStyle = '#ffd074';
+      context.lineWidth = 2;
+      context.shadowColor = '#ffbd4c';
+      context.shadowBlur = 9;
+      context.stroke();
+      context.shadowBlur = 0;
+      context.fillStyle = '#ffc95d';
+      context.beginPath();
+      context.arc(0, -R * 0.965, 2, 0, Math.PI * 2);
+      context.fill();
     }
   }
 
-  function thumbnail(item) {
-    if (item.type.startsWith('image/')) {
-      const image = document.createElement('img');
-      image.alt = '';
-      image.decoding = 'async';
-      image.loading = 'lazy';
-      const cached = fileCache.get(item.key);
-      if (cached) image.src = cached.url;
-      else {
-        image.dataset.pending = '1';
-        loadFile(item)
-          .then((url) => {
-            if (image.isConnected) image.src = url;
-          })
-          .catch(() => {
-            if (image.isConnected) image.replaceWith(glyphFor(item));
-          });
-      }
-      return image;
+  function schedule() {
+    if (paintPending) return;
+    paintPending = true;
+    requestAnimationFrame(() => {
+      paintPending = false;
+      render();
+    });
+    // Ausgeblendete Tabs und eingebettete Ansichten drosseln
+    // requestAnimationFrame; dieser Nachlauf hält die Anzeige aktuell.
+    window.setTimeout(() => {
+      if (!paintPending) return;
+      paintPending = false;
+      render();
+    }, 120);
+  }
+
+  /** Miniatur für das Wheel; wird bei Bedarf geladen und wiederverwendet. */
+  function thumbnailFor(index) {
+    const item = itemAt(index);
+    if (!item || !item.type.startsWith('image/')) return null;
+    const cached = imageCache.get(item.key);
+    if (cached) return cached;
+    const url = item.data || fileCache.get(item.key)?.url;
+    if (!url) {
+      loadFile(item)
+        .then(() => schedule())
+        .catch(() => {});
+      return null;
     }
-    return glyphFor(item);
+    const picture = new Image();
+    picture.decoding = 'async';
+    picture.onload = () => schedule();
+    picture.src = url;
+    imageCache.set(item.key, picture);
+    return picture;
   }
 
-  function glyphFor(item) {
-    const glyph = document.createElement('b');
-    glyph.className = 'segment-glyph';
-    glyph.textContent = item.type.startsWith('video/')
-      ? '▶'
-      : item.type === 'text/uri-list'
-        ? '↗'
-        : item.type === 'application/pdf'
-          ? '▤'
-          : '◉';
-    return glyph;
-  }
+  /* ------------------------------------------------------------- Rendering */
 
-  function renderPrimary() {
+  function render() {
+    const total = count();
+    const index = Math.round(state.position);
     if (state.view === 'images') {
       folderStack.hidden = true;
       previewStack.hidden = false;
+      wheelIndex.textContent = total ? `${index + 1} / ${total}` : '';
       renderPreview();
     } else {
       previewStack.hidden = true;
       folderStack.hidden = false;
-      renderFolderNames();
+      wheelIndex.textContent = '';
+      folderPrevious.textContent = index > 0 ? itemAt(index - 1).name : '';
+      folderCurrent.textContent = total ? itemAt(index).name : 'KEINE EINTRÄGE';
+      folderNext.textContent = index + 1 < total ? itemAt(index + 1).name : '';
     }
-  }
-
-  function renderFolderNames() {
-    const total = count();
-    const index = state.index;
-    folderPrevious.textContent = index > 0 ? itemAt(index - 1).name : '';
-    folderCurrent.textContent = total ? itemAt(index).name : 'KEINE EINTRÄGE';
-    folderNext.textContent = index + 1 < total ? itemAt(index + 1).name : '';
-    const drift = shortAngle((state.position - index) * STEP) / STEP;
-    folderStack.style.setProperty('--drift', String(clamp(drift, -1, 1)));
-    core.disabled = !total;
+    applyMode();
+    applyBackLabel();
+    draw();
   }
 
   function renderPreview() {
     const item = itemAt(state.index);
     if (!item) {
       previewCanvas.replaceChildren();
+      previewCanvas.dataset.key = '';
       return;
     }
     if (previewCanvas.dataset.key === item.key) return;
     previewCanvas.dataset.key = item.key;
     previewCanvas.replaceChildren();
-    if (item.type.startsWith('image/')) {
-      const image = document.createElement('img');
-      image.alt = item.name;
-      previewCanvas.append(image);
+    const show = (node, apply) => {
+      previewCanvas.append(node);
       loadFile(item)
         .then((url) => {
-          if (previewCanvas.dataset.key === item.key) image.src = url;
+          if (previewCanvas.dataset.key === item.key) apply(url);
         })
         .catch((error) => {
           if (previewCanvas.dataset.key !== item.key) return;
-          previewCanvas.replaceChildren(message(error.message));
+          previewCanvas.replaceChildren(note(error.message));
         });
+    };
+    if (item.type.startsWith('image/')) {
+      const picture = document.createElement('img');
+      picture.alt = item.name;
+      picture.draggable = false;
+      show(picture, (url) => {
+        picture.src = url;
+      });
     } else if (item.type.startsWith('video/')) {
       const video = document.createElement('video');
       video.controls = true;
       video.playsInline = true;
-      previewCanvas.append(video);
-      loadFile(item)
-        .then((url) => {
-          if (previewCanvas.dataset.key === item.key) video.src = url;
-        })
-        .catch((error) => {
-          if (previewCanvas.dataset.key !== item.key) return;
-          previewCanvas.replaceChildren(message(error.message));
-        });
+      show(video, (url) => {
+        video.src = url;
+      });
     } else if (item.type === 'text/uri-list') {
       const link = document.createElement('a');
       link.className = 'preview-link';
@@ -361,215 +363,447 @@ export function createMediaBrowser(options) {
     } else {
       const frame = document.createElement('iframe');
       frame.title = item.name;
-      previewCanvas.append(frame);
-      loadFile(item)
-        .then((url) => {
-          if (previewCanvas.dataset.key === item.key) frame.src = url;
-        })
-        .catch((error) => {
-          if (previewCanvas.dataset.key !== item.key) return;
-          previewCanvas.replaceChildren(message(error.message));
-        });
+      show(frame, (url) => {
+        frame.src = url;
+      });
     }
   }
 
-  function message(text) {
-    const note = document.createElement('span');
-    note.className = 'preview-note';
-    note.textContent = text;
-    return note;
+  function note(text) {
+    const element = document.createElement('span');
+    element.className = 'preview-note';
+    element.textContent = text;
+    return element;
   }
 
-  function preloadNeighbours() {
+  function setStatus(text) {
+    statusLine.textContent = text;
+  }
+
+  /** Statuszeile unter der Vorschau: Receiver und tatsächlicher Zustand. */
+  function receiverStatus(extra) {
     if (state.view !== 'images') return;
-    const total = count();
-    for (let offset = -PRELOAD; offset <= PRELOAD; offset += 1) {
-      const index = state.index + offset;
-      if (index < 0 || index >= total) continue;
-      const item = itemAt(index);
-      if (item.type.startsWith('image/') && !fileCache.has(item.key))
-        loadFile(item).catch(() => {});
-    }
-  }
-
-  function setIndex(index, { render = true } = {}) {
-    const total = count();
-    const next = total ? clamp(Math.round(index), 0, total - 1) : 0;
-    const changed = next !== state.index;
-    state.index = next;
-    if (render) {
-      if (state.view === 'images') renderPreview();
-      else renderFolderNames();
-    }
-    if (changed && state.view === 'images') {
-      preloadNeighbours();
-      // Nur ein tatsächlich gewechseltes Bild löst eine Übertragung aus.
-      if (state.mode === 'auto') scheduleAutoSwitch();
-    }
-    return changed;
-  }
-
-  function setPosition(value) {
-    const total = count();
-    state.position = total ? clamp(value, 0, total - 1) : 0;
-    setIndex(state.position, { render: false });
-    renderWheel();
-    if (state.view === 'images') renderPreview();
-    else renderFolderNames();
-  }
-
-  function animateTo(target, duration = 260) {
-    cancelAnimationFrame(animation);
-    window.clearTimeout(settleTimer);
-    const from = state.position;
-    const to = clamp(target, 0, Math.max(0, count() - 1));
-    const finish = () => {
-      cancelAnimationFrame(animation);
-      window.clearTimeout(settleTimer);
-      state.settling = false;
-      setPosition(to);
-      preloadNeighbours();
-    };
-    if (Math.abs(to - from) < 0.0005) {
-      finish();
+    if (extra) {
+      setStatus(`▱  ${extra}`);
       return;
     }
-    state.settling = true;
-    const started = performance.now();
-    const tick = (now) => {
-      const t = Math.min(1, (now - started) / duration);
-      const eased = 1 - Math.pow(1 - t, 3);
-      if (t < 1) {
-        setPosition(from + (to - from) * eased);
-        animation = requestAnimationFrame(tick);
-      } else finish();
-    };
-    animation = requestAnimationFrame(tick);
-    // Ausgeblendete Tabs und eingebettete Ansichten drosseln
-    // requestAnimationFrame. Ohne diesen Nachlauf bliebe das Wheel im
-    // Einrast-Zustand und die Mitte dauerhaft gesperrt.
-    settleTimer = window.setTimeout(() => {
-      if (state.settling) finish();
-    }, duration + 90);
-  }
-
-  /* ----------------------------------------------------- Drehen und Rasten */
-
-  let rotatePointer = null;
-  let rotateAngle = 0;
-  let rotateMoved = 0;
-  let rotateVelocity = 0;
-  let rotateTime = 0;
-
-  function pointerAngle(event) {
-    const box = dial.getBoundingClientRect();
-    return (
-      (Math.atan2(
-        event.clientY - box.top - box.height / 2,
-        event.clientX - box.left - box.width / 2,
-      ) *
-        180) /
-      Math.PI
+    const name = state.receiver?.name || 'KEIN RECEIVER';
+    const connected = Boolean(state.receiver?.connected);
+    setStatus(
+      `▱  ${name} · ${connected ? (state.shown ? 'AKTIV' : 'BEREIT') : 'NICHT VERBUNDEN'}`,
     );
   }
 
-  dial.addEventListener('pointerdown', (event) => {
-    if (event.target === core || rotatePointer !== null) return;
-    if (!count()) return;
-    cancelAnimationFrame(animation);
-    state.settling = false;
-    rotatePointer = event.pointerId;
-    rotateAngle = pointerAngle(event);
-    rotateMoved = 0;
-    rotateVelocity = 0;
-    rotateTime = performance.now();
-    dial.setPointerCapture(event.pointerId);
-  });
-
-  dial.addEventListener('pointermove', (event) => {
-    if (event.pointerId !== rotatePointer) return;
-    const next = pointerAngle(event);
-    const delta = shortAngle(next - rotateAngle);
-    rotateAngle = next;
-    rotateMoved += Math.abs(delta);
-    if (!state.rotating && rotateMoved > 4) {
-      state.rotating = true;
-      browser.dataset.rotating = 'on';
+  function applyMode() {
+    browser.dataset.mode = state.mode;
+    if (state.view !== 'images') {
+      hub.setAttribute('aria-label', 'Ausgewählten Ordner laden');
+      hub.removeAttribute('aria-pressed');
+      return;
     }
-    if (!state.rotating) return;
-    const now = performance.now();
-    const steps = delta / STEP;
-    rotateVelocity = steps / Math.max(8, now - rotateTime);
-    rotateTime = now;
-    setPosition(state.position + steps);
-  });
-
-  function endRotation(event) {
-    if (event.pointerId !== rotatePointer) return;
-    rotatePointer = null;
-    if (!state.rotating) return;
-    // Nur eine leichte Gewichtung der Rundung, kein freier Nachlauf.
-    const carry = clamp(rotateVelocity * 45, -0.5, 0.5);
-    const target = Math.round(state.position + carry);
-    animateTo(target);
-    window.setTimeout(() => {
-      state.rotating = false;
-      delete browser.dataset.rotating;
-    }, 90);
+    hub.setAttribute(
+      'aria-label',
+      state.mode === 'auto'
+        ? 'Auto-Switch aktiv. Einfach tippen: auf manuelle Übertragung wechseln. Doppeltippen: Ordnerauswahl.'
+        : 'Manuelle Übertragung. Einfach tippen: Auto-Switch aktivieren. Doppeltippen: Ordnerauswahl.',
+    );
+    hub.setAttribute('aria-pressed', String(state.mode === 'auto'));
   }
 
-  dial.addEventListener('pointerup', endRotation);
-  dial.addEventListener('pointercancel', endRotation);
+  function applyBackLabel() {
+    const label = state.expanded
+      ? 'Vergrößerte Ansicht schließen'
+      : state.view === 'images'
+        ? 'Zur Ordnerauswahl'
+        : state.level?.parent
+          ? 'Eine Ordnerebene zurück'
+          : 'Medienbrowser schließen';
+    backButton.setAttribute('aria-label', label);
+    backButton.title = label;
+  }
 
-  dial.addEventListener(
+  /* --------------------------------------------------------------- Drehen */
+
+  let dragging = false;
+  let lastAngle = 0;
+
+  function pointerAngle(event) {
+    const box = canvas.getBoundingClientRect();
+    return Math.atan2(
+      event.clientX - box.left - box.width / 2,
+      -(event.clientY - box.top - box.height / 2),
+    );
+  }
+
+  function move(delta) {
+    if (state.expanded) return;
+    const total = count();
+    if (!total) return;
+    state.position = clamp(state.position + delta, 0, total - 1);
+    state.index = Math.round(state.position);
+    hub.disabled = true;
+    window.clearTimeout(snapTimer);
+    snapTimer = window.setTimeout(() => {
+      if (!dragging) snap();
+    }, SNAP_DELAY);
+    maybeAutoSwitch();
+    schedule();
+  }
+
+  function snap() {
+    state.position = Math.round(state.position);
+    state.index = state.position;
+    hub.disabled = !count();
+    maybeAutoSwitch();
+    preloadNeighbours();
+    render();
+  }
+
+  canvas.addEventListener('pointerdown', (event) => {
+    if (state.expanded || (event.button && event.button !== 0)) return;
+    dragging = true;
+    lastAngle = pointerAngle(event);
+    canvas.setPointerCapture(event.pointerId);
+  });
+  canvas.addEventListener('pointermove', (event) => {
+    if (!dragging) return;
+    const next = pointerAngle(event);
+    let diff = next - lastAngle;
+    if (diff > Math.PI) diff -= 2 * Math.PI;
+    if (diff < -Math.PI) diff += 2 * Math.PI;
+    lastAngle = next;
+    move(-diff / DRAG_PER_STEP);
+  });
+  const endDrag = () => {
+    if (!dragging) return;
+    dragging = false;
+    snap();
+  };
+  canvas.addEventListener('pointerup', endDrag);
+  canvas.addEventListener('pointercancel', endDrag);
+  canvas.addEventListener(
     'wheel',
     (event) => {
-      if (!count()) return;
       event.preventDefault();
-      cancelAnimationFrame(animation);
-      animateTo(state.index + (event.deltaY > 0 ? 1 : -1), 200);
+      move(clamp(event.deltaY / 180, -0.55, 0.55));
     },
     { passive: false },
   );
-
   wheel.addEventListener('keydown', (event) => {
-    if (!count()) return;
+    if (state.expanded || !count()) return;
     if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
       event.preventDefault();
-      animateTo(state.index + 1, 180);
+      move(1);
+      snap();
     } else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
       event.preventDefault();
-      animateTo(state.index - 1, 180);
+      move(-1);
+      snap();
     }
   });
 
-  // In der Bildauswahl unterscheidet die Mitte zwischen Einzel- und
-  // Doppeltipp. Der Einzelklick wird daher verzögert ausgewertet, damit ein
-  // Doppeltipp nicht vorher den Modus umschaltet.
-  let coreTapTimer = 0;
-  core.addEventListener('click', () => {
-    if (state.rotating || state.settling) return;
+  /* ------------------------------------------------------------ Wheel-Mitte */
+
+  hub.addEventListener('click', () => {
+    if (dragging || hub.disabled) return;
     if (state.view !== 'images') {
       activate(itemAt(state.index));
       return;
     }
-    if (coreTapTimer) {
-      window.clearTimeout(coreTapTimer);
-      coreTapTimer = 0;
+    // Der Einzelklick wird verzögert ausgewertet, damit ein Doppeltipp nicht
+    // vorher den Modus umschaltet oder eine Übertragung auslöst.
+    if (hubTimer) {
+      window.clearTimeout(hubTimer);
+      hubTimer = 0;
       goBack();
       return;
     }
-    coreTapTimer = window.setTimeout(() => {
-      coreTapTimer = 0;
-      if (state.rotating || state.settling) return;
+    hubTimer = window.setTimeout(() => {
+      hubTimer = 0;
       toggleMode();
-    }, 290);
+    }, TAP_DELAY);
+  });
+  hub.addEventListener('dblclick', (event) => {
+    event.preventDefault();
+    if (state.view === 'images') {
+      window.clearTimeout(hubTimer);
+      hubTimer = 0;
+      goBack();
+    }
   });
 
-  backButton.addEventListener('click', () => goBack());
-  transferButton?.addEventListener('click', () =>
-    sendCurrent(null, 'transfer'),
+  backButton.addEventListener('click', () => {
+    if (state.expanded) {
+      cancelGestures();
+      setExpanded(false);
+      return;
+    }
+    goBack();
+  });
+
+  /* --------------------------------------------------- Übertragungsmodi */
+
+  function toggleMode() {
+    if (state.view !== 'images') return;
+    state.mode = state.mode === 'auto' ? 'manual' : 'auto';
+    applyMode();
+    // Beim Aktivieren wandert die aktuelle Auswahl sofort zum Receiver.
+    // Beim Deaktivieren bleibt der zuletzt gezeigte Inhalt dort stehen.
+    if (state.mode === 'auto') scheduleAutoSwitch(0);
+    else receiverStatus();
+    schedule();
+  }
+
+  let autoWanted = -1;
+
+  function maybeAutoSwitch() {
+    if (state.mode !== 'auto' || state.view !== 'images') return;
+    const index = Math.round(state.position);
+    if (state.shown && state.shown.index === index) return;
+    scheduleAutoSwitch();
+  }
+
+  function scheduleAutoSwitch(delay = 140) {
+    autoWanted = Math.round(state.position);
+    window.clearTimeout(autoTimer);
+    autoTimer = window.setTimeout(runAutoSwitch, delay);
+  }
+
+  async function runAutoSwitch() {
+    if (destroyed || state.mode !== 'auto' || state.view !== 'images') return;
+    if (state.sending || dragging) {
+      // Veraltete Anfrage verwerfen, zuletzt gewählte Position nachziehen.
+      window.clearTimeout(autoTimer);
+      autoTimer = window.setTimeout(runAutoSwitch, 130);
+      return;
+    }
+    const wanted = autoWanted;
+    await present(wanted, { open: false });
+    if (state.mode === 'auto' && autoWanted !== wanted) scheduleAutoSwitch(0);
+  }
+
+  /* ------------------------------------------------- Aufgezogene Ansicht */
+
+  function setExpanded(on) {
+    state.expanded = on;
+    overlay.hidden = !on;
+    browser.classList.toggle('zooming', on);
+    overlay.style.transform = '';
+    if (!on) {
+      state.zoom = 1;
+      state.pan = { x: 0, y: 0 };
+      applyZoom(false);
+    }
+    applyBackLabel();
+  }
+
+  function applyZoom(sync) {
+    const box = overlay.getBoundingClientRect();
+    const limitX = Math.max(0, ((state.zoom - 1) * (box.width || 300)) / 2);
+    const limitY = Math.max(0, ((state.zoom - 1) * (box.height || 200)) / 2);
+    state.pan.x = clamp(state.pan.x, -limitX, limitX);
+    state.pan.y = clamp(state.pan.y, -limitY, limitY);
+    overlayImage.style.transform = `translate(${Math.round(state.pan.x)}px,${Math.round(state.pan.y)}px) scale(${state.zoom})`;
+    if (sync && state.shown) pushTransform();
+  }
+
+  function pushTransform() {
+    window.clearTimeout(transformTimer);
+    transformTimer = window.setTimeout(sendTransform, 110);
+  }
+
+  async function sendTransform() {
+    const receiver = state.receiver;
+    const sessionId = receiver?.state?.current?.sessionId;
+    if (!receiver?.connected || !sessionId) return;
+    const payload = {
+      zoom: Number(state.zoom.toFixed(3)),
+      x: Math.round(state.pan.x),
+      y: Math.round(state.pan.y),
+      rotation: 0,
+      sessionId,
+    };
+    try {
+      const result = await displays.command(
+        [receiver.id],
+        'image.transform',
+        payload,
+      );
+      if (result.results?.some((entry) => entry.accepted)) {
+        state.shownZoom = payload.zoom;
+        renderShown();
+      }
+    } catch {
+      /* Kein Erfolg ohne Bestätigung; der Status kommt aus refreshReceiver. */
+    }
+  }
+
+  /* ------------------------------------------------- Pinch und Tastgesten */
+
+  const pointers = new Map();
+  let baseDistance = 0;
+  let baseZoom = 1;
+  let maxScale = 1;
+  let pinching = false;
+  let wasOpen = false;
+  let lastPan = null;
+  let lastTap = 0;
+  let tapOrigin = null;
+  let tapMoved = false;
+
+  function distance() {
+    const [a, b] = [...pointers.values()];
+    return Math.hypot(a.x - b.x, a.y - b.y);
+  }
+
+  function cancelGestures() {
+    pointers.clear();
+    baseDistance = 0;
+    maxScale = 1;
+    pinching = false;
+    lastPan = null;
+    tapOrigin = null;
+    tapMoved = false;
+    if (dragging) {
+      dragging = false;
+      snap();
+    }
+  }
+
+  function startGesture(event) {
+    if (state.view !== 'images') return;
+    pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    event.currentTarget.setPointerCapture(event.pointerId);
+    lastPan = { x: event.clientX, y: event.clientY };
+    if (pointers.size === 2) {
+      pinching = true;
+      baseDistance = Math.max(1, distance());
+      baseZoom = state.zoom;
+      maxScale = 1;
+      wasOpen = state.expanded;
+    }
+  }
+
+  function moveGesture(event) {
+    if (!pointers.has(event.pointerId)) return;
+    pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    if (pointers.size === 2) {
+      const scale = distance() / baseDistance;
+      maxScale = Math.max(maxScale, scale);
+      if (wasOpen) {
+        // In der geöffneten Ansicht zoomt jede weitere Geste nur.
+        state.zoom = clamp(baseZoom * scale, 1, MAX_ZOOM);
+        applyZoom(true);
+      } else if (scale > OPEN_THRESHOLD) {
+        showOverlayImage(state.index);
+        setExpanded(true);
+        overlay.style.transform = `scale(${Math.min(1, 0.88 + scale * 0.08)})`;
+        castState.textContent =
+          scale > SEND_THRESHOLD ? 'LOSLASSEN ZUM SENDEN' : 'AUFZIEHEN';
+      }
+    } else if (
+      pointers.size === 1 &&
+      !pinching &&
+      state.expanded &&
+      state.zoom > 1 &&
+      lastPan
+    ) {
+      state.pan.x += event.clientX - lastPan.x;
+      state.pan.y += event.clientY - lastPan.y;
+      applyZoom(true);
+    }
+    lastPan = { x: event.clientX, y: event.clientY };
+  }
+
+  function endGesture(event) {
+    pointers.delete(event.pointerId);
+    if (pointers.size) return;
+    if (pinching && !wasOpen) {
+      if (maxScale > SEND_THRESHOLD) {
+        overlay.style.transform = '';
+        // Die öffnende Geste sendet nur im manuellen Modus; im Auto-Switch
+        // liegt das Bild bereits auf dem Empfänger.
+        present(state.index, { open: true, send: state.mode === 'manual' });
+      } else setExpanded(false);
+    }
+    cancelGestures();
+  }
+
+  for (const element of [previewFrame, overlay]) {
+    element.addEventListener('pointerdown', startGesture);
+    element.addEventListener('pointermove', moveGesture);
+    element.addEventListener('pointerup', endGesture);
+    element.addEventListener('pointercancel', () => {
+      if (pinching && !wasOpen) setExpanded(false);
+      cancelGestures();
+    });
+  }
+  for (const element of [previewFrame, overlay])
+    element.addEventListener(
+      'touchmove',
+      (event) => {
+        // Eigene Gesten behandeln, ohne die Home-Assistant-Oberfläche
+        // mitzuzoomen; der Seitenzoom bleibt sonst unangetastet.
+        if (event.touches.length > 1 || state.expanded) event.preventDefault();
+      },
+      { passive: false },
+    );
+
+  // Einfaches Antippen schließt die geöffnete Ansicht nicht; nur ein
+  // Doppeltipp verkleinert sie zurück zur Bildauswahl.
+  overlay.addEventListener('pointerdown', (event) => {
+    if (pointers.size === 1) {
+      tapOrigin = { x: event.clientX, y: event.clientY };
+      tapMoved = false;
+    } else tapMoved = true;
+  });
+  overlay.addEventListener('pointermove', (event) => {
+    if (
+      tapOrigin &&
+      Math.hypot(event.clientX - tapOrigin.x, event.clientY - tapOrigin.y) > 10
+    )
+      tapMoved = true;
+  });
+  overlay.addEventListener('pointerup', () => {
+    if (tapMoved || pinching) return;
+    const now = Date.now();
+    if (now - lastTap < 330) {
+      lastTap = 0;
+      setExpanded(false);
+    } else lastTap = now;
+  });
+  overlay.addEventListener('dblclick', (event) => {
+    event.preventDefault();
+    cancelGestures();
+    setExpanded(false);
+  });
+  overlay.addEventListener(
+    'wheel',
+    (event) => {
+      event.preventDefault();
+      state.zoom = clamp(state.zoom - event.deltaY * 0.003, 1, MAX_ZOOM);
+      applyZoom(true);
+    },
+    { passive: false },
   );
+
+  function showOverlayImage(index) {
+    const item = itemAt(index);
+    if (!item) return;
+    overlayImage.alt = item.name;
+    if (item.data) {
+      overlayImage.src = item.data;
+      return;
+    }
+    const cached = fileCache.get(item.key);
+    if (cached) overlayImage.src = cached.url;
+    else
+      loadFile(item)
+        .then((url) => {
+          if (state.index === index) overlayImage.src = url;
+        })
+        .catch(() => {});
+  }
 
   /* ------------------------------------------------------------- Dateien */
 
@@ -592,6 +826,20 @@ export function createMediaBrowser(options) {
     return request;
   }
 
+  function preloadNeighbours() {
+    if (state.view !== 'images') return;
+    const total = count();
+    for (let offset = -PRELOAD; offset <= PRELOAD; offset += 1) {
+      const index = state.index + offset;
+      if (index < 0 || index >= total) continue;
+      const item = itemAt(index);
+      if (item.type.startsWith('image/') && !fileCache.has(item.key))
+        loadFile(item)
+          .then(() => schedule())
+          .catch(() => {});
+    }
+  }
+
   function protectedKeys() {
     const keys = new Set();
     const total = count();
@@ -599,6 +847,7 @@ export function createMediaBrowser(options) {
       const index = state.index + offset;
       if (index >= 0 && index < total) keys.add(itemAt(index)?.key);
     }
+    if (state.shown?.key) keys.add(state.shown.key);
     return keys;
   }
 
@@ -610,6 +859,7 @@ export function createMediaBrowser(options) {
       if (keep.has(key)) continue;
       URL.revokeObjectURL(fileCache.get(key).url);
       fileCache.delete(key);
+      imageCache.delete(key);
     }
   }
 
@@ -648,76 +898,67 @@ export function createMediaBrowser(options) {
     const sources = await displays.mediaSources().catch(() => []);
     const entries = sources.map((source) => ({
       kind: 'source',
-      name: String(source.name || 'QUELLE').toUpperCase(),
+      name: String(source.name || 'Quelle'),
       sourceId: source.id,
       path: '',
     }));
     if (library.length)
-      entries.unshift({ kind: 'library', name: 'IMPORTIERTE MEDIEN' });
-    entries.push({ kind: 'pick', name: 'LOKALE DATEI ÖFFNEN' });
-    entries.push({ kind: 'settings', name: 'QUELLEN & EINSTELLUNGEN' });
-    setStatus(sources.length ? '' : 'KEINE NAS-QUELLE GESPEICHERT');
+      entries.unshift({ kind: 'library', name: 'Importierte Medien' });
+    entries.push({ kind: 'pick', name: 'Lokale Datei öffnen' });
+    entries.push({ kind: 'settings', name: 'Quellen & Einstellungen' });
     showLevel({ title: 'STARK OS', entries, parent: null }, keepIndex);
+    setStatus(sources.length ? '' : 'KEINE NAS-QUELLE GESPEICHERT');
   }
 
   function showLevel(level, index = 0) {
-    closePreview();
+    setExpanded(false);
     state.view = 'folders';
     browser.dataset.view = 'folders';
     state.level = level;
     state.collection = null;
-    applyMode();
-    core.disabled = !level.entries.length;
     const total = level.entries.length;
     state.index = total ? clamp(index, 0, total - 1) : 0;
     state.position = state.index;
-    renderPrimary();
-    renderWheel();
+    hub.disabled = !total;
+    setStatus('');
+    render();
   }
 
   async function activate(entry) {
     if (!entry) return;
     if (state.level) state.level.index = state.index;
-    if (entry.kind === 'pick') {
-      options.pickLocal?.();
-      return;
-    }
-    if (entry.kind === 'settings') {
-      options.openSources?.();
-      return;
-    }
+    if (entry.kind === 'pick') return void options.pickLocal?.();
+    if (entry.kind === 'settings') return void options.openSources?.();
     if (entry.kind === 'library') {
-      showCollection(
-        {
-          title: 'IMPORTIERTE MEDIEN',
-          items: library.map((media, index) => ({
-            key: `local:${index}:${media.title}`,
-            name: media.title,
-            type: media.type,
-            data: media.data,
-            source: media.source,
-          })),
-        },
-        state.level,
-      );
+      showCollection({ title: entry.name, items: libraryItems() }, state.level);
       return;
     }
     await openFolder(entry);
   }
 
+  function libraryItems() {
+    return library.map((media, index) => ({
+      key: `local:${index}:${media.title}`,
+      name: media.title,
+      type: media.type,
+      data: media.data,
+      source: media.source,
+    }));
+  }
+
   async function openFolder(entry) {
     const parent = state.level;
-    core.disabled = true;
+    hub.disabled = true;
     setStatus('ORDNER WIRD GELADEN …');
     let entries;
     try {
       entries = await displays.browseMediaSource(entry.sourceId, entry.path);
     } catch (error) {
-      core.disabled = false;
+      hub.disabled = false;
       setStatus(error.message || 'ORDNER NICHT ERREICHBAR');
       return;
     }
-    core.disabled = false;
+    hub.disabled = false;
     const folders = entries
       .filter((item) => item.directory)
       .map((item) => ({
@@ -744,7 +985,6 @@ export function createMediaBrowser(options) {
       parent,
     };
     if (files.length) {
-      setStatus('');
       showCollection(
         { title: entry.name, items: files },
         folders.length ? level : parent,
@@ -755,37 +995,42 @@ export function createMediaBrowser(options) {
       setStatus('LEERER ORDNER');
       return;
     }
-    setStatus('');
     showLevel(level, 0);
   }
 
   function showCollection(collection, back) {
-    closePreview();
+    setExpanded(false);
     state.view = 'images';
     browser.dataset.view = 'images';
     state.collection = { ...collection, back: back || null };
-    applyMode();
-    core.disabled = !collection.items.length;
     state.index = 0;
     state.position = 0;
+    hub.disabled = !collection.items.length;
     previewCanvas.dataset.key = '';
-    renderPrimary();
-    renderWheel();
+    render();
     preloadNeighbours();
-    refreshReceiver();
+    receiverStatus();
+    maybeAutoSwitch();
   }
 
   function goBack() {
+    if (state.expanded) {
+      setExpanded(false);
+      return;
+    }
     if (state.view === 'images') {
       const back = state.collection?.back;
-      setStatus('');
       if (back) showLevel(back, back.index || 0);
       else openRoot();
       return;
     }
     const parent = state.level?.parent;
-    if (parent) showLevel(parent, parent.index || 0);
-    else openRoot();
+    if (parent) {
+      showLevel(parent, parent.index || 0);
+      return;
+    }
+    // Auf der obersten Ebene führt Zurück aus dem Medienbrowser heraus.
+    options.onExit?.();
   }
 
   /* ------------------------------------------------------------ Receiver */
@@ -800,91 +1045,137 @@ export function createMediaBrowser(options) {
       devices.find((device) => device.connected) ||
       null;
     state.receiver = receiver;
-    receiverName.textContent = receiver ? receiver.name : 'KEIN RECEIVER';
-    receiverChip.dataset.online = receiver ? 'yes' : 'no';
-    syncConfirmedFromReceiver(receiver);
-    // Die Rückmeldung einer Übertragung bleibt kurz stehen, damit der
-    // Statuslauf sie nicht sofort überschreibt.
+    receiverName.textContent = receiver
+      ? `${receiver.name} · ${receiver.connected ? 'VERBUNDEN' : 'OFFLINE'}`
+      : 'KEIN RECEIVER';
+    syncShownFromReceiver(receiver);
     if (state.sending || Date.now() < state.holdUntil) return;
-    setReceiverState(
-      receiver
-        ? receiver.state?.current
-          ? 'AKTIV'
-          : 'BEREIT'
-        : 'NICHT VERBUNDEN',
-    );
+    receiverStatus();
   }
 
   /**
-   * Der gemeldete Zustand des Receivers hat Vorrang vor der lokalen Annahme;
-   * ohne gemeldeten Inhalt wird keine Darstellung vorgetäuscht.
+   * Der gemeldete Zustand des Receivers hat Vorrang vor der lokalen Annahme.
+   * Ohne gemeldeten Inhalt wird keine Darstellung vorgetäuscht.
    */
-  function syncConfirmedFromReceiver(receiver) {
+  function syncShownFromReceiver(receiver) {
     const current = receiver?.state?.current;
-    if (!receiver || !receiver.connected || !current) {
-      if (state.confirmed) {
-        state.confirmed = null;
-        renderTop();
+    if (!receiver?.connected || !current) {
+      if (state.shown) {
+        state.shown = null;
+        renderShown();
       }
       return;
     }
     const zoom = Number(receiver.state?.transform?.zoom);
-    if (Number.isFinite(zoom) && zoom > 0) state.confirmedZoom = zoom;
-    if (current.title && current.title !== state.confirmed?.name) {
-      state.confirmed = {
-        key: state.confirmed?.key || null,
+    if (Number.isFinite(zoom) && zoom > 0) state.shownZoom = zoom;
+    if (current.title && current.title !== state.shown?.name) {
+      state.shown = {
+        key: state.shown?.name === current.title ? state.shown.key : null,
         name: current.title,
-        index: state.confirmed?.index ?? -1,
-        total:
-          state.confirmed?.name === current.title ? state.confirmed.total : 0,
-        url:
-          state.confirmed?.name === current.title ? state.confirmed.url : null,
+        folder: state.shown?.folder || '',
+        index: state.shown?.name === current.title ? state.shown.index : -1,
+        total: state.shown?.name === current.title ? state.shown.total : 0,
       };
     }
-    renderTop();
+    renderShown();
+  }
+
+  /** Obere Anzeige: was der Receiver tatsächlich darstellt. */
+  function renderShown() {
+    const shown = state.shown;
+    if (!shown) {
+      receiverThumb.toggleAttribute('hidden', true);
+      receiverThumb.removeAttribute('src');
+      receiverShown.textContent = 'Noch kein Bild übertragen';
+      return;
+    }
+    const url = shown.key
+      ? fileCache.get(shown.key)?.url || shown.data || null
+      : null;
+    if (url) {
+      if (receiverThumb.getAttribute('src') !== url)
+        receiverThumb.setAttribute('src', url);
+      receiverThumb.toggleAttribute('hidden', false);
+    } else {
+      receiverThumb.toggleAttribute('hidden', true);
+      receiverThumb.removeAttribute('src');
+    }
+    const parts = [];
+    if (shown.folder) parts.push(shown.folder);
+    parts.push(shown.index >= 0 ? `Bild ${shown.index + 1}` : shown.name);
+    if (shown.total) parts[parts.length - 1] += ` / ${shown.total}`;
+    const zoom = Number(state.shownZoom || 1);
+    if (Math.abs(zoom - 1) > 0.02) parts.push(`${Math.round(zoom * 100)} %`);
+    receiverShown.textContent = parts.join(' · ');
   }
 
   /* -------------------------------------------------------------- Senden */
 
-  async function sendCurrent(explicitTargets, mode = 'show', options = {}) {
-    if (state.sending || state.view !== 'images') return;
-    const index = options.index ?? state.index;
+  /**
+   * Überträgt das Bild an der gewünschten Position und öffnet auf Wunsch die
+   * vergrößerte Ansicht. Die obere Anzeige folgt erst der Bestätigung.
+   */
+  async function present(index, { open = false, send = true } = {}) {
+    if (state.view !== 'images') return;
     const item = itemAt(index);
     if (!item) return;
+    if (open) {
+      showOverlayImage(index);
+      state.zoom = 1;
+      state.pan = { x: 0, y: 0 };
+      applyZoom(false);
+      setExpanded(true);
+    }
+    if (!send || state.sending) return;
     state.sending = true;
-    setReceiverState(mode === 'transfer' ? 'ÜBERTRÄGT …' : 'SENDET …', true);
+    castState.textContent = 'ÜBERTRAGUNG LÄUFT …';
+    receiverStatus('ÜBERTRAGUNG LÄUFT …');
     try {
       const devices = await displays.list().catch(() => []);
       const online = new Set(
         devices.filter((device) => device.connected).map((device) => device.id),
       );
-      let targets = (
-        explicitTargets?.length ? explicitTargets : [...selectedDisplays]
-      ).filter((id) => online.has(id));
-      if (!targets.length && !explicitTargets?.length) {
+      let targets = [...selectedDisplays].filter((id) => online.has(id));
+      if (!targets.length) {
         const fallback = devices.find((device) => device.connected);
         if (fallback) targets = [fallback.id];
       }
       if (!targets.length) {
-        setReceiverState('KEIN RECEIVER ONLINE');
+        castState.textContent = 'KEIN RECEIVER VERBUNDEN';
+        receiverStatus('KEIN RECEIVER VERBUNDEN');
         return;
       }
       const media = await mediaPayload(item);
       const result = await displays.command(targets, 'media.show', {
         media,
-        mode,
+        mode: 'show',
       });
       const accepted = result.results.filter((entry) => entry.accepted).length;
-      const done = mode === 'transfer' ? 'ÜBERTRAGEN' : 'GESENDET';
-      if (accepted) {
-        setReceiverState(
-          accepted > 1 ? `${done} · ${accepted} DISPLAYS` : done,
-        );
-        // Erst die bestätigte Übertragung aktualisiert die obere Anzeige.
-        if (mode !== 'transfer') markConfirmed(item, index);
-      } else setReceiverState(result.results[0]?.error || 'NICHT ANGENOMMEN');
+      if (!accepted) {
+        const reason = result.results[0]?.error || 'NICHT ANGENOMMEN';
+        castState.textContent = reason;
+        receiverStatus(reason);
+        return;
+      }
+      state.shown = {
+        key: item.key,
+        data: item.data || null,
+        name: item.name,
+        folder: state.collection?.title || '',
+        index,
+        total: count(),
+      };
+      state.shownZoom = 1;
+      state.zoom = 1;
+      state.pan = { x: 0, y: 0 };
+      applyZoom(false);
+      renderShown();
+      castState.textContent = `AUF ${state.receiver?.name || 'RECEIVER'} · 100 %`;
+      receiverStatus('GESENDET');
     } catch (error) {
-      setReceiverState(error.message || 'ÜBERTRAGUNG FEHLGESCHLAGEN');
+      const reason = error.message || 'ÜBERTRAGUNG FEHLGESCHLAGEN';
+      castState.textContent = reason;
+      receiverStatus(reason);
     } finally {
       state.sending = false;
       state.holdUntil = Date.now() + 2600;
@@ -894,400 +1185,9 @@ export function createMediaBrowser(options) {
     }
   }
 
-  /* --------------------------------------------------- Übertragungsmodi */
-
-  function applyMode() {
-    browser.dataset.mode = state.mode;
-    if (state.view !== 'images') {
-      core.setAttribute('aria-label', 'Ordner laden');
-      core.removeAttribute('aria-pressed');
-      return;
-    }
-    core.setAttribute(
-      'aria-label',
-      state.mode === 'auto'
-        ? 'Übertragungsmodus Auto-Switch aktiv. Einmal tippen schaltet auf manuelle Übertragung, zweimal tippen führt zurück zur Ordnerauswahl.'
-        : 'Übertragungsmodus manuell. Einmal tippen aktiviert Auto-Switch, zweimal tippen führt zurück zur Ordnerauswahl.',
-    );
-    core.setAttribute('aria-pressed', String(state.mode === 'auto'));
-  }
-
-  function toggleMode() {
-    if (state.view !== 'images') return;
-    state.mode = state.mode === 'auto' ? 'manual' : 'auto';
-    applyMode();
-    setStatus(
-      state.mode === 'auto' ? 'AUTO-SWITCH AKTIV' : 'MANUELLE ÜBERTRAGUNG',
-    );
-    window.setTimeout(() => {
-      if (!state.rotating) setStatus('');
-    }, 2200);
-    // Beim Aktivieren wandert die aktuelle Auswahl sofort zum Receiver.
-    // Beim Deaktivieren bleibt der zuletzt gezeigte Inhalt dort stehen.
-    if (state.mode === 'auto') scheduleAutoSwitch(0);
-  }
-
-  // Schnelle Auswahlwechsel werden zusammengefasst; eine veraltete Anfrage
-  // wird verworfen, die zuletzt gewählte Position aber nachgezogen.
-  let autoTimer = 0;
-  let autoWanted = -1;
-
-  function scheduleAutoSwitch(delay = 140) {
-    autoWanted = state.index;
-    window.clearTimeout(autoTimer);
-    autoTimer = window.setTimeout(runAutoSwitch, delay);
-  }
-
-  async function runAutoSwitch() {
-    if (destroyed || state.mode !== 'auto' || state.view !== 'images') return;
-    if (state.sending || state.rotating) {
-      window.clearTimeout(autoTimer);
-      autoTimer = window.setTimeout(runAutoSwitch, 130);
-      return;
-    }
-    const wanted = autoWanted;
-    await sendCurrent(null, 'show', { index: wanted, silent: true });
-    if (state.mode === 'auto' && autoWanted !== wanted) scheduleAutoSwitch(0);
-  }
-
-  /* --------------------------------------------- Aufgezogene Bildansicht */
-
-  /**
-   * Die Vorschau wächst um ihre eigene Mitte. Der größtmögliche Faktor ergibt
-   * sich deshalb aus dem Abstand jeder Kante zum Containerrand, nicht aus dem
-   * Größenverhältnis. So bleibt auch vergrößert auf allen vier Seiten Abstand.
-   */
-  function openableScale() {
-    const applied = previewFrame.style.transform;
-    previewFrame.style.transform = 'none';
-    const frame = previewFrame.getBoundingClientRect();
-    previewFrame.style.transform = applied;
-    const area = browser.getBoundingClientRect();
-    const margin = 12;
-    const halfWidth = Math.max(1, frame.width / 2);
-    const halfHeight = Math.max(1, frame.height / 2);
-    const centerX = frame.left + frame.width / 2;
-    const centerY = frame.top + frame.height / 2;
-    return clamp(
-      Math.min(
-        (centerX - (area.left + margin)) / halfWidth,
-        (area.right - margin - centerX) / halfWidth,
-        (centerY - (area.top + margin)) / halfHeight,
-        (area.bottom - margin - centerY) / halfHeight,
-      ),
-      1,
-      2.4,
-    );
-  }
-
-  function applyOpenTransform() {
-    previewFrame.style.transform = state.opened
-      ? `scale(${state.openScale.toFixed(3)})`
-      : '';
-    previewFrame.style.setProperty('--zoom', String(state.zoom.toFixed(3)));
-    previewFrame.style.setProperty('--pan-x', `${Math.round(state.pan.x)}px`);
-    previewFrame.style.setProperty('--pan-y', `${Math.round(state.pan.y)}px`);
-  }
-
-  function clampPan() {
-    const image = previewCanvas.querySelector('img');
-    const width = image ? image.clientWidth : previewFrame.offsetWidth;
-    const height = image ? image.clientHeight : previewFrame.offsetHeight;
-    const maxX = Math.max(
-      0,
-      (width * state.zoom - previewFrame.offsetWidth) / 2,
-    );
-    const maxY = Math.max(
-      0,
-      (height * state.zoom - previewFrame.offsetHeight) / 2,
-    );
-    state.pan.x = clamp(state.pan.x, -maxX, maxX);
-    state.pan.y = clamp(state.pan.y, -maxY, maxY);
-  }
-
-  function openPreview() {
-    if (state.opened || state.view !== 'images') return;
-    state.opened = true;
-    state.openScale = openableScale();
-    state.zoom = 1;
-    state.pan = { x: 0, y: 0 };
-    browser.dataset.opened = 'on';
-    browser.style.setProperty('--pinch', '1');
-    applyOpenTransform();
-  }
-
-  // Zurück zur Bildauswahl: der Empfänger behält seinen Inhalt samt
-  // Darstellung, nur die lokale Ansicht verkleinert sich.
-  function closePreview() {
-    if (!state.opened) return;
-    state.opened = false;
-    state.zoom = 1;
-    state.pan = { x: 0, y: 0 };
-    delete browser.dataset.opened;
-    browser.style.setProperty('--pinch', '0');
-    applyOpenTransform();
-  }
-
-  let transformTimer = 0;
-  let transformSentAt = 0;
-
-  function pushTransform(immediate = false) {
-    const wait = immediate ? 0 : 110;
-    window.clearTimeout(transformTimer);
-    const elapsed = Date.now() - transformSentAt;
-    transformTimer = window.setTimeout(
-      sendTransform,
-      Math.max(0, wait - elapsed),
-    );
-  }
-
-  async function sendTransform() {
-    const receiver = state.receiver;
-    if (!receiver?.connected) return;
-    // Nur für die laufende Medien- und Empfängersitzung.
-    const sessionId = receiver.state?.current?.sessionId;
-    if (!sessionId) return;
-    transformSentAt = Date.now();
-    const payload = {
-      zoom: Number(state.zoom.toFixed(3)),
-      x: Math.round(state.pan.x),
-      y: Math.round(state.pan.y),
-      rotation: 0,
-      sessionId,
-    };
-    try {
-      const result = await displays.command(
-        [receiver.id],
-        'image.transform',
-        payload,
-      );
-      if (result.results?.some((entry) => entry.accepted)) {
-        state.confirmedZoom = payload.zoom;
-        renderTop();
-      }
-    } catch {
-      /* Fehler bleiben ohne Erfolgsmeldung; der Status kommt aus refreshReceiver. */
-    }
-  }
-
-  /* ------------------------------------------------- Pinch und Tastgesten */
-
-  const pointers = new Map();
-  const PINCH_SPREAD = 1.28; // bewusst auseinandergezogene Finger
-  const MAX_ZOOM = 4;
-  let pinchBase = 0;
-  let pinchMax = 1;
-  let pinchPeak = 1;
-  let pinchRawPeak = 1;
-  let pinchArmed = false;
-  let zoomBase = 1;
-  let panOrigin = null;
-  let panActive = false; // erst eine echte Bewegung gilt als Verschieben
-  let tapTime = 0;
-  let tapOrigin = null;
-  let tapDragging = false;
-
-  function pointerDistance() {
-    const [a, b] = [...pointers.values()];
-    return Math.hypot(b.x - a.x, b.y - a.y);
-  }
-
-  function cancelTap() {
-    tapOrigin = null;
-    tapDragging = false;
-    panOrigin = null;
-    panActive = false;
-    previewFrame.classList.remove('is-dragging');
-  }
-
-  function beginPinch() {
-    cancelTap();
-    pinchBase = pointerDistance();
-    pinchPeak = 1;
-    pinchRawPeak = 1;
-    previewFrame.style.transition = 'none';
-    if (state.opened) {
-      // In der geöffneten Ansicht zoomt jede weitere Zwei-Finger-Geste nur.
-      zoomBase = state.zoom;
-      pinchArmed = false;
-      return;
-    }
-    pinchMax = openableScale();
-    pinchArmed = true;
-    browser.dataset.pinch = 'on';
-  }
-
-  function updatePinch() {
-    if (!pinchBase) return;
-    const raw = pointerDistance() / pinchBase;
-    if (state.opened) {
-      state.zoom = clamp(zoomBase * raw, 1, MAX_ZOOM);
-      clampPan();
-      applyOpenTransform();
-      pushTransform();
-      return;
-    }
-    if (!pinchArmed) return;
-    pinchRawPeak = Math.max(pinchRawPeak, raw);
-    const scale = clamp(raw, 1, pinchMax);
-    pinchPeak = Math.max(pinchPeak, scale);
-    previewFrame.style.transform = `scale(${scale.toFixed(3)})`;
-    browser.style.setProperty(
-      '--pinch',
-      String(clamp((scale - 1) / Math.max(0.0001, pinchMax - 1), 0, 1)),
-    );
-  }
-
-  function finishPinch(complete) {
-    previewFrame.style.transition = '';
-    pinchBase = 0;
-    if (state.opened) {
-      pushTransform(true);
-      return;
-    }
-    if (!pinchArmed) return;
-    // Die Finger müssen bewusst auseinandergezogen werden; zusätzlich muss die
-    // Vorschau den erreichbaren Spielraum deutlich ausnutzen.
-    const reached =
-      pinchRawPeak >= PINCH_SPREAD && pinchPeak >= 1 + (pinchMax - 1) * 0.5;
-    pinchArmed = false;
-    if (!complete || !reached) {
-      previewFrame.style.transform = '';
-      browser.style.setProperty('--pinch', '0');
-      delete browser.dataset.pinch;
-      return;
-    }
-    delete browser.dataset.pinch;
-    openPreview();
-    // Die öffnende Geste sendet nur im manuellen Modus; im Auto-Switch liegt
-    // das Bild bereits auf dem Empfänger.
-    if (state.mode === 'manual') sendCurrent();
-  }
-
-  previewFrame.addEventListener('pointerdown', (event) => {
-    if (state.view !== 'images') return;
-    pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
-    previewFrame.setPointerCapture(event.pointerId);
-    if (pointers.size === 2) {
-      beginPinch();
-      return;
-    }
-    if (pointers.size > 2) return;
-    tapOrigin = { x: event.clientX, y: event.clientY };
-    tapDragging = false;
-    if (state.opened && state.zoom > 1) {
-      panOrigin = { x: state.pan.x, y: state.pan.y };
-      panActive = false;
-    }
-  });
-
-  previewFrame.addEventListener('pointermove', (event) => {
-    const point = pointers.get(event.pointerId);
-    if (!point) return;
-    point.x = event.clientX;
-    point.y = event.clientY;
-    if (pointers.size === 2) {
-      updatePinch();
-      return;
-    }
-    if (!tapOrigin) return;
-    const dx = event.clientX - tapOrigin.x;
-    const dy = event.clientY - tapOrigin.y;
-    if (panOrigin) {
-      if (!panActive && Math.hypot(dx, dy) < 5) return;
-      panActive = true;
-      // Verschieben im vergrößerten Bild, umgerechnet auf die Rahmengröße.
-      state.pan.x = panOrigin.x + dx / state.openScale;
-      state.pan.y = panOrigin.y + dy / state.openScale;
-      clampPan();
-      applyOpenTransform();
-      pushTransform();
-      return;
-    }
-    if (Math.hypot(dx, dy) > 16) {
-      tapDragging = true;
-      if (!state.opened) previewFrame.classList.add('is-dragging');
-    }
-  });
-
-  function releasePointer(event, complete) {
-    if (!pointers.has(event.pointerId)) return;
-    const wasPinch = pointers.size === 2;
-    pointers.delete(event.pointerId);
-    if (wasPinch) {
-      finishPinch(complete);
-      return;
-    }
-    if (pointers.size) return;
-    if (panActive) {
-      pushTransform(true);
-      cancelTap();
-      return;
-    }
-    panOrigin = null;
-    const dragging = tapDragging;
-    const origin = tapOrigin;
-    cancelTap();
-    if (!complete || !origin) return;
-    if (state.opened) {
-      // Einfaches Antippen schließt nichts; nur der Doppeltipp verkleinert.
-      if (dragging) return;
-      const now = performance.now();
-      if (now - tapTime < 330) {
-        tapTime = 0;
-        closePreview();
-      } else tapTime = now;
-      return;
-    }
-    if (dragging) {
-      const target = document
-        .elementFromPoint(event.clientX, event.clientY)
-        ?.closest('.device-target');
-      if (target && !target.disabled) sendCurrent([target.dataset.id]);
-      return;
-    }
-    const now = performance.now();
-    if (now - tapTime < 330) {
-      tapTime = 0;
-      sendCurrent();
-    } else tapTime = now;
-  }
-
-  previewFrame.addEventListener('pointerup', (event) =>
-    releasePointer(event, true),
-  );
-  previewFrame.addEventListener('pointercancel', (event) =>
-    releasePointer(event, false),
-  );
-  previewFrame.addEventListener(
-    'touchmove',
-    (event) => {
-      // Eigene Gesten behandeln, ohne die Home-Assistant-Oberfläche mitzuzoomen.
-      if (event.touches.length > 1 || state.opened) event.preventDefault();
-    },
-    { passive: false },
-  );
-
-  function cancelGestures() {
-    if (pointers.size || pinchArmed || panOrigin) {
-      pointers.clear();
-      if (pinchArmed) finishPinch(false);
-      panOrigin = null;
-      pinchBase = 0;
-    }
-    cancelTap();
-    if (rotatePointer !== null) {
-      rotatePointer = null;
-      state.rotating = false;
-      delete browser.dataset.rotating;
-      animateTo(Math.round(state.position), 160);
-    }
-  }
   /* ----------------------------------------------------------------- Start */
 
   applyLayout();
-  applyMode();
-  renderTop();
   openRoot();
   refreshReceiver();
   receiverTimer = window.setInterval(() => {
@@ -1307,39 +1207,30 @@ export function createMediaBrowser(options) {
     openSource: (source) =>
       activate({
         kind: 'source',
-        name: String(source.name || 'QUELLE').toUpperCase(),
+        name: String(source.name || 'Quelle'),
         sourceId: source.id,
         path: '',
       }),
     showLibrary: () => {
       if (!library.length) return;
       showCollection(
-        {
-          title: 'IMPORTIERTE MEDIEN',
-          items: library.map((media, index) => ({
-            key: `local:${index}:${media.title}`,
-            name: media.title,
-            type: media.type,
-            data: media.data,
-            source: media.source,
-          })),
-        },
+        { title: 'Importierte Medien', items: libraryItems() },
         state.view === 'folders' ? state.level : state.collection?.back,
       );
     },
     destroy: () => {
       destroyed = true;
       window.clearInterval(receiverTimer);
-      window.clearTimeout(settleTimer);
+      window.clearTimeout(snapTimer);
+      window.clearTimeout(hubTimer);
       window.clearTimeout(autoTimer);
       window.clearTimeout(transformTimer);
-      window.clearTimeout(coreTapTimer);
-      cancelAnimationFrame(animation);
       resizeObserver?.disconnect();
       window.removeEventListener('resize', handleViewportChange);
       window.removeEventListener('orientationchange', handleViewportChange);
       for (const entry of fileCache.values()) URL.revokeObjectURL(entry.url);
       fileCache.clear();
+      imageCache.clear();
     },
   };
 }
