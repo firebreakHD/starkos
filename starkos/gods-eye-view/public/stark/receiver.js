@@ -188,16 +188,19 @@ function showMedia(media, mode = 'show', sessionId, fromQueue = false) {
   stage.replaceChildren();
   const frame = document.createElement('article');
   frame.className = 'received-media';
+  // Große Medien kommen als kurzlebige Freigabe statt eingebettet; der
+  // Receiver holt sie sich dann selbst.
+  const src = media.url || media.data;
   if (media.type === 'text/uri-list') {
     const link = document.createElement('a');
-    link.href = media.data;
+    link.href = src;
     link.target = '_blank';
     link.rel = 'noopener';
     link.textContent = 'WEBINHALT EXTERN ÖFFNEN';
     currentVisual = link;
   } else if (media.type.startsWith('video/')) {
     currentVisual = document.createElement('video');
-    currentVisual.src = media.data;
+    currentVisual.src = src;
     currentVisual.controls = false;
     currentVisual.autoplay = true;
     currentVisual.muted = true;
@@ -211,10 +214,10 @@ function showMedia(media, mode = 'show', sessionId, fromQueue = false) {
     });
   } else if (media.type === 'application/pdf') {
     currentVisual = document.createElement('iframe');
-    currentVisual.src = media.data;
+    currentVisual.src = src;
   } else {
     currentVisual = document.createElement('img');
-    currentVisual.src = media.data;
+    currentVisual.src = src;
   }
   frame.append(currentVisual);
   const caption = document.createElement('div');
@@ -225,7 +228,7 @@ function showMedia(media, mode = 'show', sessionId, fromQueue = false) {
   caption.append(label, title);
   if (mode === 'transfer' && media.type !== 'text/uri-list') {
     const download = document.createElement('a');
-    download.href = media.data;
+    download.href = src;
     download.download = media.title;
     download.textContent = 'DATEI SPEICHERN';
     caption.append(download);

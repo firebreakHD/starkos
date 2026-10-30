@@ -138,6 +138,9 @@ export function starkAuthPlugin() {
       if (
         url.pathname === '/api/stark/receiver/claim' ||
         url.pathname === '/api/stark/receiver/claim-status' ||
+        // Kurzlebige, sitzungsgebundene Medienfreigabe: der Token in der
+        // Anfrage ist der Ausweis, die Route prüft ihn selbst.
+        url.pathname === '/api/stark/media-stream' ||
         url.pathname === '/stark/receiver.html' ||
         url.pathname === '/stark/receiver.js' ||
         url.pathname === '/stark/stark.css'

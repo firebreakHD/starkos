@@ -69,6 +69,13 @@ export class DisplayApi {
       `media-sources/${encodeURIComponent(id)}/browse?path=${encodeURIComponent(path)}`,
     );
   }
+  /** Direkte Adresse einer NAS-Datei; der Browser kann daraus streamen. */
+  mediaSourceFileUrl(id, path) {
+    return new URL(
+      `media-sources/${encodeURIComponent(id)}/file?path=${encodeURIComponent(path)}`,
+      this.base,
+    ).href;
+  }
   async mediaSourceFile(id, path) {
     const response = await fetch(
       new URL(

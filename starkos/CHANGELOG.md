@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.1.18
+
+- A medium from a NAS source is now addressed by reference, and the server decides by size how it reaches the receiver: small enough travels inside the command as before, larger is handed over as a short-lived, session-bound address the receiver fetches itself. Videos beyond the connection limit therefore play on the receiver instead of being refused.
+- The address carries a random token, is valid only for that one file, expires with the media grant and is swept once it does. The receiver never learns the credentials of the media source, nor where the file lives.
+- Sending no longer pulls the file through the phone first, so large media start faster.
+
+## 0.1.17
+
+- Videos are no longer loaded into the selection preview, where the picture would only appear once the whole file had arrived. The frame names the file and says that pulling it open plays it.
+- The enlarged view plays videos, streamed straight from the source: the file route answers byte ranges now, so the browser fetches only what it needs instead of pulling the whole file through the add-on.
+- Sending a video that is too large for the receiver connection is refused with its size instead of failing part way through. Everything that fits is still sent as before.
+
 ## 0.1.16
 
 - SMB media sources now read through `smbprotocol`, the maintained Python implementation, instead of a JavaScript client. The previous client was refused by Samba — what Synology, QNAP and OpenMediaVault run — and two spec fixes were not enough to make it work. The add-on image carries Python and the library for this.

@@ -85,6 +85,14 @@ function publicDevice(device, sockets) {
 }
 
 function validateMedia(media) {
+  // Eine aufgelöste Freigabe trägt statt der Daten die eigene Adresse.
+  if (media && typeof media.url === 'string') {
+    if (!media.url.startsWith('/api/stark/media-stream?'))
+      throw Object.assign(new Error('Medienadresse ist nicht erlaubt.'), {
+        status: 400,
+      });
+    return;
+  }
   if (!media || typeof media.data !== 'string')
     throw Object.assign(new Error('Medium fehlt.'), { status: 400 });
   const embedded = /^data:(?:image\/|video\/|application\/pdf[;,])/.test(
@@ -239,10 +247,84 @@ export function createDisplayService({ store = new DisplayStore() } = {}) {
   return { store, sockets, sessions, sendCommand, executeTool, currentMedia };
 }
 
+/* --------------------------------------------- Sitzungsgebundene Freigaben */
+
+// Ein Medium, das in die Receiver-Verbindung passt, reist weiterhin direkt mit
+// dem Befehl. Größere Dateien bekommen stattdessen eine kurzlebige,
+// sitzungsgebundene Adresse, die der Receiver selbst abruft. Er erhält dabei
+// niemals die Zugangsdaten der Medienquelle und erfährt auch nicht, wo die
+// Datei liegt.
+export const INLINE_MEDIA_LIMIT = 14 * 1024 * 1024;
+
+/**
+ * @param {object} options
+ * @param {{get: (id: string) => object|null}} options.mediaSources Quellenspeicher
+ * @param {Function} [options.read] liest eine Datei der Quelle
+ * @param {number} [options.limit] Grenze für das Einbetten
+ * @param {number} [options.grantMs] Gültigkeit einer Freigabe
+ */
+export function createMediaResolver({
+  mediaSources,
+  read = readSourceFile,
+  limit = INLINE_MEDIA_LIMIT,
+  grantMs = MEDIA_GRANT_MS,
+} = {}) {
+  const grants = new Map();
+
+  const sweep = (now = Date.now()) => {
+    for (const [token, grant] of grants)
+      if (grant.expiresAt < now) grants.delete(token);
+  };
+
+  /**
+   * Löst eine Medienangabe auf. Mit `media.source` entscheidet die Größe:
+   * klein genug wird die Datei eingebettet, sonst wird eine Freigabe
+   * ausgestellt.
+   */
+  async function resolve(media) {
+    if (!media?.source?.sourceId) return media;
+    const { sourceId, path: relativePath } = media.source;
+    const source = mediaSources.get(String(sourceId));
+    if (!source)
+      throw Object.assign(new Error('Medienquelle nicht gefunden.'), {
+        status: 404,
+      });
+    try {
+      const { content, type } = await read(source, relativePath, limit);
+      const mime = media.type || type || 'application/octet-stream';
+      return {
+        title: media.title,
+        type: mime,
+        data: `data:${mime};base64,${content.toString('base64')}`,
+      };
+    } catch (error) {
+      // Zu groß für die Verbindung: der Receiver holt sie sich selbst.
+      if (error?.status !== 413) throw error;
+    }
+    sweep();
+    const token = randomBytes(24).toString('base64url');
+    grants.set(token, {
+      sourceId: source.id,
+      path: relativePath,
+      type: media.type || '',
+      expiresAt: Date.now() + grantMs,
+    });
+    return {
+      title: media.title,
+      type: media.type || '',
+      url: `/api/stark/media-stream?token=${encodeURIComponent(token)}`,
+    };
+  }
+
+  return { resolve, grants, sweep };
+}
+
 export function starkReceiverPlugin({
   service = createDisplayService(),
   mediaSources = new MediaSourceStore(),
 } = {}) {
+  const mediaResolver = createMediaResolver({ mediaSources });
+
   const install = (server) => {
     const wss = new WebSocketServer({ noServer: true, maxPayload: MAX_BODY });
     server.httpServer?.on('upgrade', (req, socket, head) => {
@@ -482,12 +564,20 @@ export function starkReceiverPlugin({
               await browseSource(source, url.searchParams.get('path') || ''),
             );
           if (req.method === 'GET' && operation === 'file') {
-            const { content, type } = await readSourceFile(
-              source,
-              url.searchParams.get('path') || '',
-              MAX_BODY,
-            );
-            res.statusCode = 200;
+            // Ein Bereich hält große Videos abspielbar, ohne die ganze Datei
+            // durch das Add-on zu ziehen.
+            const requested = String(req.headers.range || '').trim();
+            const { content, type, status, size, contentRange } =
+              await readSourceFile(
+                source,
+                url.searchParams.get('path') || '',
+                MAX_BODY,
+                requested || undefined,
+              );
+            res.statusCode = status === 206 ? 206 : 200;
+            res.setHeader('Accept-Ranges', 'bytes');
+            if (contentRange) res.setHeader('Content-Range', contentRange);
+            else if (size) res.setHeader('X-Media-Size', String(size));
             res.setHeader('Content-Type', type || 'application/octet-stream');
             res.setHeader('Content-Length', String(content.length));
             res.setHeader('Cache-Control', 'no-store');
@@ -514,12 +604,55 @@ export function starkReceiverPlugin({
             ? json(res, 200, { revoked: true })
             : json(res, 404, { error: 'Display nicht gefunden.' });
         }
+        // Der Receiver holt ein großes Medium selbst. Der Token gilt nur für
+        // diese eine Datei und läuft mit der Mediensitzung ab.
+        if (
+          req.method === 'GET' &&
+          url.pathname === '/api/stark/media-stream'
+        ) {
+          mediaResolver.sweep();
+          const grant = mediaResolver.grants.get(
+            url.searchParams.get('token') || '',
+          );
+          if (!grant || grant.expiresAt < Date.now())
+            return json(res, 404, { error: 'Freigabe ist abgelaufen.' });
+          const source = mediaSources.get(grant.sourceId);
+          if (!source)
+            return json(res, 404, { error: 'Medienquelle nicht gefunden.' });
+          const requested = String(req.headers.range || '').trim();
+          const { content, type, status, size, contentRange } =
+            await readSourceFile(
+              source,
+              grant.path,
+              MAX_BODY,
+              requested || undefined,
+            );
+          res.statusCode = status === 206 ? 206 : 200;
+          res.setHeader('Accept-Ranges', 'bytes');
+          if (contentRange) res.setHeader('Content-Range', contentRange);
+          else if (size) res.setHeader('X-Media-Size', String(size));
+          res.setHeader(
+            'Content-Type',
+            grant.type || type || 'application/octet-stream',
+          );
+          res.setHeader('Content-Length', String(content.length));
+          res.setHeader('Cache-Control', 'no-store');
+          res.setHeader('X-Content-Type-Options', 'nosniff');
+          return res.end(content);
+        }
         if (req.method === 'POST' && url.pathname === '/api/stark/command') {
           const input = await readBody(req);
+          const payload =
+            input.action === 'media.show'
+              ? {
+                  ...input.payload,
+                  media: await mediaResolver.resolve(input.payload?.media),
+                }
+              : input.payload;
           return json(
             res,
             200,
-            service.sendCommand(input.displayIds, input.action, input.payload),
+            service.sendCommand(input.displayIds, input.action, payload),
           );
         }
         if (req.method === 'GET' && url.pathname === '/api/stark/adapters')

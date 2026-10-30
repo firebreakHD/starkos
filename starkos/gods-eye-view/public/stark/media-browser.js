@@ -18,6 +18,7 @@ const TAP_DELAY = 320; // Fenster zur Unterscheidung Einzel-/Doppeltipp
 const PRELOAD = 4;
 const CACHE_LIMIT = 24;
 const MAX_ZOOM = 4;
+const TRANSFER_LIMIT = 14 * 1024 * 1024; // passt als Daten-URL noch in 20 MB
 const OPEN_THRESHOLD = 1.04; // ab hier wird die Ansicht sichtbar aufgezogen
 const SEND_THRESHOLD = 1.23; // ab hier gilt die Geste als bewusst abgeschlossen
 const MEDIA_PATTERN = /^(image\/|video\/|application\/pdf$)/;
@@ -87,6 +88,7 @@ export function createMediaBrowser(options) {
   const wheelIndex = $('#wheelIndex');
   const overlay = $('#expandedView');
   const overlayImage = $('#expandedImage');
+  const overlayVideo = $('#expandedVideo');
   const castState = $('#castState');
 
   const state = {
@@ -380,12 +382,9 @@ export function createMediaBrowser(options) {
         });
     };
     if (item.type.startsWith('video/')) {
-      const video = document.createElement('video');
-      video.controls = true;
-      video.playsInline = true;
-      show(video, (url) => {
-        video.src = url;
-      });
+      // Videos werden in der Auswahl nicht geladen: das Vorschaubild käme erst
+      // nach der ganzen Datei. Abgespielt wird in der aufgezogenen Ansicht.
+      previewCanvas.replaceChildren(placeholder('VIDEO', item.name));
     } else if (item.type === 'text/uri-list') {
       const link = document.createElement('a');
       link.className = 'preview-link';
@@ -407,6 +406,20 @@ export function createMediaBrowser(options) {
     const element = document.createElement('span');
     element.className = 'preview-note';
     element.textContent = text;
+    return element;
+  }
+
+  /** Platzhalter für Medien, die erst beim Aufziehen geladen werden. */
+  function placeholder(kind, name) {
+    const element = document.createElement('div');
+    element.className = 'preview-placeholder';
+    const label = document.createElement('strong');
+    label.textContent = kind;
+    const title = document.createElement('span');
+    title.textContent = name;
+    const hint = document.createElement('em');
+    hint.textContent = 'AUFZIEHEN ZUM ABSPIELEN';
+    element.append(label, title, hint);
     return element;
   }
 
@@ -706,6 +719,8 @@ export function createMediaBrowser(options) {
 
   function startGesture(event) {
     if (state.view !== 'images') return;
+    // Die Bedienelemente des Videos gehören dem Video, nicht der Geste.
+    if (event.target === overlayVideo) return;
     pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
     event.currentTarget.setPointerCapture(event.pointerId);
     lastPan = { x: event.clientX, y: event.clientY };
@@ -729,7 +744,7 @@ export function createMediaBrowser(options) {
         state.zoom = clamp(baseZoom * scale, 1, MAX_ZOOM);
         applyZoom(true);
       } else if (scale > OPEN_THRESHOLD) {
-        showOverlayImage(state.index);
+        showOverlayMedia(state.index);
         setExpanded(true);
         overlay.style.transform = `scale(${Math.min(1, 0.88 + scale * 0.08)})`;
         castState.textContent =
@@ -786,6 +801,10 @@ export function createMediaBrowser(options) {
   // Einfaches Antippen schließt die geöffnete Ansicht nicht; nur ein
   // Doppeltipp verkleinert sie zurück zur Bildauswahl.
   overlay.addEventListener('pointerdown', (event) => {
+    if (event.target === overlayVideo) {
+      tapMoved = true;
+      return;
+    }
     if (pointers.size === 1) {
       tapOrigin = { x: event.clientX, y: event.clientY };
       tapMoved = false;
@@ -821,18 +840,38 @@ export function createMediaBrowser(options) {
     { passive: false },
   );
 
-  function showOverlayImage(index) {
+  /**
+   * Füllt die aufgezogene Ansicht. Bilder kommen aus dem Zwischenspeicher,
+   * Videos werden direkt von der Quelle gestreamt — der Browser holt sich
+   * dabei nur die Bereiche, die er zum Abspielen braucht.
+   */
+  function showOverlayMedia(index) {
     const item = itemAt(index);
     if (!item) return;
-    overlayImage.alt = item.name;
-    const cached = cachedUrl(item);
-    if (cached) overlayImage.src = cached;
-    else
-      loadFile(item)
-        .then((url) => {
-          if (state.index === index) overlayImage.src = url;
-        })
-        .catch(() => {});
+    const video = item.type.startsWith('video/');
+    overlayImage.hidden = video;
+    overlayVideo.hidden = !video;
+    if (!video) {
+      overlayVideo.removeAttribute('src');
+      overlayVideo.load();
+      overlayImage.alt = item.name;
+      const cached = cachedUrl(item);
+      if (cached) overlayImage.src = cached;
+      else
+        loadFile(item)
+          .then((url) => {
+            if (state.index === index) overlayImage.src = url;
+          })
+          .catch(() => {});
+      return;
+    }
+    const streamed = item.sourceId
+      ? displays.mediaSourceFileUrl(item.sourceId, item.path)
+      : item.data;
+    if (overlayVideo.getAttribute('src') !== streamed) {
+      overlayVideo.setAttribute('src', streamed);
+      overlayVideo.load();
+    }
   }
 
   /* ------------------------------------------------------------- Dateien */
@@ -914,6 +953,14 @@ export function createMediaBrowser(options) {
   }
 
   async function mediaPayload(item) {
+    // Bei einer NAS-Quelle entscheidet der Server anhand der Größe, ob die
+    // Datei mitreist oder der Receiver sie sich selbst holt.
+    if (item.sourceId)
+      return {
+        title: item.name,
+        type: item.type,
+        source: { sourceId: item.sourceId, path: item.path },
+      };
     if (item.data)
       return {
         title: item.name,
@@ -1014,6 +1061,7 @@ export function createMediaBrowser(options) {
         key: `${entry.sourceId}:${item.path}`,
         name: item.name,
         type: entryType(item),
+        size: Number(item.size) || 0,
         sourceId: entry.sourceId,
         path: item.path,
         source: `NAS · ${entry.name}`,
@@ -1161,7 +1209,7 @@ export function createMediaBrowser(options) {
     const item = itemAt(index);
     if (!item) return;
     if (open) {
-      showOverlayImage(index);
+      showOverlayMedia(index);
       state.zoom = 1;
       state.pan = { x: 0, y: 0 };
       applyZoom(false);
@@ -1184,6 +1232,15 @@ export function createMediaBrowser(options) {
       if (!targets.length) {
         castState.textContent = 'KEIN RECEIVER VERBUNDEN';
         receiverStatus('KEIN RECEIVER VERBUNDEN');
+        return;
+      }
+      // Nur lokal importierte Medien reisen zwangsläufig vollständig über die
+      // Receiver-Verbindung. Für Quellen entscheidet der Server anhand der
+      // Größe, ob er einbettet oder eine Freigabe ausstellt.
+      if (!item.sourceId && item.size && item.size > TRANSFER_LIMIT) {
+        const reason = `ZU GROSS ZUM SENDEN · ${Math.round(item.size / 1024 / 1024)} MB`;
+        castState.textContent = reason;
+        receiverStatus(reason);
         return;
       }
       const media = await mediaPayload(item);

@@ -314,12 +314,17 @@ export async function browseWebDav(source, relativePath = '') {
   );
 }
 
-export async function fetchWebDavFile(source, relativePath) {
+export async function fetchWebDavFile(source, relativePath, range) {
   const response = await fetch(sourceUrl(source, relativePath), {
-    headers: { Authorization: authorization(source.credentials) },
+    headers: {
+      Authorization: authorization(source.credentials),
+      // Ein Bereich hält Videos abspielbar; antwortet der Server mit der
+      // ganzen Datei, spielt der Browser sie trotzdem ab.
+      ...(range ? { Range: range } : {}),
+    },
     signal: AbortSignal.timeout(30_000),
   });
-  if (!response.ok)
+  if (!response.ok && response.status !== 206)
     throw Object.assign(new Error('NAS-Datei konnte nicht geladen werden.'), {
       status: response.status === 401 || response.status === 403 ? 401 : 502,
     });
@@ -429,11 +434,11 @@ export async function browseSmb(source, relativePath = '') {
     );
 }
 
-export async function readSmbFile(source, relativePath, limit) {
+export async function readSmbFile(source, relativePath, limit, range) {
   const target = smbTarget(source, relativePath);
   if (!target.relative)
     throw Object.assign(new Error('Kein Pfad angegeben.'), { status: 400 });
-  return readSmbFileBytes(target, target.relative, limit);
+  return readSmbFileBytes(target, target.relative, limit, range);
 }
 /* ------------------------------------------- Gemeinsame Einstiegspunkte */
 
@@ -444,12 +449,12 @@ export function browseSource(source, relativePath = '') {
 }
 
 /** Liest eine Datei der Quelle und begrenzt dabei die Größe. */
-export async function readSourceFile(source, relativePath, limit) {
+export async function readSourceFile(source, relativePath, limit, range) {
   if (source.type === 'smb') {
-    const content = await readSmbFile(source, relativePath, limit);
-    return { content, type: typeFromName(relativePath) };
+    const result = await readSmbFile(source, relativePath, limit, range);
+    return { ...result, type: typeFromName(relativePath) };
   }
-  const upstream = await fetchWebDavFile(source, relativePath);
+  const upstream = await fetchWebDavFile(source, relativePath, range);
   if (Number(upstream.headers.get('content-length') || 0) > limit)
     throw Object.assign(new Error('NAS-Datei ist größer als erlaubt.'), {
       status: 413,
@@ -457,6 +462,9 @@ export async function readSourceFile(source, relativePath, limit) {
   const content = await readResponseBuffer(upstream, limit);
   return {
     content,
+    size: content.length,
+    status: upstream.status === 206 ? 206 : 200,
+    contentRange: upstream.headers.get('content-range'),
     type: upstream.headers.get('content-type') || typeFromName(relativePath),
   };
 }

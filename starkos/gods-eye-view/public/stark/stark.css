@@ -1469,6 +1469,41 @@ body::before {
   border: 0;
   background: transparent;
 }
+/* Videos werden in der Auswahl nur benannt; geladen wird beim Aufziehen. */
+.preview-placeholder {
+  display: grid;
+  gap: 6px;
+  place-items: center;
+  padding: 14px;
+  text-align: center;
+}
+.preview-placeholder strong {
+  font-size: clamp(13px, 2.6vmin, 18px);
+  letter-spacing: 0.3em;
+  color: var(--cyan);
+}
+.preview-placeholder span {
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: clamp(10px, 1.8vmin, 13px);
+  color: rgba(217, 251, 255, 0.72);
+}
+.preview-placeholder em {
+  font-style: normal;
+  font-size: clamp(7px, 1.3vmin, 9px);
+  letter-spacing: 0.22em;
+  color: rgba(217, 251, 255, 0.4);
+}
+#expandedVideo {
+  width: 100%;
+  height: 100%;
+  background: #000;
+  object-fit: contain;
+  touch-action: auto;
+  pointer-events: auto;
+}
 .preview-note,
 .preview-link {
   padding: 12px;

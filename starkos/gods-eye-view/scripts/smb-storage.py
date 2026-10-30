@@ -66,6 +66,30 @@ def is_link(attributes):
     return bool(attributes & FILE_ATTRIBUTE_REPARSE_POINT)
 
 
+def parse_range(value, size):
+    """`bytes=start-end` auswerten. Gibt (None, None) ohne Bereich zurück."""
+    if not value:
+        return None, None
+    match = re.match(r"^bytes=(\d*)-(\d*)$", str(value).strip())
+    if not match or size == 0:
+        fail("Angeforderter Bereich ist ungültig.", 416)
+    first, last = match.group(1), match.group(2)
+    if not first and not last:
+        fail("Angeforderter Bereich ist ungültig.", 416)
+    if not first:
+        # Suffix: die letzten N Bytes.
+        length = int(last)
+        if length == 0:
+            fail("Angeforderter Bereich ist ungültig.", 416)
+        start = max(size - length, 0)
+        return start, size - 1
+    start = int(first)
+    end = int(last) if last else size - 1
+    if start > end or start >= size:
+        fail("Angeforderter Bereich liegt außerhalb der Datei.", 416)
+    return start, min(end, size - 1)
+
+
 def main():
     raw = sys.stdin.readline(MAX_HEADER + 1)
     if not raw:
@@ -168,20 +192,35 @@ def main():
                 fail("Verknüpfungen werden nicht geöffnet.", 400)
             if info.st_file_attributes & 0x10:
                 fail("Der Pfad ist ein Ordner.", 400)
-            limit = int(command.get("maxBytes") or 0)
             size = int(info.st_size)
-            if limit and size > limit:
-                fail("NAS-Datei ist zu groß.", 413)
-            respond({"ok": True, "length": size})
-            written = 0
+            limit = int(command.get("maxBytes") or 0)
+            start, end = parse_range(command.get("range"), size)
+            partial = start is not None
+            if not partial:
+                start, end = 0, max(size - 1, 0)
+                if limit and size > limit:
+                    fail("NAS-Datei ist zu groß.", 413)
+            length = 0 if size == 0 else end - start + 1
+            if limit and length > limit:
+                fail("Angeforderter Bereich ist zu groß.", 413)
+            respond(
+                {
+                    "ok": True,
+                    "length": length,
+                    "size": size,
+                    "status": 206 if partial else 200,
+                    "contentRange": f"bytes {start}-{end}/{size}" if partial else None,
+                }
+            )
+            remaining = length
             with smbclient.open_file(target, mode="rb", share_access="r") as handle:
-                while True:
-                    chunk = handle.read(CHUNK)
+                handle.seek(start)
+                while remaining > 0:
+                    chunk = handle.read(min(CHUNK, remaining))
                     if not chunk:
-                        break
-                    written += len(chunk)
-                    if limit and written > limit:
+                        # Die Datei ist während des Lesens geschrumpft.
                         sys.exit(1)
+                    remaining -= len(chunk)
                     sys.stdout.buffer.write(chunk)
             sys.stdout.buffer.flush()
             return

@@ -154,8 +154,11 @@ export async function listSmbDirectory(target, relativePath = '') {
   return Array.isArray(header.entries) ? header.entries : [];
 }
 
-/** Reads one file, refusing anything above `limit` bytes. */
-export async function readSmbFileBytes(target, relativePath, limit) {
+/**
+ * Reads one file, or the requested byte range of it. A range keeps large
+ * videos playable without pulling the whole file through the add-on.
+ */
+export async function readSmbFileBytes(target, relativePath, limit, range) {
   const { header, body } = await run(
     {
       operation: 'get',
@@ -163,6 +166,7 @@ export async function readSmbFileBytes(target, relativePath, limit) {
       password: target.password,
       path: relativePath,
       maxBytes: limit,
+      ...(range ? { range } : {}),
     },
     { collectBody: true, timeout: FILE_TIMEOUT },
   );
@@ -170,7 +174,12 @@ export async function readSmbFileBytes(target, relativePath, limit) {
     throw failure('NAS-Datei ist zu groß.', 413);
   if (Number.isInteger(header.length) && body.length !== header.length)
     throw failure('SMB-Übertragung war unvollständig.');
-  return body;
+  return {
+    content: body,
+    size: Number(header.size) || body.length,
+    status: Number(header.status) || 200,
+    contentRange: header.contentRange || null,
+  };
 }
 
 function describe(target) {

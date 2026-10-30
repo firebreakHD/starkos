@@ -20,6 +20,8 @@ The receiver's first message must be:
 
 The server answers `receiver.ready` with persisted desired state. Commands use `type: command` and include a random command ID, session ID and expiry. Receivers answer with `command.ack` and actual state. On reconnect the receiver reports its actual state again; the controller shows `connected`, `state.status` and `state.current` from the server.
 
+A `media.show` payload carries the medium either inline as `media.data`, or by reference as `media.source` (`{sourceId, path}`) for a configured media source. A reference is resolved by the server before the command goes out: a file that fits the receiver connection is embedded as `media.data`, a larger one becomes `media.url`, a short-lived address under `/api/stark/media-stream` that the receiver fetches itself. That address carries a random token, is bound to one file, answers byte ranges, and expires with the media grant. Media source credentials and paths never reach a receiver.
+
 Media grants last two hours. Receiver code rejects an expired command. In-memory media sessions are deliberately not revived after a server restart; devices reconnect in standby instead of receiving stale content.
 
 ## Actions and capabilities
