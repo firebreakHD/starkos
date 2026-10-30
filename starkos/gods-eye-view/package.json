@@ -32,7 +32,6 @@
     "visualization"
   ],
   "scripts": {
-    "postinstall": "node scripts/patch-smb3-client.mjs",
     "doctor": "node scripts/setup-doctor.mjs",
     "format": "node scripts/format.mjs --write",
     "format:check": "node scripts/format.mjs --check",
@@ -69,7 +68,6 @@
     "mgrs": "^2.1.0",
     "pbf": "^5.1.2",
     "satellite.js": "^6.0.2",
-    "smb3-client": "0.2.0",
     "ws": "^8.21.0"
   },
   "devDependencies": {

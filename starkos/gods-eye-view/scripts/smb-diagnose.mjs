@@ -1,17 +1,17 @@
 /**
- * Narrows down an SMB problem against a real share.
- *
- * Runs the same steps the media browser takes, one at a time, and reports
- * where it stops. Credentials are read from the command line and are never
- * written to a file or sent anywhere.
+ * Narrows down an SMB problem against a real share, using exactly the code
+ * path the media browser takes.
  *
  *   node scripts/smb-diagnose.mjs <host> <share> [folder] <user> <password>
  *
  * Example:
  *   node scripts/smb-diagnose.mjs 192.168.1.240 Media Bilder mt geheim
+ *
+ * The password is read from the command line and is neither stored nor sent
+ * anywhere. Set STARK_SMB_PYTHON if the Python interpreter is not `python3`.
  */
 
-import { Client } from 'smb3-client';
+import { browseSmb, readSmbFile } from '../server/stark/media-source-store.js';
 
 const [host, share, ...rest] = process.argv.slice(2);
 const folder = rest.length > 2 ? rest.shift() : '';
@@ -24,79 +24,54 @@ if (!host || !share || !username || password === undefined) {
   process.exit(2);
 }
 
-const account = String(username);
-const separator = account.search(/[\\/]/);
-const options = {
-  host,
-  domain: separator > 0 ? account.slice(0, separator) : '',
-  username: separator > 0 ? account.slice(separator + 1) : account,
-  password,
-  connectTimeout: 10_000,
-  requestTimeout: 30_000,
+const source = {
+  type: 'smb',
+  url: `smb://${host}/${[share, folder].filter(Boolean).join('/')}/`,
+  credentials: { username, password },
 };
 
 console.log(
-  `Host ${host} · Freigabe ${share} · Ordner ${folder || '(keiner)'} · Domäne ${options.domain || '(keine)'} · Benutzer ${options.username}`,
+  `Adresse ${source.url} · Benutzer ${username}${username.includes('\\') ? ' (mit Domäne)' : ''}`,
 );
 
-function describe(error) {
-  const name = error?.name || 'Error';
-  const status = error?.statusName
-    ? `${error.statusName} (0x${Number(error.status).toString(16)})`
-    : '';
-  return [name, status, error?.message].filter(Boolean).join(' | ');
-}
-
 async function step(label, run) {
-  process.stdout.write(`${label.padEnd(46)}`);
+  process.stdout.write(`${label.padEnd(44)}`);
   try {
-    const result = await run();
-    console.log('OK', result ?? '');
+    console.log('OK', (await run()) ?? '');
     return true;
   } catch (error) {
-    console.log('FEHLER:', describe(error));
+    console.log(`FEHLER (HTTP ${error.status || '?'}): ${error.message}`);
     return false;
   }
 }
 
-const client = new Client(options);
-let connected = false;
-try {
-  connected = await step('1. Verbinden und anmelden', async () => {
-    await client.connect();
-    return '';
-  });
-  if (!connected) process.exit(1);
+const listed = [];
+await step('1. Konfigurierten Ordner auflisten', async () => {
+  const entries = await browseSmb(source, '');
+  listed.push(...entries);
+  const folders = entries.filter((entry) => entry.directory).length;
+  return `${entries.length} Einträge (${folders} Ordner, ${entries.length - folders} Dateien)`;
+});
 
-  await step(`2. Freigabe auflisten: "${share}"`, async () => {
-    const entries = await client.readdir(share, { withFileTypes: true });
-    return `${entries.length} Einträge, davon Ordner: ${entries
-      .filter((entry) => entry.isDirectory())
-      .map((entry) => entry.name)
-      .slice(0, 6)
-      .join(', ')}`;
+const firstFolder = listed.find((entry) => entry.directory);
+if (firstFolder)
+  await step(`2. Unterordner auflisten: "${firstFolder.name}"`, async () => {
+    const entries = await browseSmb(source, firstFolder.path);
+    return `${entries.length} Einträge`;
   });
 
-  if (folder) {
-    const nested = `${share}/${folder}`;
-    await step(`3. Ordner auflisten: "${nested}"`, async () => {
-      const entries = await client.readdir(nested, { withFileTypes: true });
-      return `${entries.length} Einträge, erste: ${entries
-        .slice(0, 5)
-        .map((entry) => entry.name)
-        .join(', ')}`;
-    });
+const firstFile = listed.find((entry) => !entry.directory);
+if (firstFile)
+  await step(`3. Datei lesen: "${firstFile.name}"`, async () => {
+    const content = await readSmbFile(source, firstFile.path, 20 * 1024 * 1024);
+    return `${content.length} Byte`;
+  });
 
-    await step(`4. Ordner-Eigenschaften: "${nested}"`, async () => {
-      const info = await client.stat(nested);
-      return `Ordner=${info.isDirectory} Größe=${info.size}`;
-    });
-  }
-} finally {
-  if (connected)
-    try {
-      await client.close();
-    } catch {
-      /* Verbindung ist schon beendet. */
-    }
-}
+if (listed.length)
+  console.log(
+    'Erste Einträge:',
+    listed
+      .slice(0, 8)
+      .map((entry) => (entry.directory ? `${entry.name}/` : entry.name))
+      .join(', '),
+  );

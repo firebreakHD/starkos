@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.16
+
+- SMB media sources now read through `smbprotocol`, the maintained Python implementation, instead of a JavaScript client. The previous client was refused by Samba — what Synology, QNAP and OpenMediaVault run — and two spec fixes were not enough to make it work. The add-on image carries Python and the library for this.
+- The helper receives its request as one JSON line on stdin, so the password never appears in a command line, an environment variable or a log. Paths still cannot leave the configured share, symlinks are skipped, and files stay size-capped.
+- `scripts/smb-diagnose.mjs` now exercises the same code path the media browser uses and reports which step fails.
+
 ## 0.1.15
 
 - Added `scripts/smb-diagnose.mjs`, which walks the SMB steps the media browser takes against a real share and reports where it stops. Credentials are passed on the command line and never stored.

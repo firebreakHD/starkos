@@ -6,6 +6,7 @@ import {
 } from 'node:crypto';
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
+import { listSmbDirectory, readSmbFileBytes } from './smb-client.js';
 
 export const SOURCE_TYPES = ['webdav', 'smb'];
 
@@ -351,7 +352,6 @@ export async function readResponseBuffer(response, limit) {
 /* --------------------------------------------------------------------- SMB */
 
 const SMB_PORT = 445;
-const SMB_TIMEOUTS = { connectTimeout: 10_000, requestTimeout: 30_000 };
 const TYPE_BY_EXTENSION = {
   jpg: 'image/jpeg',
   jpeg: 'image/jpeg',
@@ -400,123 +400,41 @@ export function smbTarget(source, relativePath = '') {
     domain: separator > 0 ? account.slice(0, separator) : '',
     username: separator > 0 ? account.slice(separator + 1) : account,
     password: String(credentials.password || ''),
+    // Die Freigabe ist der erste Abschnitt, alles danach ist die konfigurierte
+    // Basis innerhalb der Freigabe.
+    share: base[0],
+    folder: base.slice(1).join('/'),
+    relative: extra.join('/'),
     path: [...base, ...extra].join('/'),
   };
 }
 
-/**
- * Die SMB-Bibliothek legt den NT-Statuscode auf `status`. Nur eigene, bereits
- * als HTTP-Status gesetzte Fehler dürfen durchgereicht werden; alles andere
- * wird übersetzt, damit kein NT-Code als Antwortstatus endet.
- */
-function smbFailure(error) {
-  const status = Number(error?.status);
-  if (Number.isInteger(status) && status >= 400 && status < 600) return error;
-  const name = error?.name || error?.constructor?.name || '';
-  if (name === 'SmbAuthError' || error?.code === 'EACCES')
-    return Object.assign(
-      new Error('SMB-Anmeldung fehlgeschlagen. Benutzer oder Passwort prüfen.'),
-      { status: 401 },
-    );
-  // Samba lehnt das NEGOTIATE-Paket von smb3-client 0.2.0 ab: es hängt nach
-  // dem letzten Negotiate-Kontext Füllbytes an, die Windows toleriert und
-  // Samba als ungültige Länge wertet. Siehe docs/NEXT-STEPS.md.
-  if (error?.statusName === 'STATUS_INVALID_PARAMETER')
-    return Object.assign(
-      new Error(
-        'Die Freigabe lehnt die SMB-Aushandlung ab. Das deutet darauf hin, dass der Patch scripts/patch-smb3-client.mjs beim Installieren nicht gelaufen ist.',
-      ),
-      { status: 502 },
-    );
-  if (error?.code === 'ENOENT' || error?.statusName === 'STATUS_NO_SUCH_FILE')
-    return Object.assign(new Error('Pfad auf der Freigabe nicht gefunden.'), {
-      status: 404,
-    });
-  return Object.assign(
-    new Error(error?.message || 'SMB-Verbindung fehlgeschlagen.'),
-    { status: 502 },
-  );
-}
-
-async function withSmb(source, relativePath, run) {
-  const target = smbTarget(source, relativePath);
-  let Client;
-  try {
-    ({ Client } = await import('smb3-client'));
-  } catch {
-    throw Object.assign(new Error('SMB-Unterstützung ist nicht installiert.'), {
-      status: 501,
-    });
-  }
-  const client = new Client({
-    host: target.host,
-    port: target.port,
-    domain: target.domain,
-    username: target.username,
-    password: target.password,
-    ...SMB_TIMEOUTS,
-  });
-  try {
-    await client.connect();
-    return await run(client, target);
-  } catch (error) {
-    throw smbFailure(error);
-  } finally {
-    try {
-      await client.close();
-    } catch {
-      /* Verbindung ist bereits beendet. */
-    }
-  }
-}
-
 export async function browseSmb(source, relativePath = '') {
-  return withSmb(source, relativePath, async (client, target) => {
-    const dirents = await client.readdir(target.path, {
-      withFileTypes: true,
-    });
-    const prefix = String(relativePath || '')
-      .replace(/\\/g, '/')
-      .replace(/^\/+/, '')
-      .replace(/\/+$/, '');
-    const entries = dirents
-      .filter((entry) => entry.name !== '.' && entry.name !== '..')
-      .map((entry) => {
-        const directory = entry.isDirectory();
-        const relative = `${prefix ? `${prefix}/` : ''}${entry.name}`;
-        return {
-          name: entry.name,
-          path: directory ? `${relative}/` : relative,
-          directory,
-          size: 0,
-          type: directory ? '' : typeFromName(entry.name),
-        };
-      });
-    return entries.sort(
+  const target = smbTarget(source, relativePath);
+  const entries = await listSmbDirectory(target, target.relative);
+  const prefix = target.relative ? `${target.relative}/` : '';
+  return entries
+    .filter((entry) => entry.name !== '.' && entry.name !== '..')
+    .map((entry) => ({
+      name: entry.name,
+      path: `${prefix}${entry.name}${entry.directory ? '/' : ''}`,
+      directory: Boolean(entry.directory),
+      size: Number(entry.size) || 0,
+      type: entry.directory ? '' : typeFromName(entry.name),
+    }))
+    .sort(
       (a, b) =>
         Number(b.directory) - Number(a.directory) ||
         a.name.localeCompare(b.name),
     );
-  });
 }
 
 export async function readSmbFile(source, relativePath, limit) {
-  return withSmb(source, relativePath, async (client, target) => {
-    const stat = await client.stat(target.path);
-    if (stat.isDirectory)
-      throw Object.assign(new Error('Der Pfad ist ein Ordner.'), {
-        status: 400,
-      });
-    if (stat.size > limit)
-      throw Object.assign(new Error('NAS-Datei ist zu groß.'), { status: 413 });
-    const data = await client.readFile(target.path);
-    const content = Buffer.from(data);
-    if (content.length > limit)
-      throw Object.assign(new Error('NAS-Datei ist zu groß.'), { status: 413 });
-    return content;
-  });
+  const target = smbTarget(source, relativePath);
+  if (!target.relative)
+    throw Object.assign(new Error('Kein Pfad angegeben.'), { status: 400 });
+  return readSmbFileBytes(target, target.relative, limit);
 }
-
 /* ------------------------------------------- Gemeinsame Einstiegspunkte */
 
 export function browseSource(source, relativePath = '') {

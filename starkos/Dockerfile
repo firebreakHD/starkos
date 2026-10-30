@@ -8,10 +8,18 @@ ENV PUPPETEER_SKIP_DOWNLOAD=1 \
     STARK_DATA_DIR=/data \
     GEV_KEY_SETUP_TRUSTED_PEERS=none
 
+# SMB media sources are read through smbprotocol, the maintained Python
+# implementation. The JavaScript clients available are refused by Samba,
+# which is what Synology, QNAP and OpenMediaVault run.
+RUN apt-get update \
+    && apt-get install --no-install-recommends -y python3 python3-pip \
+    && pip3 install --no-cache-dir --break-system-packages smbprotocol==1.17.0 \
+    && apt-get purge -y python3-pip \
+    && apt-get autoremove -y \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 COPY gods-eye-view/package.json gods-eye-view/package-lock.json ./
-# The postinstall step patches a dependency, so it must be present before install.
-COPY gods-eye-view/scripts/patch-smb3-client.mjs ./scripts/
 RUN npm ci
 COPY gods-eye-view/ ./
 
