@@ -16,17 +16,22 @@
     <link rel="stylesheet" href="./stark.css" />
     <link rel="stylesheet" href="./jarvis.css" />
   </head>
-  <body class="jarvis-active">
+  <body>
     <div class="boot-noise" aria-hidden="true"></div>
-    <main class="jarvis-home" id="jarvisHome" aria-label="Mit Jarvis sprechen">
+    <main
+      class="jarvis-home"
+      id="jarvisHome"
+      aria-label="Assistant: Mit Jarvis sprechen"
+      hidden
+    >
       <header class="jarvis-top">
         <span class="mark">STARK<small>OS</small></span
-        ><span>JARVIS / HERMES</span
+        ><span>ASSISTANT / JARVIS</span
         ><button id="browseModules" type="button">Bereiche</button>
       </header>
       <section class="jarvis-dialog">
         <span class="jarvis-kicker">DEIN AUFTRAG. ICH KÜMMERE MICH.</span>
-        <h1>Was möchtest du herausfinden?</h1>
+        <h1>Was soll ich für dich tun?</h1>
         <button
           class="jarvis-mic"
           data-mic
@@ -112,11 +117,11 @@
         <span data-scope></span><span>„Ohne Fenster“ für reine Sprache</span>
       </footer>
     </main>
-    <main class="device" id="device" hidden>
+    <main class="device" id="device">
       <header class="telemetry" aria-label="Systemstatus">
         <span class="mark">STARK<small>OS</small></span>
         <span id="clock">00:00:00</span>
-        <button id="backToJarvis" type="button">JARVIS</button>
+        <span class="status"><i></i> LOCAL</span>
       </header>
 
       <section class="stage" aria-label="STARK OS Medienring">
@@ -128,7 +133,7 @@
           aria-label="Funktionsring"
         ></div>
         <button class="core" id="core" type="button" aria-live="polite">
-          <span class="core-index" id="coreIndex">01 / 05</span>
+          <span class="core-index" id="coreIndex">01 / 06</span>
           <span class="core-glyph" id="coreGlyph">◉</span>
           <strong id="coreTitle">MEDIA</strong>
           <span id="coreDetail">Eigene Bilder und Videos untersuchen</span>

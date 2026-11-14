@@ -102,8 +102,7 @@ body.jarvis-active {
 }
 .jarvis-top button,
 .jarvis-stop,
-.jarvis-text button,
-#backToJarvis {
+.jarvis-text button {
   min-width: 44px;
   min-height: 44px;
   border: 1px solid var(--line);

@@ -34,6 +34,12 @@ const modules = [
     glyph: '◇',
     code: 'MODULE 05',
   },
+  {
+    title: 'ASSISTANT',
+    detail: 'Mit Jarvis sprechen, recherchieren und Werkzeuge steuern',
+    glyph: '✧',
+    code: 'MODULE 06',
+  },
 ];
 
 const $ = (selector, root = document) => root.querySelector(selector);
@@ -44,12 +50,13 @@ const displays = new DisplayApi();
 const selectedDisplays = new Set();
 const receiverPreviewCache = new Map();
 let mediaBrowser = null;
-const conversation = createConversation($('#jarvisHome'), {
-  displays,
-  openModule: (title) =>
-    openPanel(modules.find((item) => item.title === title)),
-});
+let conversation = null;
 function showJarvis() {
+  conversation ??= createConversation($('#jarvisHome'), {
+    displays,
+    openModule: (title) =>
+      openPanel(modules.find((item) => item.title === title)),
+  });
   $('#device').hidden = true;
   $('#jarvisHome').hidden = false;
   document.body.classList.add('jarvis-active');
@@ -57,15 +64,16 @@ function showJarvis() {
   $('#panel').setAttribute('aria-hidden', 'true');
 }
 $('#browseModules').addEventListener('click', () => {
-  conversation.interrupt();
+  conversation?.interrupt();
+  lastTap = 0;
   $('#jarvisHome').hidden = true;
   $('#device').hidden = false;
   document.body.classList.remove('jarvis-active');
 });
-$('#backToJarvis').addEventListener('click', showJarvis);
 
 const ring = new InertialRing($('#ring'), modules, (index, item) => {
   active = item;
+  lastTap = 0;
   $('#coreIndex').textContent =
     `${String(index + 1).padStart(2, '0')} / ${String(modules.length).padStart(2, '0')}`;
   $('#coreGlyph').textContent = item.glyph;
@@ -75,7 +83,7 @@ const ring = new InertialRing($('#ring'), modules, (index, item) => {
 
 function openPanel(item = active) {
   if (!item) return;
-  if (item.title === 'INVESTIGATION') {
+  if (item.title === 'ASSISTANT') {
     showJarvis();
     return;
   }
@@ -107,6 +115,7 @@ $('#core').addEventListener('pointerup', () => {
 });
 $('#core').addEventListener('dblclick', () => openPanel());
 $('#closePanel').addEventListener('click', () => {
+  lastTap = 0;
   $('#panel').classList.remove('open');
   $('#panel').setAttribute('aria-hidden', 'true');
   if (!$('#jarvisHome').hidden) document.body.classList.add('jarvis-active');

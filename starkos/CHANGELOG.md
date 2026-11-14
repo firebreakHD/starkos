@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.2
+
+- Restored the original STARK menu ring as the start screen, with Media, Investigation, World, Receiver and System intact.
+- Added Assistant as its own sixth menu entry. It opens Jarvis for research, visual explanations, media and display tools; Investigation once again opens the original case board.
+- The Assistant connection now starts only when that menu entry is opened. Returning through Bereiche stops the current conversation activity and brings back the menu without replacing its selected entry.
+- Tapping a ring entry now selects it reliably despite pointer capture; dragging still rotates and coasts the ring.
+
 ## 0.2.1
 
 - Jarvis now uses the bundled official Codex runtime by default, signed in with the user's ChatGPT account through normal browser OAuth. There is no Device Code flow, no Claude Code dependency and no required model API key or external Hermes gateway.

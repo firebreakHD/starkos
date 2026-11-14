@@ -2,11 +2,11 @@
 
 STARK OS is a mobile-first media, investigation and geospatial interface for Home Assistant hosting. The supplied God's Eye View project remains the real Cesium/data engine; STARK OS adds the phone-style ring, secured direct access and paired display control.
 
-Current Home Assistant app version: **0.2.1**
+Current Home Assistant app version: **0.2.2**
 
 ## Talk to Jarvis
 
-STARK OS now opens a conversation instead of a button dashboard. Tap the Jarvis orb to speak, or expand **Lieber schreiben**. Hermes remains the only agent; Jarvis is its spoken interface. **Bereiche** keeps the existing media ring, receivers and World accessible. Say “Öffne Medien”, “Öffne Karte”, “weiter”, “bleib hier”, “zurück”, “Stopp”, or “ohne Fenster”. Say or type **Demo** to try the visual sequence without an agent connection; its example data are explicitly labeled.
+STARK OS starts with its original menu ring: **Media, Investigation, World, Receiver, System**, plus the new **Assistant** entry. Investigation keeps the original case board. Open Assistant with the ring's usual double tap to talk to Jarvis, then tap its orb to speak or expand **Lieber schreiben**. Hermes remains the only agent; Jarvis is its spoken interface and can research, explain, and use the existing media/display tools. **Bereiche** returns to the main menu. Say “Öffne Medien”, “Öffne Karte”, “weiter”, “bleib hier”, “zurück”, “Stopp”, or “ohne Fenster”. Say or type **Demo** inside Assistant to try the labeled fixed example without an account.
 
 The bundled official **Codex** runtime supplies the model for the Hermes/Jarvis orchestrator. Choose **Mit ChatGPT anmelden** for normal browser OAuth with your ChatGPT account; no Claude Code, Device Code or model API key is needed. Credentials and refresh remain managed by Codex in a separate persistent store. Optional `codex_model` chooses an available model; blank uses Codex's default. See [the integration guide](docs/JARVIS.md).
 

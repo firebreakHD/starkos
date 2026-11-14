@@ -1,10 +1,10 @@
 # Jarvis with Codex and normal ChatGPT login
 
-STARK OS 0.2.1 uses the pinned official `@openai/codex` package as the model provider for the single Hermes/Jarvis orchestrator. There is no Claude Code dependency. Research and display actions continue through STARK's authenticated tool contract.
+STARK OS 0.2.2 starts with the original menu ring. Its new **Assistant** entry opens Jarvis; **Investigation** remains the original case board. Assistant starts its connection only when opened. It uses the pinned official `@openai/codex` package as the model provider for the single Hermes/Jarvis orchestrator. There is no Claude Code dependency. Research and display actions continue through STARK's authenticated tool contract.
 
 ## Normal browser sign-in
 
-1. Open the controller through authenticated Home Assistant Ingress, or run the GitHub project locally (`npm ci`, `npm run dev` in `starkos/gods-eye-view`).
+1. Open the controller through authenticated Home Assistant Ingress, or run the GitHub project locally (`npm ci`, `npm run dev` in `starkos/gods-eye-view`), then select **Assistant** on the menu ring and double-tap the center.
 2. Choose **Mit ChatGPT anmelden**. STARK calls Codex app-server `account/login/start` with `type: chatgpt` and opens its official OpenAI authorization URL. It never requests `chatgptDeviceCode` or falls back to an API key.
 3. Sign in with your ChatGPT account. Your account must have Codex access; plan and usage limits apply.
 
@@ -49,4 +49,4 @@ Native drawing over unrelated applications, arbitrary desktop control, dedicated
 
 ## Release status
 
-Home Assistant metadata declares `0.2.1`. The change must be merged to the branch consumed by Home Assistant before reloading the store offers the update. A development branch, draft pull request or local patch is not an installed update. Update packages contain application instructions, not credentials.
+Home Assistant metadata declares `0.2.2`. The change must be merged to the branch consumed by Home Assistant before reloading the store offers the update. A development branch, draft pull request or local patch is not an installed update. Update packages contain application instructions, not credentials.
