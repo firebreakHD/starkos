@@ -34,6 +34,7 @@ Media grants last two hours. Receiver code rejects an expired command. In-memory
 | seek / volume / next / previous | matching `playback.*` capability |
 | zoom/move/rotate/reset image | `image.transform` |
 | end presentation | always available for a paired online receiver |
+| timed explanation scenes / pause / next / previous / close | `explanation.scenes` |
 
 Unsupported commands return an explicit rejected result and are disabled in the controller.
 
@@ -46,3 +47,7 @@ Unsupported commands return an explicit rejected result and are disabled in the 
 ```
 
 Tools: `list_displays`, `show_media`, `control_playback`, `transform_image`, `move_content`, and `end_session`. They call the same `DisplayService` as the UI and therefore use the same pairing, capability and online-state checks. The endpoints are protected by Home Assistant Ingress or the direct-access session cookie; Hermes must call them through that authorized local integration rather than receiving a bypass token.
+
+Version 0.2.0 adds `present_explanation` and `control_explanation`. They use `explanation.show` and `explanation.control` commands, require `explanation.scenes` on external targets, and render bounded data-only scenes (source, diagram, calculation, note). On the conversation bridge, empty `display_ids` addresses the speaking controller rather than any receiver. The response includes the explanation and per-display accepted/rejected results. Receiver authentication may advertise refreshed capabilities; the server sanitizes and updates these only after authenticating the device token. Existing receivers should reload after updating.
+
+`search_sources` and `read_source` are also available through the authenticated tool endpoint. Search returns its actual scope (`wikipedia-only` unless an operator configured SearXNG); results are not declared verified. Reading public HTTPS sources rejects private DNS addresses and checks redirects. The Jarvis conversation bridge additionally requires source-window quotations to match retrieved text. See [JARVIS.md](JARVIS.md) for the gateway contract and limits.

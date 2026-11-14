@@ -18,6 +18,7 @@ export const DISPLAY_ADAPTERS = Object.freeze([
       'playback.queue',
       'image.transform',
       'file.transfer',
+      'explanation.scenes',
     ],
   },
   {

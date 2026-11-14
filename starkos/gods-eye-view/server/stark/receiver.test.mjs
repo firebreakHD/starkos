@@ -7,6 +7,51 @@ import { WebSocket } from 'ws';
 import { DisplayStore } from './display-store.js';
 import { createDisplayService } from './receiver.js';
 import { RECEIVER_CAPABILITIES } from './protocol.js';
+import { CONVERSATION_DEMO } from '../../public/stark/conversation-demo.js';
+
+test('visual tools target the controller or paired capable receivers and reject unsupported displays', () => {
+  const value = fixture();
+  try {
+    const local = value.service.executeTool('present_explanation', {
+      display_ids: [],
+      explanation: CONVERSATION_DEMO,
+    });
+    assert.equal(local.results.length, 0);
+    assert.equal(local.explanation.scenes.length, 3);
+    const remote = value.service.executeTool('present_explanation', {
+      display_ids: ['alpha'],
+      explanation: CONVERSATION_DEMO,
+    });
+    assert.equal(remote.results[0].accepted, true);
+    assert.equal(
+      value.sent.get('alpha').at(-1).command.action,
+      'explanation.show',
+    );
+    value.store.updateCapabilities('beta', ['media.image']);
+    const unavailable = value.service.executeTool('present_explanation', {
+      display_ids: ['beta'],
+      explanation: CONVERSATION_DEMO,
+    });
+    assert.equal(unavailable.results[0].accepted, false);
+    assert.match(unavailable.results[0].error, /explanation.scenes/);
+    value.service.executeTool('control_explanation', {
+      display_ids: ['alpha'],
+      command: 'pause',
+    });
+    assert.equal(
+      value.sent.get('alpha').at(-1).command.payload.command,
+      'pause',
+    );
+    assert.throws(() =>
+      value.service.executeTool('control_explanation', {
+        display_ids: [],
+        command: 'eval',
+      }),
+    );
+  } finally {
+    rmSync(value.directory, { recursive: true, force: true });
+  }
+});
 
 function fixture() {
   const directory = mkdtempSync(path.join(tmpdir(), 'stark-display-'));

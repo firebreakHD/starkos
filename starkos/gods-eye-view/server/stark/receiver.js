@@ -11,6 +11,9 @@ import {
 } from './protocol.js';
 import { DISPLAY_ADAPTERS } from './adapters.js';
 import { STARK_DISPLAY_TOOLS } from './tool-contract.js';
+import { validateExplanation } from '../../public/stark/explanation-contract.js';
+import { createJarvis } from './jarvis.js';
+import { createResearch, RESEARCH_TOOLS } from './research.js';
 import {
   MediaSourceStore,
   SOURCE_TYPES,
@@ -111,6 +114,7 @@ function validateMedia(media) {
 
 export function createDisplayService({ store = new DisplayStore() } = {}) {
   const sockets = new Map();
+  const research = createResearch();
 
   function sendCommand(targetIds, action, payload = {}) {
     const ids = [
@@ -122,11 +126,27 @@ export function createDisplayService({ store = new DisplayStore() } = {}) {
         { status: 400 },
       );
     if (action === 'media.show') validateMedia(payload.media);
+    if (action === 'explanation.show')
+      payload = {
+        ...payload,
+        explanation: validateExplanation(payload.explanation),
+      };
+    if (
+      action === 'explanation.control' &&
+      !['pause', 'resume', 'next', 'previous', 'close'].includes(
+        payload.command,
+      )
+    )
+      throw Object.assign(new Error('Unbekannter Erklärbefehl.'), {
+        status: 400,
+      });
     const required = requiredCapability(action, payload);
     const commandId = randomBytes(9).toString('base64url');
     const sessionId =
       payload.sessionId ||
-      (action === 'media.show' ? randomBytes(12).toString('base64url') : null);
+      (action === 'media.show' || action === 'explanation.show'
+        ? randomBytes(12).toString('base64url')
+        : null);
     const expiresAt = Date.now() + MEDIA_GRANT_MS;
     const results = ids.map((id) => {
       const device = store.get(id);
@@ -156,18 +176,29 @@ export function createDisplayService({ store = new DisplayStore() } = {}) {
               playback: null,
               transform: null,
             }
-          : action === 'media.show'
+          : action === 'explanation.show'
             ? {
-                status: payload.mode === 'transfer' ? 'transfer' : 'presenting',
+                status: 'explaining',
                 current: {
                   sessionId,
-                  title: payload.media.title,
-                  type: payload.media.type,
-                  mode: payload.mode || 'show',
+                  title: payload.explanation.title,
+                  type: 'application/stark-explanation',
                   expiresAt,
                 },
               }
-            : { status: device.state.status };
+            : action === 'media.show'
+              ? {
+                  status:
+                    payload.mode === 'transfer' ? 'transfer' : 'presenting',
+                  current: {
+                    sessionId,
+                    title: payload.media.title,
+                    type: payload.media.type,
+                    mode: payload.mode || 'show',
+                    expiresAt,
+                  },
+                }
+              : { status: device.state.status };
       store.updateState(id, nextState);
       return { id, accepted: true, commandId, sessionId };
     });
@@ -185,6 +216,38 @@ export function createDisplayService({ store = new DisplayStore() } = {}) {
   }
 
   function executeTool(tool, args = {}) {
+    if (tool === 'search_sources') return research.search(args.query);
+    if (tool === 'read_source') return research.read(args.url);
+    if (tool === 'present_explanation') {
+      const explanation = validateExplanation(args.explanation);
+      if (!Array.isArray(args.display_ids) || args.display_ids.length > 12)
+        throw Object.assign(new Error('Displayauswahl fehlt.'), {
+          status: 400,
+        });
+      return {
+        explanation,
+        ...(args.display_ids.length
+          ? sendCommand(args.display_ids, 'explanation.show', { explanation })
+          : { results: [] }),
+      };
+    }
+    if (tool === 'control_explanation') {
+      if (
+        !['pause', 'resume', 'next', 'previous', 'close'].includes(args.command)
+      )
+        throw Object.assign(new Error('Unbekannter Erklärbefehl.'), {
+          status: 400,
+        });
+      if (!Array.isArray(args.display_ids) || args.display_ids.length > 12)
+        throw Object.assign(new Error('Displayauswahl fehlt.'), {
+          status: 400,
+        });
+      return args.display_ids.length
+        ? sendCommand(args.display_ids, 'explanation.control', {
+            command: args.command,
+          })
+        : { command: args.command, results: [] };
+    }
     if (tool === 'list_displays')
       return {
         displays: store.list().map((device) => publicDevice(device, sockets)),
@@ -324,8 +387,10 @@ export function starkReceiverPlugin({
   mediaSources = new MediaSourceStore(),
 } = {}) {
   const mediaResolver = createMediaResolver({ mediaSources });
+  const jarvis = createJarvis({ executeTool: service.executeTool });
 
   const install = (server) => {
+    server.httpServer?.once('close', () => jarvis.dispose());
     const wss = new WebSocketServer({ noServer: true, maxPayload: MAX_BODY });
     server.httpServer?.on('upgrade', (req, socket, head) => {
       const url = new URL(req.url || '/', 'http://stark.local');
@@ -359,6 +424,11 @@ export function starkReceiverPlugin({
           );
           if (!device) return socket.close(4403, 'access revoked');
           deviceId = device.id;
+          if (Array.isArray(message.capabilities))
+            service.store.updateCapabilities(
+              deviceId,
+              sanitizeCapabilities(message.capabilities),
+            );
           clearTimeout(timer);
           const old = service.sockets.get(deviceId);
           if (old && old !== socket) old.close(4409, 'replaced by reconnect');
@@ -390,6 +460,76 @@ export function starkReceiverPlugin({
     server.middlewares.use(async (req, res, next) => {
       const url = new URL(req.url || '/', 'http://stark.local');
       try {
+        if (
+          req.method === 'POST' &&
+          url.pathname.startsWith('/api/stark/jarvis/') &&
+          (!String(req.headers['content-type'] || '').startsWith(
+            'application/json',
+          ) ||
+            req.headers['sec-fetch-site'] === 'cross-site')
+        )
+          return json(res, 403, {
+            error: 'Nur gleichseitige JSON-Anfragen sind erlaubt.',
+          });
+        if (req.method === 'GET' && url.pathname === '/api/stark/jarvis/status')
+          return json(res, 200, await jarvis.status());
+        if (req.method === 'POST' && url.pathname === '/api/stark/jarvis/login')
+          return json(res, 200, await jarvis.beginLogin());
+        if (
+          req.method === 'POST' &&
+          url.pathname === '/api/stark/jarvis/login/complete'
+        ) {
+          const input = await readBody(req);
+          if (
+            typeof input.callbackUrl !== 'string' ||
+            input.callbackUrl.length > 16000
+          )
+            return json(res, 400, {
+              error: 'Rückleitungsadresse fehlt oder ist zu lang.',
+            });
+          return json(res, 200, await jarvis.finishLogin(input.callbackUrl));
+        }
+        if (
+          req.method === 'POST' &&
+          url.pathname === '/api/stark/jarvis/logout'
+        )
+          return json(res, 200, await jarvis.logout());
+        if (
+          req.method === 'POST' &&
+          url.pathname === '/api/stark/jarvis/turn'
+        ) {
+          const input = await readBody(req);
+          const abort = new AbortController();
+          const deadline = setTimeout(() => abort.abort(), 180_000);
+          res.on('close', () => {
+            clearTimeout(deadline);
+            abort.abort();
+          });
+          res.statusCode = 200;
+          res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
+          res.setHeader('Cache-Control', 'no-store');
+          res.setHeader('X-Accel-Buffering', 'no');
+          res.flushHeaders();
+          const emit = (event) => {
+            if (!res.destroyed) res.write(`${JSON.stringify(event)}\n`);
+          };
+          try {
+            await jarvis.turn(input, { signal: abort.signal, emit });
+          } catch (error) {
+            if (!res.destroyed)
+              emit({
+                type: 'error',
+                message:
+                  error.message.includes('HTTP ') || error.status
+                    ? error.message
+                    : 'Hermes konnte die Anfrage nicht abschließen. Verbindung prüfen oder Frage eingrenzen.',
+              });
+          } finally {
+            clearTimeout(deadline);
+            res.end();
+          }
+          return;
+        }
         if (
           req.method === 'POST' &&
           url.pathname === '/api/stark/receiver/claim'
@@ -660,14 +800,14 @@ export function starkReceiverPlugin({
         if (req.method === 'GET' && url.pathname === '/api/stark/tools')
           return json(res, 200, {
             protocol: STARK_DISPLAY_PROTOCOL,
-            tools: STARK_DISPLAY_TOOLS,
+            tools: [...STARK_DISPLAY_TOOLS, ...RESEARCH_TOOLS],
           });
         if (req.method === 'POST' && url.pathname === '/api/stark/tools') {
           const input = await readBody(req);
           return json(
             res,
             200,
-            service.executeTool(input.tool, input.arguments),
+            await service.executeTool(input.tool, input.arguments),
           );
         }
         next();

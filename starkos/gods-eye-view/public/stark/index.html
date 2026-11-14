@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta
       name="viewport"
-      content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no"
+      content="width=device-width,initial-scale=1,viewport-fit=cover"
     />
     <meta name="theme-color" content="#02090c" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -14,14 +14,109 @@
     />
     <title>STARK OS</title>
     <link rel="stylesheet" href="./stark.css" />
+    <link rel="stylesheet" href="./jarvis.css" />
   </head>
-  <body>
+  <body class="jarvis-active">
     <div class="boot-noise" aria-hidden="true"></div>
-    <main class="device" id="device">
+    <main class="jarvis-home" id="jarvisHome" aria-label="Mit Jarvis sprechen">
+      <header class="jarvis-top">
+        <span class="mark">STARK<small>OS</small></span
+        ><span>JARVIS / HERMES</span
+        ><button id="browseModules" type="button">Bereiche</button>
+      </header>
+      <section class="jarvis-dialog">
+        <span class="jarvis-kicker">DEIN AUFTRAG. ICH KÜMMERE MICH.</span>
+        <h1>Was möchtest du herausfinden?</h1>
+        <button
+          class="jarvis-mic"
+          data-mic
+          type="button"
+          aria-label="Mit Jarvis sprechen; erneut tippen zum Beenden der Aufnahme"
+          aria-pressed="false"
+        >
+          <span aria-hidden="true">J</span><small>SPRECHEN</small>
+        </button>
+        <p class="jarvis-status" data-status role="status">
+          Verbindung wird geprüft …
+        </p>
+        <section
+          class="jarvis-auth"
+          data-auth
+          hidden
+          aria-label="Codex-Anmeldung"
+        >
+          <button type="button" data-login>Mit ChatGPT anmelden</button>
+          <a data-auth-link hidden target="_blank" rel="noopener noreferrer"
+            >Browseranmeldung öffnen</a
+          >
+          <details data-remote hidden>
+            <summary>Anmeldung am Handy / anderen Gerät</summary>
+            <p>
+              Codex leitet an localhost auf dem Server zurück. Falls dein
+              Browser diese Seite nicht erreicht: Kopiere nach der
+              OpenAI-Anmeldung die vollständige Weiterleitungsadresse aus der
+              Adresszeile hierher.
+            </p>
+            <form data-callback-form>
+              <label for="codexCallback">Weiterleitungsadresse</label
+              ><input
+                id="codexCallback"
+                data-callback
+                type="text"
+                autocomplete="off"
+                spellcheck="false"
+                maxlength="16000"
+                placeholder="http://127.0.0.1:1455/auth/callback?…"
+                required
+              /><button type="submit">Anmeldung abschließen</button>
+            </form>
+          </details>
+        </section>
+        <p class="jarvis-transcript" data-transcript></p>
+        <button class="jarvis-stop" data-stop type="button" hidden>
+          Stopp
+        </button>
+        <p class="jarvis-hint">
+          „Untersuche …“ · „Erklär mir …“ · „Bleib hier“ · „Weiter“
+        </p>
+        <details class="jarvis-text" data-text-options>
+          <summary>Lieber schreiben</summary>
+          <form data-text-form>
+            <label for="jarvisInput" class="visually-hidden"
+              >Auftrag an Jarvis</label
+            ><input
+              id="jarvisInput"
+              data-input
+              type="text"
+              maxlength="4000"
+              autocomplete="off"
+              placeholder="Frag Jarvis …"
+              enterkeyhint="send"
+              required
+            /><button type="submit" aria-label="Auftrag senden">↗</button>
+          </form>
+        </details>
+      </section>
+      <section
+        class="explanation-surface"
+        data-explanation
+        aria-label="Visuelle Erklärung"
+        hidden
+      ></section>
+      <p class="jarvis-answer" data-answer aria-live="polite"></p>
+      <footer class="jarvis-foot">
+        <details class="jarvis-account" data-account hidden>
+          <summary>Codex verbunden</summary>
+          <button data-logout type="button">Abmelden</button>
+        </details>
+        <span data-scope></span><span>„Ohne Fenster“ für reine Sprache</span>
+      </footer>
+    </main>
+    <main class="device" id="device" hidden>
       <header class="telemetry" aria-label="Systemstatus">
         <span class="mark">STARK<small>OS</small></span>
         <span id="clock">00:00:00</span>
-        <span class="status"><i></i> LOCAL</span>
+        <button id="backToJarvis" type="button">JARVIS</button>
       </header>
 
       <section class="stage" aria-label="STARK OS Medienring">

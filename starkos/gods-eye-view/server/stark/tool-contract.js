@@ -1,4 +1,37 @@
+import { EXPLANATION_SCHEMA } from '../../public/stark/explanation-contract.js';
+
 export const STARK_DISPLAY_TOOLS = Object.freeze([
+  {
+    name: 'present_explanation',
+    description:
+      'Show a timed visual explanation with source excerpts, highlights, diagrams and calculation steps. Empty display_ids shows on the speaking controller. External displays must support explanation.scenes.',
+    inputSchema: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['display_ids', 'explanation'],
+      properties: {
+        display_ids: { type: 'array', items: { type: 'string' }, maxItems: 12 },
+        explanation: EXPLANATION_SCHEMA,
+      },
+    },
+  },
+  {
+    name: 'control_explanation',
+    description:
+      'Pause, resume, advance, return or close visual explanations. Empty display_ids controls the speaking controller.',
+    inputSchema: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['display_ids', 'command'],
+      properties: {
+        display_ids: { type: 'array', items: { type: 'string' }, maxItems: 12 },
+        command: {
+          type: 'string',
+          enum: ['pause', 'resume', 'next', 'previous', 'close'],
+        },
+      },
+    },
+  },
   {
     name: 'list_displays',
     description:

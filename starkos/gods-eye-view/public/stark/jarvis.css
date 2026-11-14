@@ -1,0 +1,439 @@
+/* Speech first, separate responsive presentation of one shared conversation. */
+.jarvis-auth {
+  width: min(100%, 560px);
+  font-size: 15px;
+}
+.jarvis-auth button,
+.jarvis-account button {
+  min-height: 44px;
+  padding: 10px 14px;
+  color: var(--ice);
+  background: #092a35;
+  border: 1px solid #548c99;
+  border-radius: 8px;
+  font: inherit;
+  cursor: pointer;
+}
+.jarvis-auth a {
+  display: block;
+  color: var(--cyan);
+  margin: 12px 0;
+}
+.jarvis-auth details {
+  margin-top: 12px;
+  color: #b6d2da;
+  text-align: left;
+}
+.jarvis-auth summary,
+.jarvis-account summary {
+  cursor: pointer;
+  min-height: 32px;
+}
+.jarvis-auth input {
+  width: 100%;
+  min-width: 0;
+  margin: 8px 0;
+  font:
+    16px/1.5 system-ui,
+    sans-serif;
+  background: #06151c;
+  color: var(--ice);
+  border: 1px solid #548c99;
+  border-radius: 6px;
+  padding: 10px;
+}
+.jarvis-account {
+  text-align: center;
+}
+.jarvis-home.jarvis-explaining .jarvis-dialog {
+  padding: 18px 0;
+  gap: 8px;
+}
+.jarvis-home.jarvis-explaining .jarvis-kicker,
+.jarvis-home.jarvis-explaining .jarvis-dialog h1,
+.jarvis-home.jarvis-explaining .jarvis-hint {
+  display: none;
+}
+.jarvis-home.jarvis-explaining .jarvis-mic {
+  width: 64px;
+  height: 64px;
+}
+.jarvis-home.jarvis-explaining .jarvis-mic span {
+  font-size: 23px;
+}
+.jarvis-home.jarvis-explaining .jarvis-mic small {
+  font-size: 9px;
+}
+.jarvis-home.jarvis-explaining .jarvis-status {
+  font-size: 14px;
+  margin: 0;
+}
+.jarvis-home.jarvis-explaining .jarvis-transcript {
+  font-size: 14px;
+}
+body.jarvis-active {
+  touch-action: pan-y;
+}
+.jarvis-home {
+  height: 100%;
+  height: 100dvh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: max(22px, env(safe-area-inset-top))
+    max(24px, env(safe-area-inset-right)) max(22px, env(safe-area-inset-bottom))
+    max(24px, env(safe-area-inset-left));
+  touch-action: pan-y;
+  font:
+    16px/1.6 system-ui,
+    sans-serif;
+}
+.jarvis-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  max-width: 1400px;
+  margin: auto;
+  color: #91bac5;
+  font:
+    11px/1.4 ui-monospace,
+    monospace;
+  letter-spacing: 0.1em;
+}
+.jarvis-top button,
+.jarvis-stop,
+.jarvis-text button,
+#backToJarvis {
+  min-width: 44px;
+  min-height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #07191f;
+  color: var(--cyan);
+  padding: 8px 14px;
+  font: inherit;
+  cursor: pointer;
+}
+.jarvis-dialog {
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  text-align: center;
+  gap: 14px;
+  padding: 55px 0 28px;
+  max-width: 750px;
+  margin: auto;
+}
+.jarvis-kicker {
+  font:
+    11px/1.4 ui-monospace,
+    monospace;
+  letter-spacing: 0.18em;
+  color: #87b6c4;
+}
+.jarvis-dialog h1 {
+  font-size: clamp(24px, 3vw, 36px);
+  font-weight: 400;
+  line-height: 1.25;
+  margin: 0 0 8px;
+}
+.jarvis-mic {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 4px;
+  border: 1px solid #63d6ec;
+  border-radius: 50%;
+  width: 112px;
+  height: 112px;
+  flex: none;
+  background: radial-gradient(circle, #0c4653, #03161d 65%);
+  box-shadow:
+    0 0 40px #48d6ff25,
+    inset 0 0 22px #36c5e518;
+  color: var(--ice);
+  cursor: pointer;
+}
+.jarvis-mic span {
+  font:
+    300 38px/1 system-ui,
+    sans-serif;
+}
+.jarvis-mic small {
+  font:
+    10px/1.4 ui-monospace,
+    monospace;
+  letter-spacing: 0.12em;
+  color: var(--cyan);
+}
+.jarvis-mic[aria-pressed='true'] {
+  outline: 3px solid var(--cyan);
+  outline-offset: 8px;
+}
+.jarvis-status {
+  color: var(--ice);
+  max-width: 580px;
+  margin: 6px 0 0;
+}
+.jarvis-transcript {
+  color: var(--cyan);
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.jarvis-transcript:empty {
+  display: none;
+}
+.jarvis-hint {
+  margin: 0;
+  color: #9abdc6;
+  font-size: 13px;
+}
+.jarvis-text {
+  width: min(100%, 580px);
+  color: #9abdc6;
+  font-size: 14px;
+}
+.jarvis-text summary {
+  padding: 10px;
+  cursor: pointer;
+}
+.jarvis-text form {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+.jarvis-text input {
+  min-width: 0;
+  flex: 1;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #06151c;
+  color: var(--ice);
+  font:
+    16px/1.5 system-ui,
+    sans-serif;
+  padding: 12px;
+}
+.jarvis-answer {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-width: 850px;
+  margin: 22px auto;
+  color: var(--ice);
+}
+.jarvis-answer:empty {
+  display: none;
+}
+.jarvis-foot {
+  display: flex;
+  justify-content: center;
+  gap: 12px 24px;
+  flex-wrap: wrap;
+  color: #89aeb9;
+  font:
+    12px/1.6 system-ui,
+    sans-serif;
+  margin-top: 30px;
+}
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.explanation-surface {
+  max-width: 1400px;
+  width: 100%;
+  margin: 10px auto 0;
+  min-width: 0;
+  text-align: left;
+}
+.explain-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  align-items: baseline;
+  margin-bottom: 14px;
+  font:
+    15px/1.5 system-ui,
+    sans-serif;
+  color: var(--ice);
+}
+.explain-header small {
+  color: #9bc6cf;
+  flex: none;
+  font-size: 12px;
+}
+.explain-windows {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+  gap: 18px;
+  align-items: start;
+}
+.explain-window {
+  min-width: 0;
+  background: #06171e;
+  border: 1px solid #2d626f;
+  border-radius: 12px;
+  padding: 22px;
+  box-shadow: 0 16px 45px #0005;
+  color: var(--ice);
+  font:
+    16px/1.7 system-ui,
+    sans-serif;
+  overflow-wrap: anywhere;
+}
+.explain-kind {
+  color: var(--cyan);
+  font:
+    11px/1.4 ui-monospace,
+    monospace;
+  letter-spacing: 0.1em;
+}
+.explain-window h3 {
+  font-size: 20px;
+  line-height: 1.35;
+  font-weight: 500;
+  margin: 12px 0 16px;
+}
+.explain-text {
+  margin: 0 0 18px;
+  white-space: pre-wrap;
+}
+blockquote.explain-text {
+  padding-left: 12px;
+  border-left: 2px solid #54828e;
+}
+.explain-text mark {
+  color: var(--ice);
+  background: #155060;
+  border-bottom: 2px solid var(--cyan);
+  box-decoration-break: clone;
+}
+.explain-source {
+  color: var(--cyan);
+  text-underline-offset: 4px;
+}
+.explain-attribution {
+  display: block;
+  color: #a7c2ca;
+  font-size: 12px;
+  margin-top: 12px;
+}
+.explain-flow {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+}
+.explain-node {
+  border: 1px solid #5592a0;
+  background: #0b2a35;
+  padding: 13px;
+  border-radius: 6px;
+}
+.explain-arrow {
+  text-align: center;
+  color: var(--cyan);
+  font-size: 24px;
+  line-height: 1.5;
+}
+.explain-enter .explain-window {
+  animation: explain-reveal 0.35s ease-out both;
+}
+.explain-enter .explain-node {
+  animation: explain-reveal 0.6s ease-out both;
+}
+.explain-enter .explain-node:nth-child(3) {
+  animation-delay: 0.18s;
+}
+.explain-enter .explain-node:nth-child(5) {
+  animation-delay: 0.36s;
+}
+.receive-stage:has(.explanation-surface) {
+  display: block;
+  padding: 24px;
+  overflow-y: auto;
+  touch-action: pan-y;
+}
+@keyframes explain-reveal {
+  from {
+    opacity: 0.3;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@media (max-width: 700px) {
+  .jarvis-home {
+    padding-left: max(18px, env(safe-area-inset-left));
+    padding-right: max(18px, env(safe-area-inset-right));
+    font-size: 18px;
+  }
+  .jarvis-top {
+    gap: 8px;
+  }
+  .jarvis-top > span:nth-child(2) {
+    display: none;
+  }
+  .jarvis-dialog {
+    padding: 34px 0 22px;
+    gap: 14px;
+  }
+  .jarvis-mic {
+    width: 100px;
+    height: 100px;
+  }
+  .jarvis-status {
+    font-size: 17px;
+  }
+  .jarvis-hint {
+    font-size: 13px;
+  }
+  .explain-windows {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .explain-window {
+    font-size: 18px;
+    line-height: 1.65;
+    padding: 20px;
+  }
+  .explain-window h3 {
+    font-size: 22px;
+  }
+  .explain-header {
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .jarvis-answer {
+    font-size: 18px;
+  }
+  .receive-stage:has(.explanation-surface) {
+    padding: 12px;
+  }
+}
+@media (max-height: 500px) and (orientation: landscape) {
+  .jarvis-dialog {
+    padding: 12px 0;
+    gap: 8px;
+  }
+  .jarvis-mic {
+    width: 72px;
+    height: 72px;
+  }
+  .jarvis-dialog h1 {
+    font-size: 24px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .explain-enter .explain-window,
+  .explain-enter .explain-node {
+    animation: none;
+  }
+}

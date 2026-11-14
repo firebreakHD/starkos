@@ -13,4 +13,10 @@ Mobile-first STARK interface for research, geospatial data and secure control of
 - authenticated direct access and Home Assistant Ingress
 - Hermes display tools using the same authorization and capability checks as the UI
 
-See [DOCS.md](DOCS.md) for installation and operation. Current version: **0.1.18**.
+See [DOCS.md](DOCS.md) for installation and operation. Current version: **0.2.1**.
+
+The default interface is now a conversation with Jarvis (Hermes), with one microphone control and a contextual Stop. Phones use larger text and show one explanation window at a time. The existing ring remains under **Bereiche**.
+
+Choose **Mit ChatGPT anmelden** for normal browser OAuth through the bundled official Codex runtime. No Claude Code, Device Code, external Hermes gateway or model API key is required. Optional `codex_model` selects a model available to your account. With Home Assistant on another machine, use the optional remote-login form to relay the final localhost redirect URL back to Codex through authenticated Ingress; see [the login guide](../docs/JARVIS.md). Codex owns its persistent credentials under `/data/codex`.
+
+Set `searxng_url` for web/forum search through your JSON-enabled SearXNG; without it search is labeled Wikipedia only. Say/type **Demo** for a clearly labeled local preview. Installation and updates still use this GitHub repository and Home Assistant's locally built add-on.

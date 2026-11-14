@@ -2,7 +2,19 @@
 
 STARK OS is a mobile-first media, investigation and geospatial interface for Home Assistant hosting. The supplied God's Eye View project remains the real Cesium/data engine; STARK OS adds the phone-style ring, secured direct access and paired display control.
 
-Current Home Assistant app version: **0.1.18**
+Current Home Assistant app version: **0.2.1**
+
+## Talk to Jarvis
+
+STARK OS now opens a conversation instead of a button dashboard. Tap the Jarvis orb to speak, or expand **Lieber schreiben**. Hermes remains the only agent; Jarvis is its spoken interface. **Bereiche** keeps the existing media ring, receivers and World accessible. Say “Öffne Medien”, “Öffne Karte”, “weiter”, “bleib hier”, “zurück”, “Stopp”, or “ohne Fenster”. Say or type **Demo** to try the visual sequence without an agent connection; its example data are explicitly labeled.
+
+The bundled official **Codex** runtime supplies the model for the Hermes/Jarvis orchestrator. Choose **Mit ChatGPT anmelden** for normal browser OAuth with your ChatGPT account; no Claude Code, Device Code or model API key is needed. Credentials and refresh remain managed by Codex in a separate persistent store. Optional `codex_model` chooses an available model; blank uses Codex's default. See [the integration guide](docs/JARVIS.md).
+
+Codex's official browser login returns to a localhost callback on the machine running Codex. Local desktop use can complete directly. From a phone/another computer talking to Home Assistant, the browser cannot reach the server's localhost: use the optional **Anmeldung am Handy / anderen Gerät** form to pass the final redirect URL back over authenticated Ingress, or use a local SSH callback tunnel. This is browser OAuth, not a Device Code flow; a fully automatic remote callback is not claimed.
+
+Visual explanations open source excerpts, highlighted passages, diagrams and calculation notes in timed scenes. Desktop shows up to three windows; phones show the same content one readable window at a time, with larger type and swipe navigation. Existing paired receivers learn the new capabilities after their receiver page is reloaded.
+
+Optional `searxng_url` points at your SearXNG instance with JSON search enabled for general website/forum discovery. Without it, search is explicitly **Wikipedia only**; public HTTPS articles and forums can still be read by URL. Sources are not automatically declared correct. Voice input depends on browser speech recognition, microphone permission and a secure HTTPS context (or localhost). Browser/OS speech output is used; this does not bundle Roamies' voices or native desktop control.
 
 [![Add the STARK OS repository to Home Assistant](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2FfirebreakHD%2Fstarkos)
 
