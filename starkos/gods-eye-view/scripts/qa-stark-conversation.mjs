@@ -118,6 +118,7 @@ try {
     Object.defineProperty(window, 'speechSynthesis', {
       value: {
         speak(u) {
+          (window.__spokenTexts ??= []).push(u.text);
           setTimeout(() => u.onend?.(), 0);
         },
         cancel() {},
@@ -179,6 +180,109 @@ try {
     document.querySelector('[data-status]').textContent.startsWith('Bereit.'),
   );
   assert.equal(await page.$eval('#device', (el) => el.hidden), true);
+  assert.equal(await page.$eval('[data-chat]', (el) => el.open), false);
+  assert.equal(await page.$('[data-text-options]'), null);
+  const openChatByDrag = async () => {
+    const box = await page.$eval('[data-chat-grip]', (el) => {
+      const b = el.getBoundingClientRect();
+      return { x: b.x + b.width / 2, y: b.y + b.height / 2, width: b.width };
+    });
+    await page.mouse.move(box.x, box.y);
+    await page.mouse.down();
+    await new Promise((resolve) => setTimeout(resolve, 550));
+    assert.equal(
+      await page.$eval('[data-chat-grip]', (el) =>
+        el.classList.contains('is-ready'),
+      ),
+      true,
+    );
+    assert.ok(
+      (await page.$eval(
+        '[data-chat-grip]',
+        (el) => el.getBoundingClientRect().width,
+      )) > box.width,
+    );
+    await page.mouse.move(box.x + 140, box.y, { steps: 5 });
+    await page.mouse.up();
+    await page.waitForSelector('[data-chat][open]');
+  };
+  await page.click('[data-chat-grip]');
+  assert.equal(
+    await page.$eval('[data-chat]', (el) => el.open),
+    false,
+    'short tap must not open text mode',
+  );
+  const early = await page.$eval('[data-chat-grip]', (el) => {
+    const b = el.getBoundingClientRect();
+    return { x: b.x + b.width / 2, y: b.y + b.height / 2 };
+  });
+  await page.mouse.move(early.x, early.y);
+  await page.mouse.down();
+  await page.mouse.move(early.x + 140, early.y, { steps: 3 });
+  await page.mouse.up();
+  await new Promise((resolve) => setTimeout(resolve, 550));
+  assert.equal(
+    await page.$eval('[data-chat]', (el) => el.open),
+    false,
+    'dragging before the hold threshold must cancel',
+  );
+  assert.equal(
+    await page.$eval('[data-chat-grip]', (el) =>
+      el.classList.contains('is-ready'),
+    ),
+    false,
+  );
+  await openChatByDrag();
+  await page.type('[data-input]', 'bleib hier');
+  await page.click('[data-text-form] button[type="submit"]');
+  assert.match(
+    await page.$eval('[data-chat-log]', (el) => el.textContent),
+    /bleib hier/,
+  );
+  assert.equal(
+    await page.$eval('[data-chat]', (el) => el.open),
+    true,
+    'sending text keeps the text conversation open',
+  );
+  await page.click('[data-chat-close]');
+  assert.equal(await page.$eval('[data-chat]', (el) => el.open), false);
+  const cancelPoint = await page.$eval('[data-chat-grip]', (el) => {
+    const b = el.getBoundingClientRect();
+    return { x: b.x + b.width / 2, y: b.y + b.height / 2 };
+  });
+  await page.mouse.move(cancelPoint.x, cancelPoint.y);
+  await page.mouse.down();
+  await new Promise((resolve) => setTimeout(resolve, 550));
+  await page.$eval('[data-chat-grip]', (el) =>
+    el.dispatchEvent(
+      new PointerEvent('pointercancel', { pointerId: 1, bubbles: true }),
+    ),
+  );
+  await page.mouse.up();
+  assert.equal(
+    await page.$eval('[data-chat]', (el) => el.open),
+    false,
+    'cancelled pointer gesture stays in voice',
+  );
+  assert.equal(
+    await page.$eval('[data-chat-grip]', (el) =>
+      el.classList.contains('is-ready'),
+    ),
+    false,
+  );
+  await page.focus('[data-chat-grip]');
+  await page.keyboard.press('Enter');
+  assert.equal(
+    await page.$eval('[data-chat]', (el) => el.open),
+    true,
+    'keyboard activation is accessible',
+  );
+  await page.keyboard.press('Escape');
+  assert.equal(
+    await page.$eval('[data-chat]', (el) => el.open),
+    false,
+    'Escape returns to voice',
+  );
   await page.click('[data-mic]');
   await page.waitForSelector('.explain-window');
   assert.equal(await page.$$eval('.explain-window', (els) => els.length), 1);
@@ -189,7 +293,6 @@ try {
   assert.equal(calls.length, 0, 'offline demo must never call Hermes');
   const send = async (text) => {
     await page.evaluate((text) => {
-      document.querySelector('[data-text-options]').open = true;
       const input = document.querySelector('[data-input]');
       input.value = text;
       document.querySelector('[data-text-form]').requestSubmit();
@@ -231,6 +334,10 @@ try {
   await send('ohne Fenster');
   assert.equal(await page.$eval('[data-explanation]', (el) => el.hidden), true);
   await send('mit Fenstern');
+  await openChatByDrag();
+  const spokenBeforeChat = await page.evaluate(
+    () => window.__spokenTexts?.length || 0,
+  );
   await send('Untersuche das Beispiel');
   await page.waitForFunction(() =>
     document
@@ -242,10 +349,49 @@ try {
     calls[0].tools.some((t) => t.function.name === 'present_explanation'),
   );
   assert.equal(calls[1].messages.at(-1).role, 'tool');
+  assert.match(
+    await page.$eval('[data-chat-log]', (el) => el.textContent),
+    /Testdarstellung/,
+  );
+  assert.equal(
+    await page.evaluate(() => window.__spokenTexts?.length || 0),
+    spokenBeforeChat,
+    'text mode must not speak replies',
+  );
+  assert.equal(
+    await page.$eval(
+      '[data-chat-visual] [data-explanation]',
+      (el) => el.hidden,
+    ),
+    false,
+    'visuals stay usable in text chat',
+  );
   await send('bleib hier');
   const output =
     process.env.STARK_QA_OUTPUT || path.join(temporary, 'screenshots');
   await mkdir(output, { recursive: true });
+  await page.screenshot({
+    path: path.join(output, 'stark-chat-phone.png'),
+    fullPage: true,
+  });
+  for (const size of [
+    { width: 320, height: 740 },
+    { width: 844, height: 390 },
+    { width: 390, height: 844 },
+  ]) {
+    await page.setViewport({ ...size, isMobile: true, hasTouch: true });
+    assert.equal(
+      await page.$eval('[data-chat]', (el) => el.open),
+      true,
+      'rotation keeps the current text view',
+    );
+    assert.equal(
+      await page.$eval('[data-chat]', (el) => el.scrollWidth > el.clientWidth),
+      false,
+      'text view must fit small/landscape screens',
+    );
+  }
+  await page.click('[data-chat-close]');
   await page.screenshot({
     path: path.join(output, 'stark-phone.png'),
     fullPage: true,
@@ -260,13 +406,29 @@ try {
     path: path.join(output, 'stark-desktop.png'),
     fullPage: true,
   });
+  await openChatByDrag();
   await send('Öffne Medien');
+  assert.equal(
+    await page.$eval('[data-chat]', (el) => el.open),
+    false,
+    'opening another module leaves text mode',
+  );
   await page.waitForSelector('.panel.open .stark-browser');
   await page.click('#browserBack');
   await page.click('#browseModules');
   assert.equal(await page.$eval('#device', (el) => el.hidden), false);
   await openRingModule(page, 'ASSISTANT');
   assert.equal(await page.$eval('#jarvisHome', (el) => el.hidden), false);
+  assert.equal(
+    await page.$eval('[data-chat]', (el) => el.open),
+    false,
+    'reopening Assistant always starts in voice view',
+  );
+  assert.match(
+    await page.$eval('[data-chat-log]', (el) => el.textContent),
+    /Testdarstellung/,
+    'history is preserved across the voice/text view change',
+  );
   assert.equal(
     statusRequests,
     1,

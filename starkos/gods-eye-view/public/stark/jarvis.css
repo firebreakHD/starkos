@@ -102,7 +102,8 @@ body.jarvis-active {
 }
 .jarvis-top button,
 .jarvis-stop,
-.jarvis-text button {
+.chat-compose button,
+.chat-header button {
   min-width: 44px;
   min-height: 44px;
   border: 1px solid var(--line);
@@ -187,32 +188,6 @@ body.jarvis-active {
   margin: 0;
   color: #9abdc6;
   font-size: 13px;
-}
-.jarvis-text {
-  width: min(100%, 580px);
-  color: #9abdc6;
-  font-size: 14px;
-}
-.jarvis-text summary {
-  padding: 10px;
-  cursor: pointer;
-}
-.jarvis-text form {
-  display: flex;
-  gap: 8px;
-  margin-top: 8px;
-}
-.jarvis-text input {
-  min-width: 0;
-  flex: 1;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: #06151c;
-  color: var(--ice);
-  font:
-    16px/1.5 system-ui,
-    sans-serif;
-  padding: 12px;
 }
 .jarvis-answer {
   white-space: pre-wrap;
@@ -434,5 +409,203 @@ blockquote.explain-text {
   .explain-enter .explain-window,
   .explain-enter .explain-node {
     animation: none;
+  }
+}
+
+/* A small bottom-left handle is the only permanent entry to text mode. */
+.jarvis-chat-grip {
+  position: fixed;
+  z-index: 12;
+  left: max(4px, env(safe-area-inset-left));
+  bottom: max(16px, env(safe-area-inset-bottom));
+  width: 44px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 0 18px 18px 0;
+  background: transparent;
+  color: var(--cyan);
+  font:
+    28px/1 system-ui,
+    sans-serif;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  transform: translateX(var(--chat-drag, 0px));
+  cursor: grab;
+  transition:
+    width 0.15s ease,
+    height 0.15s ease;
+}
+.jarvis-chat-grip::before {
+  content: '';
+  position: absolute;
+  inset: 7px 11px 7px 0;
+  border: 1px solid #407787;
+  border-left: 0;
+  border-radius: 0 12px 12px 0;
+  background: #0b2832;
+  pointer-events: none;
+}
+.jarvis-chat-grip span {
+  position: relative;
+  pointer-events: none;
+}
+.jarvis-chat-grip.is-ready {
+  width: 68px;
+  height: 68px;
+  color: var(--ice);
+  cursor: grabbing;
+}
+.jarvis-chat-grip.is-ready::before {
+  inset: 0;
+  border-color: var(--cyan);
+  background: #11414e;
+  box-shadow: 0 0 22px #49d9ff35;
+}
+.jarvis-chat {
+  margin: 0;
+  position: fixed;
+  inset: var(--chat-top, 0px) auto auto 0;
+  width: min(100%, 720px);
+  height: var(--chat-height, 100dvh);
+  max-width: 100%;
+  max-height: var(--chat-height, 100dvh);
+  border: 0;
+  border-right: 1px solid #356574;
+  background: #05151d;
+  color: var(--ice);
+  padding: 0;
+  font:
+    16px/1.6 system-ui,
+    sans-serif;
+  overflow: hidden;
+}
+.jarvis-chat[open] {
+  display: flex;
+  flex-direction: column;
+}
+.jarvis-chat::backdrop {
+  background: #0009;
+}
+.chat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: max(12px, env(safe-area-inset-top))
+    max(16px, env(safe-area-inset-right)) 12px
+    max(12px, env(safe-area-inset-left));
+  border-bottom: 1px solid var(--line);
+  flex: none;
+}
+.chat-header strong {
+  font:
+    12px/1.4 ui-monospace,
+    monospace;
+  letter-spacing: 0.1em;
+  color: var(--cyan);
+}
+.chat-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  padding: 18px max(18px, env(safe-area-inset-right)) 18px
+    max(18px, env(safe-area-inset-left));
+}
+.chat-log {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.chat-message {
+  min-width: 0;
+  max-width: 95%;
+  padding: 12px 14px;
+  border-radius: 12px;
+  overflow-wrap: anywhere;
+}
+.chat-message small {
+  display: block;
+  margin-bottom: 5px;
+  font:
+    11px/1.4 ui-monospace,
+    monospace;
+  letter-spacing: 0.08em;
+  color: var(--cyan);
+}
+.chat-message p {
+  margin: 0;
+  white-space: pre-wrap;
+}
+.chat-user {
+  align-self: flex-end;
+  background: #123642;
+}
+.chat-assistant {
+  align-self: flex-start;
+  background: #0a232e;
+}
+.chat-status {
+  margin: 0;
+  padding: 8px 18px;
+  color: #a7cad3;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+  flex: none;
+}
+.chat-compose {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px max(12px, env(safe-area-inset-right))
+    max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+  border-top: 1px solid var(--line);
+  flex: none;
+}
+.chat-compose input {
+  flex: 1;
+  width: 0;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid #3a6876;
+  border-radius: 8px;
+  background: #071c25;
+  color: var(--ice);
+  font:
+    16px/1.5 system-ui,
+    sans-serif;
+}
+.jarvis-chat [data-chat-visual]:has(.explanation-surface:not([hidden])) {
+  margin-top: 18px;
+}
+@media (max-width: 700px) {
+  .jarvis-chat {
+    width: 100%;
+    font-size: 18px;
+  }
+  .chat-message {
+    max-width: 100%;
+  }
+}
+@media (max-width: 360px) {
+  .chat-compose {
+    gap: 5px;
+    flex-wrap: wrap;
+  }
+  .chat-compose input {
+    flex-basis: 160px;
+  }
+  .chat-compose [data-chat-stop] {
+    margin-left: auto;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .jarvis-chat-grip {
+    transition: none;
   }
 }

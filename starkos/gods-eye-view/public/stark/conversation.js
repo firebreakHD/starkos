@@ -1,5 +1,6 @@
 import { createExplanationPlayer } from './explanation-player.js';
 import { CONVERSATION_DEMO } from './conversation-demo.js';
+import { createChatDrawer } from './chat-drawer.js';
 
 export function createConversation(root, { displays, openModule } = {}) {
   const $ = (s) => root.querySelector(s);
@@ -22,8 +23,24 @@ export function createConversation(root, { displays, openModule } = {}) {
     speaking = false,
     available = false;
   let loginPoll = null;
+  const chat = createChatDrawer(root, {
+    onOpen() {
+      cancelSpeech();
+      recognition?.abort();
+      listening = false;
+      mic.setAttribute('aria-pressed', 'false');
+      showStop(pending);
+    },
+    onClose() {
+      showStop(pending || speaking);
+    },
+    onHint: setStatus,
+  });
   const player = createExplanationPlayer($('[data-explanation]'), {
-    onNarration: (text) => say(text, true),
+    onNarration: (text) => {
+      chat.append('assistant', text);
+      say(text, true);
+    },
     onChange: (state) =>
       root.classList.toggle(
         'jarvis-explaining',
@@ -32,6 +49,11 @@ export function createConversation(root, { displays, openModule } = {}) {
   });
   function setStatus(text) {
     status.textContent = text;
+    $('[data-chat-status]').textContent = text;
+  }
+  function showStop(value) {
+    stop.hidden = !value;
+    $('[data-chat-stop]').hidden = !value;
   }
   function cancelSpeech() {
     speechToken++;
@@ -40,6 +62,7 @@ export function createConversation(root, { displays, openModule } = {}) {
     window.speechSynthesis?.cancel();
   }
   function say(text, queue = false) {
+    if (chat.isOpen()) return;
     if (!window.speechSynthesis || !text) return;
     if (queue) {
       speechQueue.push(text);
@@ -51,11 +74,11 @@ export function createConversation(root, { displays, openModule } = {}) {
     function next() {
       if (!speechQueue.length) {
         speaking = false;
-        stop.hidden = !pending;
+        showStop(pending);
         return;
       }
       speaking = true;
-      stop.hidden = false;
+      showStop(true);
       const token = speechToken;
       const utterance = new SpeechSynthesisUtterance(speechQueue.shift());
       utterance.lang = 'de-DE';
@@ -91,7 +114,7 @@ export function createConversation(root, { displays, openModule } = {}) {
     pending = false;
     cancelSpeech();
     control('pause');
-    stop.hidden = true;
+    showStop(false);
     mic.setAttribute('aria-pressed', 'false');
     setStatus('Angehalten. Ich höre auf deinen nächsten Auftrag.');
   }
@@ -160,6 +183,7 @@ export function createConversation(root, { displays, openModule } = {}) {
     };
     const destination = plain.replace(/^(öffne|zeige|zeig)\s+/, '');
     if (modules[destination]) {
+      chat.close({ focus: false });
       openModule(modules[destination]);
       return true;
     }
@@ -168,6 +192,7 @@ export function createConversation(root, { displays, openModule } = {}) {
   async function send(text) {
     if (!text.trim()) return;
     transcript.textContent = text;
+    chat.append('user', text);
     if (localCommand(text)) return;
     if (pending) {
       setStatus('Sag „Stopp“, um den laufenden Auftrag abzubrechen.');
@@ -180,7 +205,7 @@ export function createConversation(root, { displays, openModule } = {}) {
       return;
     }
     pending = true;
-    stop.hidden = false;
+    showStop(true);
     answer.textContent = '';
     setStatus('Ich kümmere mich darum …');
     const requestAbort = new AbortController();
@@ -215,6 +240,7 @@ export function createConversation(root, { displays, openModule } = {}) {
         if (message.type === 'answer') {
           complete = true;
           answer.textContent = message.text;
+          chat.append('assistant', message.text);
           if (!hasExplanation) say(message.text);
           setStatus('Bereit. Sag mir, was du genauer wissen möchtest.');
         }
@@ -248,7 +274,7 @@ export function createConversation(root, { displays, openModule } = {}) {
       if (abort === requestAbort) {
         abort = null;
         pending = false;
-        stop.hidden = !speaking;
+        showStop(speaking);
       }
     }
   }
@@ -258,8 +284,7 @@ export function createConversation(root, { displays, openModule } = {}) {
       return;
     }
     if (!Recognition || !window.isSecureContext) {
-      $('[data-text-options]').open = true;
-      $('[data-input]').focus();
+      chat.open();
       setStatus(
         'Sprache braucht einen unterstützten Browser und HTTPS. Du kannst hier schreiben.',
       );
@@ -272,11 +297,16 @@ export function createConversation(root, { displays, openModule } = {}) {
     recognition.interimResults = true;
     recognition.continuous = false;
     recognition.onstart = () => {
+      if (chat.isOpen() || root.hidden) {
+        recognition?.abort();
+        return;
+      }
       listening = true;
       mic.setAttribute('aria-pressed', 'true');
       setStatus('Ich höre zu …');
     };
     recognition.onresult = (event) => {
+      if (chat.isOpen() || root.hidden) return;
       let final = '';
       let partial = '';
       for (let i = event.resultIndex; i < event.results.length; i++) {
@@ -304,15 +334,20 @@ export function createConversation(root, { displays, openModule } = {}) {
     }
   });
   stop.addEventListener('click', interrupt);
+  $('[data-chat-stop]').addEventListener('click', interrupt);
   $('[data-text-form]').addEventListener('submit', (event) => {
     event.preventDefault();
     const field = $('[data-input]');
     send(field.value);
     field.value = '';
-    $('[data-text-options]').open = false;
   });
   root.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape') interrupt();
+    if (event.key === 'Escape') {
+      if (chat.isOpen()) {
+        event.preventDefault();
+        chat.close();
+      } else interrupt();
+    }
   });
   async function refreshConnection(announce = true) {
     return fetch(new URL('jarvis/status', displays.base))
@@ -420,10 +455,12 @@ export function createConversation(root, { displays, openModule } = {}) {
   return {
     send,
     interrupt,
+    showVoice: () => chat.close({ focus: false }),
     player,
     destroy() {
       clearInterval(loginPoll);
       interrupt();
+      chat.destroy();
       player.destroy();
     },
   };

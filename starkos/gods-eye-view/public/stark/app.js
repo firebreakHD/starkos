@@ -57,6 +57,7 @@ function showJarvis() {
     openModule: (title) =>
       openPanel(modules.find((item) => item.title === title)),
   });
+  conversation.showVoice();
   $('#device').hidden = true;
   $('#jarvisHome').hidden = false;
   document.body.classList.add('jarvis-active');
@@ -64,6 +65,7 @@ function showJarvis() {
   $('#panel').setAttribute('aria-hidden', 'true');
 }
 $('#browseModules').addEventListener('click', () => {
+  conversation?.showVoice();
   conversation?.interrupt();
   lastTap = 0;
   $('#jarvisHome').hidden = true;

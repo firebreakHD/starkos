@@ -84,23 +84,6 @@
         <p class="jarvis-hint">
           „Untersuche …“ · „Erklär mir …“ · „Bleib hier“ · „Weiter“
         </p>
-        <details class="jarvis-text" data-text-options>
-          <summary>Lieber schreiben</summary>
-          <form data-text-form>
-            <label for="jarvisInput" class="visually-hidden"
-              >Auftrag an Jarvis</label
-            ><input
-              id="jarvisInput"
-              data-input
-              type="text"
-              maxlength="4000"
-              autocomplete="off"
-              placeholder="Frag Jarvis …"
-              enterkeyhint="send"
-              required
-            /><button type="submit" aria-label="Auftrag senden">↗</button>
-          </form>
-        </details>
       </section>
       <section
         class="explanation-surface"
@@ -116,6 +99,60 @@
         </details>
         <span data-scope></span><span>„Ohne Fenster“ für reine Sprache</span>
       </footer>
+      <button
+        class="jarvis-chat-grip"
+        data-chat-grip
+        type="button"
+        aria-label="Textchat: kurz halten und nach rechts ziehen. Mit der Tastatur direkt öffnen."
+        aria-controls="jarvisChat"
+        aria-expanded="false"
+      >
+        <span aria-hidden="true">›</span>
+      </button>
+      <dialog
+        class="jarvis-chat"
+        id="jarvisChat"
+        data-chat
+        aria-label="Textchat mit Jarvis"
+      >
+        <header class="chat-header">
+          <button
+            data-chat-close
+            type="button"
+            aria-label="Textchat schließen und zur Sprachansicht zurück"
+          >
+            ‹ Sprache</button
+          ><strong>JARVIS / CHAT</strong>
+        </header>
+        <div class="chat-scroll" data-chat-scroll>
+          <div
+            class="chat-log"
+            data-chat-log
+            role="log"
+            aria-live="polite"
+            aria-label="Gesprächsverlauf"
+          ></div>
+          <div data-chat-visual></div>
+        </div>
+        <p class="chat-status" data-chat-status role="status">Frag Jarvis …</p>
+        <form class="chat-compose" data-text-form>
+          <label for="jarvisInput" class="visually-hidden"
+            >Nachricht an Jarvis</label
+          >
+          <input
+            id="jarvisInput"
+            data-input
+            type="text"
+            maxlength="4000"
+            autocomplete="off"
+            placeholder="Schreib Jarvis …"
+            enterkeyhint="send"
+            required
+          />
+          <button type="submit" aria-label="Nachricht senden">Senden</button>
+          <button type="button" data-chat-stop hidden>Stopp</button>
+        </form>
+      </dialog>
     </main>
     <main class="device" id="device">
       <header class="telemetry" aria-label="Systemstatus">
