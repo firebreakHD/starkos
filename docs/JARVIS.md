@@ -49,4 +49,4 @@ Native drawing over unrelated applications, arbitrary desktop control, dedicated
 
 ## Release status
 
-Home Assistant metadata declares `0.2.1`. The change must be published and merged to the branch consumed by Home Assistant before reloading the store offers the update. A local patch is not an installed update. The preceding 0.2.0 implementation was not published: both GitHub write paths were rejected with HTTP 403. Update packages contain application instructions, not credentials.
+Home Assistant metadata declares `0.2.1`. The change must be merged to the branch consumed by Home Assistant before reloading the store offers the update. A development branch, draft pull request or local patch is not an installed update. Update packages contain application instructions, not credentials.
