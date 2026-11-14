@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.3
+
+- Assistant opens in its normal voice view. A small bottom-left handle grows after a half-second hold; dragging it right opens the text conversation. Short taps and cancelled/early drags leave the voice view in place. Keyboard and assistive activation remain available.
+- The text drawer shows the shared conversation history and live visual explanations, with one back-to-voice action. Closing, Escape or leaving and reopening Assistant always restores the voice view. No open-chat preference is saved.
+- Opening text mode stops microphone capture and spoken playback. Typed messages use the same Codex conversation and display tools; contextual Stop also remains available in the drawer.
+
 ## 0.2.2
 
 - Restored the original STARK menu ring as the start screen, with Media, Investigation, World, Receiver and System intact.

@@ -1,6 +1,6 @@
 # Jarvis with Codex and normal ChatGPT login
 
-STARK OS 0.2.2 starts with the original menu ring. Its new **Assistant** entry opens Jarvis; **Investigation** remains the original case board. Assistant starts its connection only when opened. It uses the pinned official `@openai/codex` package as the model provider for the single Hermes/Jarvis orchestrator. There is no Claude Code dependency. Research and display actions continue through STARK's authenticated tool contract.
+STARK OS 0.2.3 starts with the original menu ring. Its new **Assistant** entry opens Jarvis; **Investigation** remains the original case board. Assistant starts its connection only when opened. It uses the pinned official `@openai/codex` package as the model provider for the single Hermes/Jarvis orchestrator. There is no Claude Code dependency. Research and display actions continue through STARK's authenticated tool contract.
 
 ## Normal browser sign-in
 
@@ -29,7 +29,7 @@ The original explicitly configured OpenAI-compatible gateway remains opt-in for 
 
 ## Conversation and actions
 
-Tap the orb for a spoken turn, or expand **Lieber schreiben**. Browser speech recognition requires permission, a supported browser and HTTPS (localhost also works). Recognition/synthesis may use the browser or OS vendor's service. No background wake word is claimed. Stop/Escape abort the request and interrupt Codex; actions already executed are not rolled back.
+Voice is the default Assistant view. Tap the orb for a spoken turn. For text chat, hold the small bottom-left handle for 500 ms until it grows, then drag it right and release. A short tap, early drag, left/vertical drag or cancelled gesture does not open chat. Keyboard/screen-reader activation opens it directly. Close through **Sprache** or Escape to restore the voice view. Leaving and reopening Assistant also resets the view to voice without discarding the conversation; no drawer-open state is persisted. Text mode shows the shared in-memory history and any active visual explanation, silences browser speech and ends microphone capture while open. Browser speech recognition requires permission, a supported browser and HTTPS (localhost also works). Recognition/synthesis may use the browser or OS vendor's service. No background wake word is claimed. Stop/Escape abort the request and interrupt Codex; actions already executed are not rolled back.
 
 Say “weiter”, “zurück”, “bleib hier”, “fortsetzen”, “Fenster schließen”, “ohne Fenster” or “mit Fenstern”. “Öffne Medien”, “Öffne Karte” and “Öffne Receiver” reach the existing modules. **Bereiche** preserves the ring. Say/type **Demo** for the fixed, labeled preview without live research or an account.
 
@@ -49,4 +49,4 @@ Native drawing over unrelated applications, arbitrary desktop control, dedicated
 
 ## Release status
 
-Home Assistant metadata declares `0.2.2`. The change must be merged to the branch consumed by Home Assistant before reloading the store offers the update. A development branch, draft pull request or local patch is not an installed update. Update packages contain application instructions, not credentials.
+Home Assistant metadata declares `0.2.3`. The change must be merged to the branch consumed by Home Assistant before reloading the store offers the update. A development branch, draft pull request or local patch is not an installed update. Update packages contain application instructions, not credentials.
