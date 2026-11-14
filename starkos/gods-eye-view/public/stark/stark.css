@@ -290,6 +290,7 @@ body::before {
 }
 .core::before {
   content: '';
+  pointer-events: none;
   position: absolute;
   inset: 7px;
   border: 1px dashed rgba(105, 235, 255, 0.28);

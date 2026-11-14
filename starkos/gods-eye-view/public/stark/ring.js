@@ -38,6 +38,9 @@ export class InertialRing {
   down(event) {
     this.stop();
     this.pointer = event.pointerId;
+    this.tapTarget = event.target.closest('.ring-item');
+    this.startPoint = { x: event.clientX, y: event.clientY };
+    this.didDrag = false;
     this.last = this.pointAngle(event);
     this.lastTime = performance.now();
     this.velocity = 0;
@@ -47,6 +50,13 @@ export class InertialRing {
 
   move(event) {
     if (event.pointerId !== this.pointer) return;
+    if (
+      Math.hypot(
+        event.clientX - this.startPoint.x,
+        event.clientY - this.startPoint.y,
+      ) > 6
+    )
+      this.didDrag = true;
     const now = performance.now();
     const next = this.pointAngle(event);
     let delta = next - this.last;
@@ -63,6 +73,12 @@ export class InertialRing {
     if (event.pointerId !== this.pointer) return;
     this.pointer = null;
     this.element.classList.remove('dragging');
+    // Pointer capture retargets native clicks to the ring, so handle a genuine
+    // item tap explicitly while preserving drag/coast behavior.
+    if (event.type !== 'pointercancel' && this.tapTarget && !this.didDrag) {
+      this.snapTo(this.nodes.indexOf(this.tapTarget));
+      return;
+    }
     this.coast();
   }
 

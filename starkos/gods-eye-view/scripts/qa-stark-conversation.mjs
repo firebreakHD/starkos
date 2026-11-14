@@ -7,6 +7,43 @@ import path from 'node:path';
 import puppeteer from 'puppeteer';
 import { CONVERSATION_DEMO } from '../public/stark/conversation-demo.js';
 
+async function openRingModule(page, title) {
+  await page.waitForFunction(
+    () =>
+      !document.querySelector('#device').hidden &&
+      document.querySelector('#panel').getBoundingClientRect().top >=
+        innerHeight,
+  );
+  const entries = await page.$$('.ring-item');
+  let found = false;
+  for (const entry of entries) {
+    if (
+      await entry.$eval(
+        'strong',
+        (node, title) => node.textContent === title,
+        title,
+      )
+    ) {
+      await entry.focus();
+      await entry.click();
+      found = true;
+      break;
+    }
+  }
+  assert.ok(found, `Menu entry exists: ${title}`);
+  await page.waitForFunction(
+    (title) => document.querySelector('#coreTitle').textContent === title,
+    { timeout: 5000 },
+    title,
+  );
+  await page.click('#core');
+  if (
+    (await page.$eval('#device', (node) => !node.hidden)) &&
+    !(await page.$eval('#panel', (node) => node.classList.contains('open')))
+  )
+    await page.click('#core');
+}
+
 const temporary = await mkdtemp(path.join(tmpdir(), 'stark-qa-'));
 const calls = [];
 const mock = http.createServer(async (req, res) => {
@@ -64,6 +101,11 @@ try {
     args: ['--no-sandbox'],
   });
   const page = await browser.newPage();
+  let statusRequests = 0;
+  page.on('request', (request) => {
+    if (new URL(request.url()).pathname === '/api/stark/jarvis/status')
+      statusRequests++;
+  });
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   await page.evaluateOnNewDocument(() => {
@@ -109,6 +151,30 @@ try {
     hasTouch: true,
   });
   await page.goto(`${origin}/stark/`, { waitUntil: 'networkidle0' });
+  assert.equal(await page.$eval('#device', (el) => el.hidden), false);
+  assert.equal(await page.$eval('#jarvisHome', (el) => el.hidden), true);
+  assert.equal(await page.$$eval('.ring-item', (entries) => entries.length), 6);
+  assert.equal(
+    statusRequests,
+    0,
+    'menu startup must not start the Assistant connection',
+  );
+  if (process.env.STARK_QA_OUTPUT) {
+    await mkdir(process.env.STARK_QA_OUTPUT, { recursive: true });
+    await page.screenshot({
+      path: path.join(process.env.STARK_QA_OUTPUT, 'stark-menu.png'),
+      fullPage: true,
+    });
+  }
+  await openRingModule(page, 'INVESTIGATION');
+  await page.waitForSelector('.panel.open .investigation-module');
+  assert.equal(
+    await page.$$eval('.evidence-node', (entries) => entries.length),
+    4,
+    'original Investigation case board remains reachable',
+  );
+  await page.click('#closePanel');
+  await openRingModule(page, 'ASSISTANT');
   await page.waitForFunction(() =>
     document.querySelector('[data-status]').textContent.startsWith('Bereit.'),
   );
@@ -199,8 +265,13 @@ try {
   await page.click('#browserBack');
   await page.click('#browseModules');
   assert.equal(await page.$eval('#device', (el) => el.hidden), false);
-  await page.click('#backToJarvis');
+  await openRingModule(page, 'ASSISTANT');
   assert.equal(await page.$eval('#jarvisHome', (el) => el.hidden), false);
+  assert.equal(
+    statusRequests,
+    1,
+    'reopening Assistant reuses its conversation',
+  );
   // Real paired receiver + authenticated WebSocket command/ack path.
   const post = async (endpoint, body) => {
     const response = await fetch(`${origin}/api/stark/${endpoint}`, {
@@ -321,6 +392,7 @@ try {
     hasTouch: true,
   });
   await authPage.goto(`${origin}/stark/`, { waitUntil: 'networkidle0' });
+  await openRingModule(authPage, 'ASSISTANT');
   await authPage.waitForSelector('[data-auth]:not([hidden])');
   await authPage.click('[data-login]');
   await authPage.waitForSelector('[data-remote]:not([hidden])');
