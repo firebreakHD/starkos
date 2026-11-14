@@ -13,6 +13,7 @@ export const CAPABILITIES = Object.freeze([
   'playback.queue',
   'image.transform',
   'file.transfer',
+  'explanation.scenes',
 ]);
 
 export const RECEIVER_CAPABILITIES = Object.freeze([...CAPABILITIES]);
@@ -23,6 +24,8 @@ export function sanitizeCapabilities(values) {
 }
 
 export function requiredCapability(action, payload = {}) {
+  if (action === 'explanation.show' || action === 'explanation.control')
+    return 'explanation.scenes';
   if (action === 'media.show') {
     if (payload.mode === 'transfer') return 'file.transfer';
     if (String(payload.media?.type || '').startsWith('image/'))

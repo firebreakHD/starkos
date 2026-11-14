@@ -1,3 +1,4 @@
+import { createExplanationPlayer } from './explanation-player.js';
 const PROTOCOL = 'stark-display/1';
 const CAPABILITIES = [
   'media.image',
@@ -10,6 +11,7 @@ const CAPABILITIES = [
   'playback.queue',
   'image.transform',
   'file.transfer',
+  'explanation.scenes',
 ];
 const form = document.querySelector('#pairForm');
 const stage = document.querySelector('#receiveStage');
@@ -25,6 +27,7 @@ let state = {
   transform: null,
 };
 let currentVisual = null;
+let explanationPlayer = null;
 const mediaQueue = [];
 let queueIndex = -1;
 let lastReport = 0;
@@ -116,6 +119,7 @@ function connect() {
         type: 'receiver.auth',
         deviceId: credentials.id,
         token: credentials.token,
+        capabilities: CAPABILITIES,
       }),
     ),
   );
@@ -153,7 +157,36 @@ function execute(command) {
   if (command.expiresAt < Date.now())
     return acknowledge(command, { error: 'grant-expired' });
   const { action, payload, sessionId } = command;
-  if (action === 'media.show')
+  if (action === 'explanation.show') {
+    if (currentVisual instanceof HTMLVideoElement) currentVisual.pause();
+    currentVisual = null;
+    explanationPlayer?.destroy();
+    const surface = document.createElement('section');
+    surface.className = 'explanation-surface';
+    surface.setAttribute('aria-label', 'Visuelle Erklärung');
+    stage.replaceChildren(surface);
+    explanationPlayer = createExplanationPlayer(surface, {
+      onChange: (info) => {
+        state.status = info.closed ? 'standby' : 'explaining';
+        reportState();
+      },
+    });
+    state = {
+      status: 'explaining',
+      current: {
+        sessionId,
+        title: payload.explanation.title,
+        type: 'application/stark-explanation',
+      },
+      playback: null,
+      transform: null,
+    };
+    explanationPlayer.show(payload.explanation);
+    status.textContent = 'EXPLAINING';
+  } else if (action === 'explanation.control') {
+    if (payload.command === 'close') standby();
+    else explanationPlayer?.control(payload.command);
+  } else if (action === 'media.show')
     showMedia(payload.media, payload.mode, sessionId);
   else if (action === 'playback.pause') controlVideo('pause');
   else if (action === 'playback.resume') controlVideo('play');
@@ -180,6 +213,8 @@ function execute(command) {
 }
 
 function showMedia(media, mode = 'show', sessionId, fromQueue = false) {
+  explanationPlayer?.destroy();
+  explanationPlayer = null;
   if (!fromQueue) {
     mediaQueue.splice(queueIndex + 1);
     mediaQueue.push({ media, mode, sessionId });
@@ -285,6 +320,8 @@ function transformImage(transform) {
 }
 
 function standby() {
+  explanationPlayer?.destroy();
+  explanationPlayer = null;
   if (currentVisual instanceof HTMLVideoElement) currentVisual.pause();
   currentVisual = null;
   stage.innerHTML =

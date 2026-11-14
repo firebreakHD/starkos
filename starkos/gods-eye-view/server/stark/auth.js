@@ -143,6 +143,9 @@ export function starkAuthPlugin() {
         url.pathname === '/api/stark/media-stream' ||
         url.pathname === '/stark/receiver.html' ||
         url.pathname === '/stark/receiver.js' ||
+        url.pathname === '/stark/explanation-player.js' ||
+        url.pathname === '/stark/explanation-contract.js' ||
+        url.pathname === '/stark/jarvis.css' ||
         url.pathname === '/stark/stark.css'
       )
         return next();

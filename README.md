@@ -2,7 +2,17 @@
 
 STARK OS is a mobile-first media, investigation and geospatial interface for Home Assistant hosting. The supplied God's Eye View project remains the real Cesium/data engine; STARK OS adds the phone-style ring, secured direct access and paired display control.
 
-Current Home Assistant app version: **0.1.18**
+Current Home Assistant app version: **0.2.0**
+
+## Talk to Jarvis
+
+STARK OS now opens a conversation instead of a button dashboard. Tap the Jarvis orb to speak, or expand **Lieber schreiben**. Hermes remains the only agent; Jarvis is its spoken interface. **Bereiche** keeps the existing media ring, receivers and World accessible. Say “Öffne Medien”, “Öffne Karte”, “weiter”, “bleib hier”, “zurück”, “Stopp”, or “ohne Fenster”. Say or type **Demo** to try the visual sequence without an agent connection; its example data are explicitly labeled.
+
+Configure the existing Hermes deployment through an **OpenAI-compatible chat-completions endpoint with function/tool calling**. This is an integration contract, not a claim that every Hermes deployment exposes that API. In Home Assistant set `hermes_url` to its full `/v1/chat/completions` URL, `hermes_model` to the model/deployment ID, and optionally `hermes_api_key`. For local GitHub development use the corresponding `STARK_HERMES_*` variables in `starkos/gods-eye-view/.env`. No agent is bundled or impersonated when the connection is absent; the interface says it is not connected. See [the integration guide](docs/JARVIS.md).
+
+Visual explanations open source excerpts, highlighted passages, diagrams and calculation notes in timed scenes. Desktop shows up to three windows; phones show the same content one readable window at a time, with larger type and swipe navigation. Existing paired receivers learn the new capabilities after their receiver page is reloaded.
+
+Optional `searxng_url` points at your SearXNG instance with JSON search enabled for general website/forum discovery. Without it, search is explicitly **Wikipedia only**; public HTTPS articles and forums can still be read by URL. Sources are not automatically declared correct. Voice input depends on browser speech recognition, microphone permission and a secure HTTPS context (or localhost). Browser/OS speech output is used; this does not bundle Roamies' voices or native desktop control.
 
 [![Add the STARK OS repository to Home Assistant](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2FfirebreakHD%2Fstarkos)
 

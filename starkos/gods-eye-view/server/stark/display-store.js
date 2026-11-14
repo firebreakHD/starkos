@@ -81,6 +81,13 @@ export class DisplayStore {
     this.save();
     return device;
   }
+  updateCapabilities(id, capabilities) {
+    const device = this.get(id);
+    if (!device) return null;
+    device.capabilities = capabilities;
+    this.save();
+    return device;
+  }
   rename(id, name) {
     const device = this.get(id);
     if (!device) return null;

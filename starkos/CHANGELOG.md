@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.0
+
+- STARK opens a conversation with Jarvis instead of a ring of controls. One microphone action starts browser speech recognition, replies can be spoken, and Stop cancels the current turn. Text input and the existing ring remain available.
+- Added a server-side connection to an operator-configured Hermes OpenAI-compatible chat-completions endpoint with tool calling. Hermes stays the only agent; missing configuration is shown honestly. Endpoint credentials never reach the browser or receivers.
+- Hermes can search Wikipedia, read public HTTPS articles, and optionally discover websites/forums through an operator's JSON-enabled SearXNG. Source windows require a retrieved quotation; snippets and retrieved pages are not labeled verified facts.
+- Added data-only visual explanation tools and timed scenes for source excerpts, highlights, diagrams and calculation notes on the controller and paired receivers. Desktop shows several windows; phones use larger type and one window at a time. Voice commands advance, pause, close or suppress explanations. A labeled offline Demo is available by voice or text.
+- Reloading an authenticated receiver refreshes its declared capabilities without repeating pairing. Existing media, Ingress authorization and receiver restrictions remain in place. Native control over unrelated desktop apps is not included.
+
 ## 0.1.18
 
 - A medium from a NAS source is now addressed by reference, and the server decides by size how it reaches the receiver: small enough travels inside the command as before, larger is handed over as a short-lived, session-bound address the receiver fetches itself. Videos beyond the connection limit therefore play on the receiver instead of being refused.

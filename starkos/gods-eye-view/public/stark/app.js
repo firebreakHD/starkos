@@ -1,6 +1,7 @@
 import { InertialRing } from './ring.js';
 import { DisplayApi, capability } from './display-api.js';
 import { createMediaBrowser } from './media-browser.js';
+import { createConversation } from './conversation.js';
 
 const modules = [
   {
@@ -43,6 +44,25 @@ const displays = new DisplayApi();
 const selectedDisplays = new Set();
 const receiverPreviewCache = new Map();
 let mediaBrowser = null;
+const conversation = createConversation($('#jarvisHome'), {
+  displays,
+  openModule: (title) =>
+    openPanel(modules.find((item) => item.title === title)),
+});
+function showJarvis() {
+  $('#device').hidden = true;
+  $('#jarvisHome').hidden = false;
+  document.body.classList.add('jarvis-active');
+  $('#panel').classList.remove('open');
+  $('#panel').setAttribute('aria-hidden', 'true');
+}
+$('#browseModules').addEventListener('click', () => {
+  conversation.interrupt();
+  $('#jarvisHome').hidden = true;
+  $('#device').hidden = false;
+  document.body.classList.remove('jarvis-active');
+});
+$('#backToJarvis').addEventListener('click', showJarvis);
 
 const ring = new InertialRing($('#ring'), modules, (index, item) => {
   active = item;
@@ -54,6 +74,12 @@ const ring = new InertialRing($('#ring'), modules, (index, item) => {
 });
 
 function openPanel(item = active) {
+  if (!item) return;
+  if (item.title === 'INVESTIGATION') {
+    showJarvis();
+    return;
+  }
+  document.body.classList.remove('jarvis-active');
   if (item.title === 'WORLD') {
     // Ohne `embed=1`: God's Eye View zeigt seine eigene Oberfläche mit
     // Filtern, Adresssuche und Einstellungen. `stark=1` blendet nur den
@@ -83,6 +109,7 @@ $('#core').addEventListener('dblclick', () => openPanel());
 $('#closePanel').addEventListener('click', () => {
   $('#panel').classList.remove('open');
   $('#panel').setAttribute('aria-hidden', 'true');
+  if (!$('#jarvisHome').hidden) document.body.classList.add('jarvis-active');
 });
 
 function mountMedia(body) {
