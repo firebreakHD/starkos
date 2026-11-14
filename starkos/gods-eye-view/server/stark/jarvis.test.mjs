@@ -5,6 +5,7 @@ import { validateExplanation } from '../../public/stark/explanation-contract.js'
 import { CONVERSATION_DEMO } from '../../public/stark/conversation-demo.js';
 
 const env = {
+  STARK_MODEL_PROVIDER: 'gateway',
   STARK_HERMES_URL: 'https://hermes.example/v1/chat/completions',
   STARK_HERMES_MODEL: 'hermes',
   STARK_HERMES_API_KEY: 'not-a-real-key',
@@ -17,21 +18,59 @@ const call = (name, args, id = 't1') => ({
 const reply = (message) =>
   Response.json({ choices: [{ message: { role: 'assistant', ...message } }] });
 
+test('default Codex transport uses the same STARK tool loop and sign-out clears history', async () => {
+  let calls = 0;
+  let executed = 0;
+  const events = [];
+  const agent = createJarvis({
+    env: {},
+    codex: {
+      status: async () => ({ provider: 'codex', available: true }),
+      completion: async () =>
+        calls++ === 0
+          ? { tool_calls: [call('list_displays', {})] }
+          : { content: 'Fertig.' },
+      logout: async () => ({ available: false }),
+      dispose() {},
+    },
+    executeTool: () => {
+      executed++;
+      return { displays: [] };
+    },
+  });
+  await agent.turn(
+    { text: 'Liste Displays' },
+    { emit: (event) => events.push(event) },
+  );
+  assert.equal(executed, 1);
+  assert.equal(calls, 2);
+  assert.equal((await agent.status()).provider, 'codex');
+  const id = events[0].conversationId;
+  await agent.logout();
+  await assert.rejects(
+    () => agent.turn({ text: 'Noch einmal', conversationId: id }),
+    /abgelaufen/,
+  );
+});
+
 test('missing Hermes config is unavailable and never fabricates a reply', async () => {
   let called = false;
   const agent = createJarvis({
-    env: {},
+    env: { STARK_MODEL_PROVIDER: 'gateway' },
     fetchImpl: () => {
       called = true;
     },
   });
-  assert.equal(agent.status().available, false);
+  assert.equal((await agent.status()).available, false);
   await assert.rejects(
     () => agent.turn({ text: 'Hallo' }),
     /noch nicht verbunden/,
   );
   assert.equal(called, false);
-  assert.doesNotMatch(JSON.stringify(agent.status()), /API_KEY|not-a-real/);
+  assert.doesNotMatch(
+    JSON.stringify(await agent.status()),
+    /API_KEY|not-a-real/,
+  );
 });
 
 test('one Hermes tool loop reads evidence, presents a validated scene and retains conversation context', async () => {

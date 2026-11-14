@@ -44,6 +44,7 @@ const mock = http.createServer(async (req, res) => {
 await new Promise((resolve) => mock.listen(0, '127.0.0.1', resolve));
 process.env.STARK_HERMES_URL = `http://127.0.0.1:${mock.address().port}/v1/chat/completions`;
 process.env.STARK_HERMES_MODEL = 'qa-protocol-fixture';
+process.env.STARK_MODEL_PROVIDER = 'gateway';
 process.env.STARK_DATA_DIR = temporary;
 process.env.STARK_ADDON = 'false';
 process.env.STARK_ACCESS_PASSWORD = '';
@@ -261,6 +262,91 @@ try {
       document.querySelector('#receiverState').textContent === 'SECURE LINK',
   );
   await receiver.close();
+  // Account UX fixture only: never opens a real OpenAI login or uses credentials.
+  const authPage = await browser.newPage();
+  let signedIn = false,
+    callbackSubmitted = false;
+  await authPage.evaluateOnNewDocument(() => {
+    window.open = () => ({
+      opener: null,
+      location: {
+        replace(url) {
+          window.__testAuthUrl = url;
+        },
+      },
+      close() {},
+    });
+  });
+  await authPage.setRequestInterception(true);
+  authPage.on('request', (request) => {
+    const endpoint = new URL(request.url()).pathname;
+    if (endpoint === '/api/stark/jarvis/status')
+      return request.respond({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          provider: 'codex',
+          available: signedIn,
+          loginAvailable: true,
+          searchScope: 'wikipedia-only',
+          reason: 'Mit ChatGPT anmelden.',
+        }),
+      });
+    if (endpoint === '/api/stark/jarvis/login')
+      return request.respond({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          authUrl: 'https://auth.openai.com/oauth/authorize?state=qa-fixture',
+          expiresAt: Date.now() + 60000,
+        }),
+      });
+    if (endpoint === '/api/stark/jarvis/login/complete') {
+      assert.equal(request.method(), 'POST');
+      assert.match(request.headers()['content-type'], /application\/json/);
+      callbackSubmitted = true;
+      signedIn = true;
+      return request.respond({
+        status: 200,
+        contentType: 'application/json',
+        body: '{"available":true}',
+      });
+    }
+    request.continue();
+  });
+  await authPage.setViewport({
+    width: 390,
+    height: 844,
+    isMobile: true,
+    hasTouch: true,
+  });
+  await authPage.goto(`${origin}/stark/`, { waitUntil: 'networkidle0' });
+  await authPage.waitForSelector('[data-auth]:not([hidden])');
+  await authPage.click('[data-login]');
+  await authPage.waitForSelector('[data-remote]:not([hidden])');
+  assert.match(
+    await authPage.evaluate(() => window.__testAuthUrl),
+    /^https:\/\/auth.openai.com\//,
+  );
+  await authPage.evaluate(() => {
+    document.querySelector('[data-remote]').open = true;
+    document.querySelector('[data-callback]').value =
+      'http://127.0.0.1:1455/auth/callback?code=qa-fixture&state=qa-fixture';
+    document.querySelector('[data-callback-form]').requestSubmit();
+  });
+  await authPage.waitForSelector('[data-account]:not([hidden])');
+  assert.equal(callbackSubmitted, true);
+  assert.equal(
+    await authPage.$eval('[data-callback]', (element) => element.value),
+    '',
+  );
+  assert.equal(
+    await authPage.evaluate(() =>
+      Object.values(localStorage).some((value) => value.includes('qa-fixture')),
+    ),
+    false,
+  );
+  await authPage.close();
   assert.deepEqual(errors, []);
   console.log(
     'PASS: microphone transcript, offline demo, actual Hermes protocol/tool round trip, voice commands, phone/landscape/desktop layout, rotation state, media/ring access, paired receiver capability refresh and real WebSocket show/pause/close.',

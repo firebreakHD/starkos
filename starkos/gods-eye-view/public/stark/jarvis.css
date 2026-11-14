@@ -1,4 +1,50 @@
 /* Speech first, separate responsive presentation of one shared conversation. */
+.jarvis-auth {
+  width: min(100%, 560px);
+  font-size: 15px;
+}
+.jarvis-auth button,
+.jarvis-account button {
+  min-height: 44px;
+  padding: 10px 14px;
+  color: var(--ice);
+  background: #092a35;
+  border: 1px solid #548c99;
+  border-radius: 8px;
+  font: inherit;
+  cursor: pointer;
+}
+.jarvis-auth a {
+  display: block;
+  color: var(--cyan);
+  margin: 12px 0;
+}
+.jarvis-auth details {
+  margin-top: 12px;
+  color: #b6d2da;
+  text-align: left;
+}
+.jarvis-auth summary,
+.jarvis-account summary {
+  cursor: pointer;
+  min-height: 32px;
+}
+.jarvis-auth input {
+  width: 100%;
+  min-width: 0;
+  margin: 8px 0;
+  font:
+    16px/1.5 system-ui,
+    sans-serif;
+  background: #06151c;
+  color: var(--ice);
+  border: 1px solid #548c99;
+  border-radius: 6px;
+  padding: 10px;
+}
+.jarvis-account {
+  text-align: center;
+}
 .jarvis-home.jarvis-explaining .jarvis-dialog {
   padding: 18px 0;
   gap: 8px;

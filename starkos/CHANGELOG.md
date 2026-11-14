@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.1
+
+- Jarvis now uses the bundled official Codex runtime by default, signed in with the user's ChatGPT account through normal browser OAuth. There is no Device Code flow, no Claude Code dependency and no required model API key or external Hermes gateway.
+- A single contextual **Mit ChatGPT anmelden** action starts Codex's browser login. For a Home Assistant server reached from another device, a protected optional form relays the final localhost callback URL to Codex; its state, destination and expiry are validated. This extra step is necessary because Codex's official OAuth callback is local to the server.
+- Codex owns credential storage and refresh in the persistent, separate `/data/codex` directory. STARK never reads or returns its tokens. Native shell, browser, apps and delegation are disabled for model completion; media/research actions continue through the authenticated STARK tool contract.
+- Signing out or starting a new login clears prior conversation history. The original explicit gateway transport remains available for compatibility through an environment setting, never as an automatic API-key fallback.
+
 ## 0.2.0
 
 - STARK opens a conversation with Jarvis instead of a ring of controls. One microphone action starts browser speech recognition, replies can be spoken, and Stop cancels the current turn. Text input and the existing ring remain available.

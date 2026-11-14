@@ -21,6 +21,7 @@ export function createConversation(root, { displays, openModule } = {}) {
     speechQueue = [],
     speaking = false,
     available = false;
+  let loginPoll = null;
   const player = createExplanationPlayer($('[data-explanation]'), {
     onNarration: (text) => say(text, true),
     onChange: (state) =>
@@ -175,9 +176,7 @@ export function createConversation(root, { displays, openModule } = {}) {
     cancelSpeech();
     control('pause');
     if (!available) {
-      setStatus(
-        'Hermes ist noch nicht verbunden. Verbindung in den Home-Assistant-Optionen einrichten.',
-      );
+      setStatus('Bitte zuerst mit deinem ChatGPT-Konto bei Codex anmelden.');
       return;
     }
     pending = true;
@@ -315,27 +314,115 @@ export function createConversation(root, { displays, openModule } = {}) {
   root.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') interrupt();
   });
-  fetch(new URL('jarvis/status', displays.base))
-    .then((r) => {
-      if (!r.ok) throw Error('Verbindung nicht verfügbar.');
-      return r.json();
-    })
-    .then((state) => {
-      available = state.available;
-      setStatus(
-        state.available ? 'Bereit. Tippe auf Jarvis und sprich.' : state.reason,
-      );
-      $('[data-scope]').textContent =
-        state.searchScope === 'web'
-          ? 'Recherche: Websuche + Originalquellen'
-          : 'Recherche: Wikipedia · Websuche noch nicht konfiguriert';
-    })
-    .catch((error) => setStatus(error.message));
+  async function refreshConnection(announce = true) {
+    return fetch(new URL('jarvis/status', displays.base))
+      .then((r) => {
+        if (!r.ok) throw Error('Verbindung nicht verfügbar.');
+        return r.json();
+      })
+      .then((state) => {
+        available = state.available;
+        if (announce)
+          setStatus(
+            state.available
+              ? 'Bereit. Tippe auf Jarvis und sprich.'
+              : state.reason,
+          );
+        $('[data-auth]').hidden =
+          state.provider !== 'codex' ||
+          state.available ||
+          !state.loginAvailable;
+        $('[data-account]').hidden =
+          state.provider !== 'codex' || !state.available;
+        if (state.available) {
+          clearInterval(loginPoll);
+          loginPoll = null;
+          $('[data-auth-link]').hidden = true;
+          $('[data-remote]').hidden = true;
+        }
+        $('[data-scope]').textContent =
+          state.searchScope === 'web'
+            ? 'Recherche: Websuche + Originalquellen'
+            : 'Recherche: Wikipedia · Websuche noch nicht konfiguriert';
+        return state;
+      })
+      .catch((error) => setStatus(error.message));
+  }
+  async function authRequest(path, body = {}) {
+    const response = await fetch(new URL(`jarvis/${path}`, displays.base), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const result = await response.json();
+    if (!response.ok)
+      throw new Error(result.error || 'Codex-Anmeldung fehlgeschlagen.');
+    return result;
+  }
+  $('[data-login]').addEventListener('click', async () => {
+    const button = $('[data-login]');
+    button.disabled = true;
+    const popup = window.open('about:blank', '_blank');
+    if (popup) popup.opener = null;
+    try {
+      const login = await authRequest('login');
+      const url = new URL(login.authUrl);
+      if (url.origin !== 'https://auth.openai.com')
+        throw new Error('Ungültige Codex-Anmeldeadresse.');
+      const link = $('[data-auth-link]');
+      link.href = url.href;
+      link.hidden = false;
+      $('[data-remote]').hidden = false;
+      if (popup) popup.location.replace(url.href);
+      setStatus('Im Browser mit ChatGPT anmelden. Kein Device Code nötig.');
+      clearInterval(loginPoll);
+      loginPoll = setInterval(async () => {
+        if (Date.now() > login.expiresAt) {
+          clearInterval(loginPoll);
+          loginPoll = null;
+          setStatus('Anmeldung abgelaufen. Bitte erneut starten.');
+          return;
+        }
+        const state = await refreshConnection(false);
+        if (state?.available)
+          setStatus('Codex ist verbunden. Du kannst mit Jarvis sprechen.');
+      }, 2500);
+    } catch (error) {
+      popup?.close();
+      setStatus(error.message);
+    } finally {
+      button.disabled = false;
+    }
+  });
+  $('[data-callback-form]').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const field = $('[data-callback]');
+    const callbackUrl = field.value;
+    field.value = '';
+    try {
+      await authRequest('login/complete', { callbackUrl });
+      await refreshConnection();
+    } catch (error) {
+      setStatus(error.message);
+    }
+  });
+  $('[data-logout]').addEventListener('click', async () => {
+    interrupt();
+    try {
+      await authRequest('logout');
+      conversationId = null;
+      await refreshConnection();
+    } catch (error) {
+      setStatus(error.message);
+    }
+  });
+  refreshConnection();
   return {
     send,
     interrupt,
     player,
     destroy() {
+      clearInterval(loginPoll);
       interrupt();
       player.destroy();
     },

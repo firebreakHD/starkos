@@ -47,9 +47,7 @@ function loadAddonOptions() {
     aisstream_api_key: 'AISSTREAM_API_KEY',
     tomtom_api_key: 'TOMTOM_API_KEY',
     ll2_api_token: 'LL2_API_TOKEN',
-    hermes_url: 'STARK_HERMES_URL',
-    hermes_model: 'STARK_HERMES_MODEL',
-    hermes_api_key: 'STARK_HERMES_API_KEY',
+    codex_model: 'STARK_CODEX_MODEL',
     searxng_url: 'STARK_SEARXNG_URL',
   };
   for (const [option, environment] of Object.entries(mapping)) {

@@ -1,40 +1,52 @@
-# Jarvis conversation and visual explanations
+# Jarvis with Codex and normal ChatGPT login
 
-STARK OS 0.2.0 adds a speech-first interface to the existing application. Hermes is the only agent. Jarvis is the user-facing persona; this change does not install another autonomous agent or import Roamies code. Existing media/World/receiver controls remain available through **Bereiche** or spoken module commands.
+STARK OS 0.2.1 uses the pinned official `@openai/codex` package as the model provider for the single Hermes/Jarvis orchestrator. There is no Claude Code dependency. Research and display actions continue through STARK's authenticated tool contract.
 
-## Connect Hermes
+## Normal browser sign-in
 
-An existing Hermes deployment must expose an OpenAI-compatible **chat completions** endpoint that supports function/tool calling (`messages`, `tools`, assistant `tool_calls`, and tool responses). A plain text-only endpoint or an unrelated Hermes API will not work without an adapter. The configuration is explicit so an unconnected agent cannot look functional.
+1. Open the controller through authenticated Home Assistant Ingress, or run the GitHub project locally (`npm ci`, `npm run dev` in `starkos/gods-eye-view`).
+2. Choose **Mit ChatGPT anmelden**. STARK calls Codex app-server `account/login/start` with `type: chatgpt` and opens its official OpenAI authorization URL. It never requests `chatgptDeviceCode` or falls back to an API key.
+3. Sign in with your ChatGPT account. Your account must have Codex access; plan and usage limits apply.
 
-| Home Assistant option | GitHub/local environment | Value |
+**Local machine:** Codex's official callback is `http://127.0.0.1:1455/auth/callback` (1457 is its fallback). When browser and server run on the same machine, the callback can complete directly and STARK detects the signed-in account.
+
+**Home Assistant / another machine:** localhost in your phone browser refers to your phone, not the add-on. Codex does not expose a custom public callback in this flow. After signing in, if the localhost page cannot open, copy the complete final redirect URL from the browser address bar into **Anmeldung am Handy / anderen Gerät** in STARK. The authenticated controller POSTs it to `/api/stark/jarvis/login/complete`. STARK checks the exact callback origin, path, state and expiration before forwarding only code/state to Codex's fixed local callback. It never follows a user-supplied external redirect. Alternatively, an SSH tunnel from a local computer to the Codex server's callback port permits a direct return. This add-on does not expose a callback port publicly.
+
+This is ordinary browser OAuth, not Device Code login. A fully automatic one-click remote login is not claimed: without a local callback route the remote step above is necessary. The callback URL contains a short-lived authorization code: submit it only to the authenticated STARK form, never chat, logs or screenshots. The form clears its input and does not store it.
+
+Codex owns credentials and refresh in `$STARK_DATA_DIR/codex` (`/data/codex` in Home Assistant). STARK does not read `auth.json`, expose tokens, or use the host's unrelated Codex account. The private app-server transport is stdio. Its filtered environment excludes inherited API keys, tokens, browser commands and a foreign `CODEX_HOME`. **Codex verbunden → Abmelden** signs out. Signing out or starting a new login clears previous conversation histories.
+
+## Configuration and installation
+
+| Home Assistant option | GitHub/local environment | Purpose |
 |---|---|---|
-| `hermes_url` | `STARK_HERMES_URL` | Full endpoint, e.g. `http://your-hermes-host:8000/v1/chat/completions` |
-| `hermes_model` | `STARK_HERMES_MODEL` | Deployment/model ID accepted by that endpoint |
-| `hermes_api_key` | `STARK_HERMES_API_KEY` | Optional gateway credential; server only |
-| `searxng_url` | `STARK_SEARXNG_URL` | Optional SearXNG root, JSON API enabled |
+| `codex_model` | `STARK_CODEX_MODEL` | Optional model available to your account; blank uses Codex default |
+| `searxng_url` | `STARK_SEARXNG_URL` | Optional JSON-enabled SearXNG root for web/forum discovery |
 
-Set these through the Home Assistant add-on options and restart. For local development copy `.env.example` to `.env`, fill the same variables, and run `npm ci` then `npm run dev` in `starkos/gods-eye-view`. Home Assistant Ingress authentication continues protecting the controller, turn API and display tools. LAN access remains passive-receiver-only in add-on mode. Do not expose an unauthenticated Hermes endpoint publicly; keep its credentials in server configuration.
+No Codex API key or external Hermes gateway is required. The pinned npm package supplies native packages for amd64 and aarch64. Credentials persist under the mounted `/data` volume. Both real-device architectures still require deployment testing; local Linux browser testing does not certify iPhone/TV or aarch64 behavior.
 
-`GET /api/stark/jarvis/status` reports configuration availability (not an unperformed upstream health check) and actual search scope. `POST /api/stark/jarvis/turn` accepts `{text, conversationId?, visuals?}` and streams newline-delimited `conversation`, `tool`, `explanation`, `control`, `answer`, or `error` events. Conversation IDs are random, ephemeral, bounded and expire after 30 idle minutes; histories are not written to disk. A turn has bounded time/tool calls. Closing/cancelling the HTTP request aborts further agent work; actions already executed are not rolled back. Stop also pauses external explanations already reported to the controller.
+The original explicitly configured OpenAI-compatible gateway remains opt-in for compatibility/testing: set `STARK_MODEL_PROVIDER=gateway`, `STARK_HERMES_URL` (full chat-completions endpoint), `STARK_HERMES_MODEL`, and optionally `STARK_HERMES_API_KEY`. It is never selected automatically when Codex is signed out or unavailable.
 
-The gateway receives the conversation and retrieved source text so it can answer. Browser speech recognition and synthesis use browser/OS facilities and may use the browser vendor's service. Input requires user microphone permission and HTTPS (localhost is also secure). Availability varies on iPhone Safari and Home Assistant's embedded browser; text input stays available. No permanent background listening or wake-word service is claimed. Tap the orb for each spoken turn. A visible contextual Stop and Escape remain available for interruption.
+## Conversation and actions
 
-## Visual control
+Tap the orb for a spoken turn, or expand **Lieber schreiben**. Browser speech recognition requires permission, a supported browser and HTTPS (localhost also works). Recognition/synthesis may use the browser or OS vendor's service. No background wake word is claimed. Stop/Escape abort the request and interrupt Codex; actions already executed are not rolled back.
 
-Say “weiter”, “zurück”, “bleib hier”, “fortsetzen”, “Fenster schließen”, “ohne Fenster”, or “mit Fenstern”. On phones swipe sideways on the current visual to advance or go back. Opening a source pauses its scene. Text commands use the same path. Say/type **Demo** for the fixed, explicitly labeled demonstration; no research is performed by that preview.
+Say “weiter”, “zurück”, “bleib hier”, “fortsetzen”, “Fenster schließen”, “ohne Fenster” or “mit Fenstern”. “Öffne Medien”, “Öffne Karte” and “Öffne Receiver” reach the existing modules. **Bereiche** preserves the ring. Say/type **Demo** for the fixed, labeled preview without live research or an account.
 
-`present_explanation` and `control_explanation` are part of the authenticated display tool contract. Empty `display_ids` means the speaking controller. Named receivers must be paired, online and advertise `explanation.scenes`; rejected commands are reported rather than simulated. Reload existing receiver pages to refresh capabilities after authentication. The receiver itself stays passive: presentation controls remain on the controller. Real TV/iPhone microphone and playback testing is still required; browser validation does not certify every device.
+Codex supplies a structured answer or STARK tool requests under an enforced output schema. Native shell, app/browser control, MCP integrations and delegation are disabled for these completions. The orchestrator validates and executes the supplied STARK tools and returns results to the next model step. Source quotations must match text retrieved in the same conversation. STARK does not repurpose an OAuth token as a generic Chat Completions API key.
 
-Explanations contain at most 12 scenes and three windows per scene. Supported windows are source excerpts with exact highlights, ordered-node diagrams, calculation notes and contextual notes. Model-authored HTML/JavaScript is never executed. Old scenes close automatically after reading time; the last scene closes at the end. Phone layout presents all windows sequentially rather than hiding extra findings. Desktop and phone share the same conversation/player state; rotating does not start a new conversation. This is a responsive phone presentation, not a separate duplicated application.
+`GET /api/stark/jarvis/status` reports Codex account availability and actual search scope without account identifiers/tokens. Login/logout/complete and conversation POST routes remain behind controller authentication and require same-site JSON. `POST /api/stark/jarvis/turn` accepts `{text, conversationId?, visuals?}` and streams newline-delimited events. Histories use random IDs, stay in memory and expire after 30 idle minutes. Time/tool counts are bounded. Prompts and retrieved source text are sent to the selected provider.
 
-## Research scope and limits
+## Windows, research and limits
 
-With SearXNG configured, source discovery covers the search engines enabled in that instance, including topic-specific sites/forums. Without it, discovery searches German Wikipedia only and both tools and UI say so. `read_source` reads public HTTPS HTML/text pages, checks every redirect, rejects private/reserved DNS destinations and pins the resolved address for the request. Dynamic, login-only, anti-bot or oversized pages can fail; failures remain visible to Hermes and must not be described as successfully read.
+`present_explanation` / `control_explanation` use the authenticated display contract. Empty `display_ids` means the speaking controller; external receivers must be paired, online and advertise `explanation.scenes`. Reload receiver pages after updating to refresh capabilities.
 
-Search snippets are leads. Reading a page is not fact checking. The agent is instructed to compare primary sources, freshness, conflicting claims and uncertainty. For source windows inside a conversation the bridge requires an exact excerpt from a page retrieved during that conversation. Calculation windows are explanatory text, not a verified symbolic calculation engine. No guarantee of universally correct information or exhaustive web coverage is made.
+Explanations contain up to 12 timed scenes and three windows each: source excerpts with exact highlights, ordered diagrams, calculation notes or contextual notes. Model-authored HTML/JavaScript is never executed. Desktop shows multiple windows; phones show every window sequentially with larger text. Rotation preserves the conversation. Source links pause the scene; old scenes and the final scene close automatically after reading time.
 
-This version implements structured in-app diagrams and excerpts. Native desktop drawing, control of arbitrary apps, 3D/molecule/quiz renderers, dedicated streaming speech-to-speech audio and additional TV adapters are not included. Those require further native/runtime integrations; the existing capability boundary must not pretend they are available.
+Without SearXNG, discovery explicitly searches German Wikipedia only. With SearXNG, it covers that instance's configured engines. Public HTTPS articles/forums can be read by URL with DNS validation, pinned addresses, redirect checks and size bounds. Dynamic, login-only or anti-bot pages can fail. Snippets are leads; reading a page is not fact checking. Primary sources, dates, conflicting claims and uncertainty must be compared. Calculation notes are not a certified symbolic engine.
 
-## Home Assistant release
+Native drawing over unrelated applications, arbitrary desktop control, dedicated streaming voice audio and full 3D/molecule/quiz rendering are not included.
 
-Version `0.2.0` is declared in `starkos/config.yaml` and both READMEs, with release notes in `starkos/CHANGELOG.md`. Once the change is merged/pushed to the repository branch consumed by Home Assistant, reload the add-on store repository and install the offered update. No new port or image registry is needed. A draft PR branch alone is not an installed update.
+## Release status
+
+Home Assistant metadata declares `0.2.1`. The change must be published and merged to the branch consumed by Home Assistant before reloading the store offers the update. A local patch is not an installed update. The preceding 0.2.0 implementation was not published: both GitHub write paths were rejected with HTTP 403. Update packages contain application instructions, not credentials.

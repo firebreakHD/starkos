@@ -390,6 +390,7 @@ export function starkReceiverPlugin({
   const jarvis = createJarvis({ executeTool: service.executeTool });
 
   const install = (server) => {
+    server.httpServer?.once('close', () => jarvis.dispose());
     const wss = new WebSocketServer({ noServer: true, maxPayload: MAX_BODY });
     server.httpServer?.on('upgrade', (req, socket, head) => {
       const url = new URL(req.url || '/', 'http://stark.local');
@@ -459,8 +460,40 @@ export function starkReceiverPlugin({
     server.middlewares.use(async (req, res, next) => {
       const url = new URL(req.url || '/', 'http://stark.local');
       try {
+        if (
+          req.method === 'POST' &&
+          url.pathname.startsWith('/api/stark/jarvis/') &&
+          (!String(req.headers['content-type'] || '').startsWith(
+            'application/json',
+          ) ||
+            req.headers['sec-fetch-site'] === 'cross-site')
+        )
+          return json(res, 403, {
+            error: 'Nur gleichseitige JSON-Anfragen sind erlaubt.',
+          });
         if (req.method === 'GET' && url.pathname === '/api/stark/jarvis/status')
-          return json(res, 200, jarvis.status());
+          return json(res, 200, await jarvis.status());
+        if (req.method === 'POST' && url.pathname === '/api/stark/jarvis/login')
+          return json(res, 200, await jarvis.beginLogin());
+        if (
+          req.method === 'POST' &&
+          url.pathname === '/api/stark/jarvis/login/complete'
+        ) {
+          const input = await readBody(req);
+          if (
+            typeof input.callbackUrl !== 'string' ||
+            input.callbackUrl.length > 16000
+          )
+            return json(res, 400, {
+              error: 'Rückleitungsadresse fehlt oder ist zu lang.',
+            });
+          return json(res, 200, await jarvis.finishLogin(input.callbackUrl));
+        }
+        if (
+          req.method === 'POST' &&
+          url.pathname === '/api/stark/jarvis/logout'
+        )
+          return json(res, 200, await jarvis.logout());
         if (
           req.method === 'POST' &&
           url.pathname === '/api/stark/jarvis/turn'

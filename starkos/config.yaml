@@ -1,7 +1,7 @@
 name: STARK OS
 slug: starkos
 description: Mobile-first research, media and geospatial interface powered by God's Eye View.
-version: "0.2.0"
+version: "0.2.1"
 stage: experimental
 startup: services
 boot: auto
@@ -25,9 +25,7 @@ watchdog: http://[HOST]:[PORT:4173]/api/stark/health
 map:
   - data:rw
 options:
-  hermes_url: ""
-  hermes_model: ""
-  hermes_api_key: ""
+  codex_model: ""
   searxng_url: ""
   google_maps_api_key: ""
   google_maps_server_api_key: ""
@@ -39,9 +37,7 @@ options:
   tomtom_api_key: ""
   ll2_api_token: ""
 schema:
-  hermes_url: str
-  hermes_model: str
-  hermes_api_key: password
+  codex_model: str
   searxng_url: str
   google_maps_api_key: password
   google_maps_server_api_key: password

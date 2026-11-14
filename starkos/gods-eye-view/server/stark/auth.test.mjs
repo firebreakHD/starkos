@@ -19,6 +19,9 @@ test('Jarvis and tool endpoints remain controller-only in the Home Assistant add
     for (const url of [
       '/api/stark/jarvis/status',
       '/api/stark/jarvis/turn',
+      '/api/stark/jarvis/login',
+      '/api/stark/jarvis/login/complete',
+      '/api/stark/jarvis/logout',
       '/api/stark/tools',
     ]) {
       let next = false,

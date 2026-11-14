@@ -52,7 +52,7 @@ export const CONVERSATION_DEMO = {
         {
           kind: 'note',
           title: 'Erklären statt Buttons bedienen',
-          text: 'DEMO BEENDET\n\n„Untersuche …“ startet über die eingerichtete Hermes-Verbindung einen echten Auftrag. „Ohne Fenster“ wechselt zur reinen Sprache. Bestehende Medien und Receiver bleiben über „Bereiche“ erreichbar.',
+          text: 'DEMO BEENDET\n\nNach der Codex-Anmeldung startet „Untersuche …“ einen echten Auftrag. „Ohne Fenster“ wechselt zur reinen Sprache. Bestehende Medien und Receiver bleiben über „Bereiche“ erreichbar.',
         },
       ],
     },
