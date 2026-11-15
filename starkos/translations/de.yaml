@@ -13,8 +13,8 @@ configuration:
       nicht hier einfügen.
   https_password:
     name: HTTPS-Zugangspasswort
-    description: Optional. Leer lassen, um die Home-Assistant-Anmeldung beim Öffnen
-      zu übernehmen. Falls gesetzt, mindestens 12 Zeichen für den direkten Login.
+    description: Optional. Leer heißt direkter HTTPS-Zugang ohne Anmeldung für jeden,
+      der die Adresse erreichen kann. Falls gesetzt, mindestens 12 Zeichen.
   codex_model:
     name: Codex-Modell
     description: Leer lassen für den Codex-Standard. Anmeldung über das Zahnrad in

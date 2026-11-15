@@ -29,6 +29,6 @@ export function httpsEntry(env = process.env) {
     enabled,
     url: enabled ? url : null,
     autoOpen: enabled && env.STARK_HTTPS_AUTO_OPEN !== 'false',
-    requiresHandoff: enabled && !env.STARK_HTTPS_PASSWORD,
+    requiresHandoff: false,
   };
 }

@@ -2,7 +2,7 @@
 
 STARK OS is a mobile-first media, investigation and geospatial interface for Home Assistant hosting. The supplied God's Eye View project remains the real Cesium/data engine; STARK OS adds the phone-style ring, secured direct access and paired display control.
 
-Current Home Assistant app version: **0.4.4**
+Current Home Assistant app version: **0.4.5**
 
 ## Talk to Jarvis
 
@@ -20,7 +20,7 @@ Optional `searxng_url` points at your SearXNG instance with JSON search enabled 
 
 The Assistant drawing workspace uses floating luminous windows, animated vector sketches, labeled rotating 3D schematics, source underlines and timelines. Say/type **USB Demo** for a fixed, labeled preview without an account. Normal visual questions let Codex construct the drawing/model from bounded data. Phones show windows sequentially; desktop can show several together.
 
-An optional **HTTPS** switch, certificate/key filenames and optional access password are available in the add-on Configuration tab. Direct HTTPS defaults to port **8789** and uses existing files in Home Assistant `/ssl`. The certificate must match the hostname and be trusted by the phone. Ingress remains separate; an HTTP Home Assistant parent page is not upgraded by this switch. Leave the password blank to reuse your authenticated Home Assistant session through a one-use handoff. For in-app opening, configure **STARK HTTPS URL** and **Automatically open HTTPS in the app**. An insecure view attempts a top-level HTTPS transition, with explicit opening links if the WebView blocks it. See [setup](starkos/DOCS.md#optional-direct-https--voice).
+An optional **HTTPS** switch, certificate/key filenames and optional access password are available in the add-on Configuration tab. Direct HTTPS defaults to port **8789** and uses existing files in Home Assistant `/ssl`. The certificate must match the hostname and be trusted by the phone. Ingress remains separate; an HTTP Home Assistant parent page is not upgraded by this switch. Leave the password blank to open HTTPS directly without any STARK login, cookies or prior Home Assistant visit. Anyone who can reach that HTTPS address can then control STARK. For in-app opening, configure **STARK HTTPS URL** and **Automatically open HTTPS in the app**. An insecure view attempts a top-level HTTPS transition, with explicit opening links if the WebView blocks it. See [setup](starkos/DOCS.md#optional-direct-https--voice).
 
 ## Install in Home Assistant
 
@@ -29,7 +29,7 @@ An optional **HTTPS** switch, certificate/key filenames and optional access pass
 3. Install **STARK OS**.
 4. Start the app and optionally enable the sidebar entry.
 
-Home Assistant Ingress opens the phone-first STARK OS shell through the authenticated HA session; no additional access password is required. Port `8788` remains available for your passive receiver pages. The controller itself stays behind Home Assistant authentication.
+Home Assistant Ingress opens the phone-first STARK OS shell through the authenticated HA session; no additional access password is required. Port `8788` remains available for your passive receiver pages. Ingress uses Home Assistant authentication. Direct HTTPS with an empty password opens the controller without authentication.
 
 ## Pair and control a display
 

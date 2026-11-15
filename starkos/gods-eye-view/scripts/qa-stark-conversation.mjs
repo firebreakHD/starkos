@@ -641,11 +641,19 @@ try {
       hasTouch: true,
     });
     await page.waitForFunction(() => document.querySelector('.visual-legend'));
-    const sizes = await page.$eval('.visual-legend', (el) => ({
-      font: parseFloat(getComputedStyle(el.querySelector('li')).fontSize),
-      overflow: el.scrollWidth > el.clientWidth,
-    }));
-    assert.ok(sizes.font >= 19);
+    // Resizing may rebuild the legend between Puppeteer's selector lookup
+    // and evaluation. Read the live element in the same browser callback.
+    const sizes = await page.evaluate(() => {
+      const el = document.querySelector('.visual-legend');
+      return {
+        font: parseFloat(getComputedStyle(el.querySelector('li')).fontSize),
+        overflow: el.scrollWidth > el.clientWidth,
+      };
+    });
+    assert.ok(
+      sizes.font >= 19,
+      `legend text at ${width}px: ${JSON.stringify(sizes)}`,
+    );
     assert.equal(sizes.overflow, false, `readable labels fit ${width}px`);
   }
   if (process.env.STARK_QA_OUTPUT) {
