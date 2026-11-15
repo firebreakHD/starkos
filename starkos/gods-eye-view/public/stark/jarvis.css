@@ -72,75 +72,68 @@
   opacity: 0.65;
   cursor: progress;
 }
-.jarvis-home.jarvis-signing-in .jarvis-dialog {
-  padding: 22px 0;
-}
-.jarvis-home.jarvis-signing-in .jarvis-kicker,
-.jarvis-home.jarvis-signing-in .jarvis-dialog h1,
-.jarvis-home.jarvis-signing-in .jarvis-mic,
-.jarvis-home.jarvis-signing-in .jarvis-hint,
-.jarvis-home.jarvis-signing-in .jarvis-transcript {
-  display: none;
-}
-.jarvis-account {
-  text-align: center;
-}
-.jarvis-home.jarvis-explaining .jarvis-dialog {
-  padding: 18px 0;
-  gap: 8px;
-}
-.jarvis-home.jarvis-explaining .jarvis-kicker,
-.jarvis-home.jarvis-explaining .jarvis-dialog h1,
-.jarvis-home.jarvis-explaining .jarvis-hint {
-  display: none;
-}
-.jarvis-home.jarvis-explaining .jarvis-mic {
-  width: 64px;
-  height: 64px;
-}
-.jarvis-home.jarvis-explaining .jarvis-mic span {
-  font-size: 23px;
-}
-.jarvis-home.jarvis-explaining .jarvis-mic small {
-  font-size: 9px;
-}
-.jarvis-home.jarvis-explaining .jarvis-status {
-  font-size: 14px;
-  margin: 0;
-}
-.jarvis-home.jarvis-explaining .jarvis-transcript {
-  font-size: 14px;
-}
 body.jarvis-active {
   touch-action: pan-y;
 }
 .jarvis-home {
-  height: 100%;
   height: 100dvh;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: max(22px, env(safe-area-inset-top))
-    max(24px, env(safe-area-inset-right)) max(22px, env(safe-area-inset-bottom))
-    max(24px, env(safe-area-inset-left));
-  touch-action: pan-y;
+  padding: max(20px, env(safe-area-inset-top))
+    max(20px, env(safe-area-inset-right))
+    calc(150px + env(safe-area-inset-bottom))
+    max(20px, env(safe-area-inset-left));
   font:
     16px/1.6 system-ui,
     sans-serif;
+  touch-action: pan-y;
 }
-.jarvis-top {
+.jarvis-controls {
+  position: fixed;
+  z-index: 12;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: calc(132px + env(safe-area-inset-bottom));
+  padding-bottom: env(safe-area-inset-bottom);
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  max-width: 1400px;
-  margin: auto;
-  color: #91bac5;
-  font:
-    11px/1.4 ui-monospace,
-    monospace;
-  letter-spacing: 0.1em;
+  justify-content: center;
+  pointer-events: none;
+  background: linear-gradient(transparent, #02090cf5 45%);
 }
-.jarvis-top button,
+.jarvis-controls > button {
+  pointer-events: auto;
+}
+.jarvis-mic {
+  display: grid;
+  place-items: center;
+  border: 1px solid #63d6ec;
+  border-radius: 50%;
+  width: 100px;
+  height: 100px;
+  background: radial-gradient(circle, #0c4653, #03161d 65%);
+  box-shadow:
+    0 0 36px #48d6ff20,
+    inset 0 0 22px #36c5e518;
+  color: var(--ice);
+  cursor: pointer;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+.jarvis-mic span {
+  font:
+    300 38px/1 system-ui,
+    sans-serif;
+}
+.jarvis-mic[aria-pressed='true'] {
+  outline: 3px solid var(--cyan);
+  outline-offset: 6px;
+  background: radial-gradient(circle, #187b8b, #062630 70%);
+}
+.jarvis-back,
 .jarvis-stop,
 .chat-compose button,
 .chat-header button {
@@ -154,80 +147,30 @@ body.jarvis-active {
   font: inherit;
   cursor: pointer;
 }
-.jarvis-dialog {
-  display: flex;
-  align-items: center;
-  flex-direction: column;
-  text-align: center;
-  gap: 14px;
-  padding: 55px 0 28px;
-  max-width: 750px;
+.jarvis-back {
+  position: absolute;
+  right: max(12px, env(safe-area-inset-right));
+  font-size: 26px;
+  border: 0;
+  background: transparent;
+}
+.jarvis-stop {
+  position: absolute;
+  bottom: calc(128px + env(safe-area-inset-bottom));
+}
+.jarvis-notice {
+  position: fixed;
+  z-index: 13;
+  bottom: calc(140px + env(safe-area-inset-bottom));
+  left: 20px;
+  right: 20px;
   margin: auto;
-}
-.jarvis-kicker {
-  font:
-    11px/1.4 ui-monospace,
-    monospace;
-  letter-spacing: 0.18em;
-  color: #87b6c4;
-}
-.jarvis-dialog h1 {
-  font-size: clamp(24px, 3vw, 36px);
-  font-weight: 400;
-  line-height: 1.25;
-  margin: 0 0 8px;
-}
-.jarvis-mic {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-direction: column;
-  gap: 4px;
-  border: 1px solid #63d6ec;
-  border-radius: 50%;
-  width: 112px;
-  height: 112px;
-  flex: none;
-  background: radial-gradient(circle, #0c4653, #03161d 65%);
-  box-shadow:
-    0 0 40px #48d6ff25,
-    inset 0 0 22px #36c5e518;
+  max-width: 560px;
+  padding: 16px;
+  background: #102730;
+  border: 1px solid #5e7780;
+  border-radius: 8px;
   color: var(--ice);
-  cursor: pointer;
-}
-.jarvis-mic span {
-  font:
-    300 38px/1 system-ui,
-    sans-serif;
-}
-.jarvis-mic small {
-  font:
-    10px/1.4 ui-monospace,
-    monospace;
-  letter-spacing: 0.12em;
-  color: var(--cyan);
-}
-.jarvis-mic[aria-pressed='true'] {
-  outline: 3px solid var(--cyan);
-  outline-offset: 8px;
-}
-.jarvis-status {
-  color: var(--ice);
-  max-width: 580px;
-  margin: 6px 0 0;
-}
-.jarvis-transcript {
-  color: var(--cyan);
-  margin: 0;
-  overflow-wrap: anywhere;
-}
-.jarvis-transcript:empty {
-  display: none;
-}
-.jarvis-hint {
-  margin: 0;
-  color: #9abdc6;
-  font-size: 13px;
 }
 .jarvis-answer {
   white-space: pre-wrap;
@@ -239,16 +182,34 @@ body.jarvis-active {
 .jarvis-answer:empty {
   display: none;
 }
-.jarvis-foot {
-  display: flex;
-  justify-content: center;
-  gap: 12px 24px;
-  flex-wrap: wrap;
-  color: #89aeb9;
+.settings-gear {
+  position: absolute;
+  z-index: 5;
+  left: max(14px, env(safe-area-inset-left));
+  bottom: max(14px, env(safe-area-inset-bottom));
+  width: 48px;
+  height: 48px;
+  background: #07191f;
+  color: var(--cyan);
+  border: 1px solid var(--line);
+  border-radius: 50%;
   font:
-    12px/1.6 system-ui,
+    26px/1 system-ui,
     sans-serif;
-  margin-top: 30px;
+  cursor: pointer;
+}
+.account-settings {
+  max-width: 680px;
+  margin: 0 auto 32px;
+  font:
+    16px/1.6 system-ui,
+    sans-serif;
+}
+.account-settings h2 {
+  font-size: 20px;
+}
+.jarvis-auth {
+  width: 100%;
 }
 .visually-hidden {
   position: absolute;
@@ -390,26 +351,6 @@ blockquote.explain-text {
     padding-right: max(18px, env(safe-area-inset-right));
     font-size: 18px;
   }
-  .jarvis-top {
-    gap: 8px;
-  }
-  .jarvis-top > span:nth-child(2) {
-    display: none;
-  }
-  .jarvis-dialog {
-    padding: 34px 0 22px;
-    gap: 14px;
-  }
-  .jarvis-mic {
-    width: 100px;
-    height: 100px;
-  }
-  .jarvis-status {
-    font-size: 17px;
-  }
-  .jarvis-hint {
-    font-size: 13px;
-  }
   .explain-windows {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -432,19 +373,6 @@ blockquote.explain-text {
     padding: 12px;
   }
 }
-@media (max-height: 500px) and (orientation: landscape) {
-  .jarvis-dialog {
-    padding: 12px 0;
-    gap: 8px;
-  }
-  .jarvis-mic {
-    width: 72px;
-    height: 72px;
-  }
-  .jarvis-dialog h1 {
-    font-size: 24px;
-  }
-}
 @media (prefers-reduced-motion: reduce) {
   .explain-enter .explain-window,
   .explain-enter .explain-node {
@@ -457,7 +385,7 @@ blockquote.explain-text {
   position: fixed;
   z-index: 12;
   left: max(4px, env(safe-area-inset-left));
-  bottom: max(16px, env(safe-area-inset-bottom));
+  bottom: calc(40px + env(safe-area-inset-bottom));
   width: 44px;
   height: 52px;
   display: grid;

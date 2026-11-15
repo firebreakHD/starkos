@@ -9,10 +9,6 @@ export function createChatDrawer(
   const input = root.querySelector('[data-input]');
   const scroll = root.querySelector('[data-chat-scroll]');
   const log = root.querySelector('[data-chat-log]');
-  const surface = root.querySelector('[data-explanation]');
-  const visualSlot = root.querySelector('[data-chat-visual]');
-  const anchor = document.createComment('voice explanation position');
-  surface.before(anchor);
   let pointer = null,
     start = null,
     ready = false,
@@ -51,7 +47,6 @@ export function createChatDrawer(
     resetGesture();
     if (!opened) return;
     opened = false;
-    anchor.after(surface);
     grip.setAttribute('aria-expanded', 'false');
     grip.hidden = false;
     root.classList.remove('jarvis-chat-open');
@@ -65,7 +60,6 @@ export function createChatDrawer(
     grip.hidden = true;
     grip.setAttribute('aria-expanded', 'true');
     root.classList.add('jarvis-chat-open');
-    visualSlot.append(surface);
     layout();
     dialog.showModal();
     scroll.scrollTop = scroll.scrollHeight;

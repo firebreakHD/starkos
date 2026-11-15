@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.5
+
+- World is now named **Gods Eye**. The menu contains Media, Gods Eye, Receiver and Assistant; Investigation is removed from the ring. Settings and source status are reached through the gear at the bottom left of the menu.
+- Codex browser sign-in, sign-out and the always-visible signed-out return-link field now live in settings. The field remains accessible with missing/expired pending state or a failed status check; inline errors allow retry. No sign-in UI occupies the Assistant canvas.
+- Assistant opens an empty canvas with a large bottom-center J. Hold to record and release to send; cancellation, leaving the view or losing focus discards unsent recording. The small left handle still grows after a half-second hold and opens text chat when dragged right. Reopening Assistant clears the canvas and restores voice mode while preserving the conversation.
+- Voice turns enable helpful visual explanations by default. Typed questions remain text-only unless explicitly requesting visuals; permitted explanations close chat and use the main canvas. The server independently blocks unsolicited chat presentation/control tools. Mobile layouts retain larger text and sequential windows.
+
 ## 0.2.4
 
 - Fixed the browser-login return flow: a pending Codex login now restores the visible link-entry step when the phone returns to STARK or reloads the page, instead of hiding it behind a collapsed section.

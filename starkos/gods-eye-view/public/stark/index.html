@@ -24,99 +24,54 @@
       aria-label="Assistant: Mit Jarvis sprechen"
       hidden
     >
-      <header class="jarvis-top">
-        <span class="mark">STARK<small>OS</small></span
-        ><span>ASSISTANT / JARVIS</span
-        ><button id="browseModules" type="button">Bereiche</button>
-      </header>
-      <section class="jarvis-dialog">
-        <span class="jarvis-kicker">DEIN AUFTRAG. ICH KÜMMERE MICH.</span>
-        <h1>Was soll ich für dich tun?</h1>
-        <button
-          class="jarvis-mic"
-          data-mic
-          type="button"
-          aria-label="Mit Jarvis sprechen; erneut tippen zum Beenden der Aufnahme"
-          aria-pressed="false"
-        >
-          <span aria-hidden="true">J</span><small>SPRECHEN</small>
-        </button>
-        <p class="jarvis-status" data-status role="status">
-          Verbindung wird geprüft …
-        </p>
-        <section
-          class="jarvis-auth"
-          data-auth
-          hidden
-          aria-label="Codex-Anmeldung"
-        >
-          <button type="button" data-login>Mit ChatGPT anmelden</button>
-          <a data-auth-link hidden target="_blank" rel="noopener noreferrer"
-            >Browseranmeldung öffnen</a
-          >
-          <section
-            class="auth-return"
-            data-remote
-            hidden
-            aria-label="Browseranmeldung abschließen"
-          >
-            <h2>Nach der Browseranmeldung</h2>
-            <p>
-              Wenn der Browser „localhost nicht erreichbar“ zeigt, ist das am
-              Handy zu erwarten. Kopiere die vollständige Adresse dieser Seite,
-              komm zu STARK zurück und füge sie unten ein.
-            </p>
-            <form data-callback-form>
-              <label for="codexCallback">Link aus der Browser-Adresszeile</label
-              ><textarea
-                id="codexCallback"
-                data-callback
-                rows="3"
-                autocomplete="off"
-                spellcheck="false"
-                maxlength="16000"
-                placeholder="http://localhost:1455/auth/callback?…"
-                required
-              ></textarea
-              ><button type="submit" data-callback-submit>
-                Anmeldung abschließen
-              </button>
-            </form>
-          </section>
-          <p class="auth-progress" data-auth-progress role="status"></p>
-        </section>
-        <p class="jarvis-transcript" data-transcript></p>
-        <button class="jarvis-stop" data-stop type="button" hidden>
-          Stopp
-        </button>
-        <p class="jarvis-hint">
-          „Untersuche …“ · „Erklär mir …“ · „Bleib hier“ · „Weiter“
-        </p>
-      </section>
       <section
         class="explanation-surface"
         data-explanation
         aria-label="Visuelle Erklärung"
         hidden
       ></section>
-      <p class="jarvis-answer" data-answer aria-live="polite"></p>
-      <footer class="jarvis-foot">
-        <details class="jarvis-account" data-account hidden>
-          <summary>Codex verbunden</summary>
-          <button data-logout type="button">Abmelden</button>
-        </details>
-        <span data-scope></span><span>„Ohne Fenster“ für reine Sprache</span>
-      </footer>
-      <button
-        class="jarvis-chat-grip"
-        data-chat-grip
-        type="button"
-        aria-label="Textchat: kurz halten und nach rechts ziehen. Mit der Tastatur direkt öffnen."
-        aria-controls="jarvisChat"
-        aria-expanded="false"
-      >
-        <span aria-hidden="true">›</span>
-      </button>
+      <p class="jarvis-answer" data-answer aria-live="polite" hidden></p>
+      <p class="visually-hidden" data-status role="status"></p>
+      <p class="visually-hidden" data-transcript></p>
+      <p class="jarvis-notice" data-notice role="alert" hidden></p>
+      <nav class="jarvis-controls" aria-label="Assistant bedienen">
+        <button
+          class="jarvis-chat-grip"
+          data-chat-grip
+          type="button"
+          aria-label="Textchat: kurz halten und nach rechts ziehen. Mit der Tastatur direkt öffnen."
+          aria-controls="jarvisChat"
+          aria-expanded="false"
+        >
+          <span aria-hidden="true">›</span>
+        </button>
+        <button
+          class="jarvis-mic"
+          data-mic
+          type="button"
+          aria-label="Gedrückt halten, um mit Jarvis zu sprechen"
+          aria-pressed="false"
+        >
+          <span aria-hidden="true">J</span>
+        </button>
+        <button
+          id="browseModules"
+          class="jarvis-back"
+          type="button"
+          aria-label="Zurück zu Bereiche"
+        >
+          ‹
+        </button>
+        <button
+          class="jarvis-stop"
+          data-stop
+          type="button"
+          aria-label="Antwort anhalten"
+          hidden
+        >
+          ■
+        </button>
+      </nav>
       <dialog
         class="jarvis-chat"
         id="jarvisChat"
@@ -140,7 +95,6 @@
             aria-live="polite"
             aria-label="Gesprächsverlauf"
           ></div>
-          <div data-chat-visual></div>
         </div>
         <p class="chat-status" data-chat-status role="status">Frag Jarvis …</p>
         <form class="chat-compose" data-text-form>
@@ -178,7 +132,7 @@
           aria-label="Funktionsring"
         ></div>
         <button class="core" id="core" type="button" aria-live="polite">
-          <span class="core-index" id="coreIndex">01 / 06</span>
+          <span class="core-index" id="coreIndex">01 / 04</span>
           <span class="core-glyph" id="coreGlyph">◉</span>
           <strong id="coreTitle">MEDIA</strong>
           <span id="coreDetail">Eigene Bilder und Videos untersuchen</span>
@@ -186,6 +140,14 @@
         </button>
       </section>
 
+      <button
+        id="openSettings"
+        class="settings-gear"
+        type="button"
+        aria-label="Einstellungen öffnen"
+      >
+        ⚙
+      </button>
       <footer class="readout">
         <span id="hint">RING DREHEN · AUSWAHL EINRASTEN</span>
         <span class="coordinates">48.2082° N&nbsp;&nbsp;16.3738° E</span>
@@ -203,6 +165,57 @@
       </header>
       <div class="panel-body" id="panelBody"></div>
     </section>
+
+    <div id="settingsHost" hidden>
+      <section
+        id="accountSettings"
+        class="account-settings"
+        aria-label="Codex-Konto"
+      >
+        <h2>CODEX / JARVIS</h2>
+        <p data-account-status role="status"></p>
+        <section class="jarvis-auth" data-auth aria-label="Codex-Anmeldung">
+          <button type="button" data-login>Mit ChatGPT anmelden</button>
+          <a data-auth-link hidden target="_blank" rel="noopener noreferrer"
+            >Browseranmeldung öffnen</a
+          >
+          <section
+            class="auth-return"
+            data-remote
+            aria-label="Browseranmeldung abschließen"
+          >
+            <h2>Nach der Browseranmeldung</h2>
+            <p>
+              Wenn der Browser „localhost nicht erreichbar“ zeigt, ist das am
+              Handy zu erwarten. Kopiere die vollständige Adresse dieser Seite,
+              komm zu STARK zurück und füge sie unten ein.
+            </p>
+            <form data-callback-form>
+              <label for="codexCallback">Link aus der Browser-Adresszeile</label
+              ><textarea
+                id="codexCallback"
+                data-callback
+                rows="3"
+                autocomplete="off"
+                spellcheck="false"
+                maxlength="16000"
+                placeholder="http://localhost:1455/auth/callback?…"
+                required
+              ></textarea
+              ><button type="submit" data-callback-submit>
+                Anmeldung abschließen
+              </button>
+            </form>
+          </section>
+          <p class="auth-progress" data-auth-progress role="status"></p>
+        </section>
+        <details class="jarvis-account" data-account hidden>
+          <summary>Codex verbunden</summary>
+          <button data-logout type="button">Abmelden</button>
+        </details>
+        <p data-scope class="module-note"></p>
+      </section>
+    </div>
 
     <template id="mediaTemplate">
       <div class="module media-module">

@@ -256,3 +256,74 @@ test('structured explanations refuse unsafe links, too many windows and empty co
   assert.equal(value.scenes[0].windows[0].highlight, '');
   assert.match(value.scenes[0].windows[0].attribution, /prüfen/);
 });
+
+test('text chat cannot present or control windows without an explicit request, even with visuals:true', async () => {
+  for (const name of ['present_explanation', 'control_explanation']) {
+    let executed = 0,
+      step = 0;
+    const requests = [];
+    const agent = createJarvis({
+      env,
+      executeTool: () => {
+        executed++;
+        return { explanation: CONVERSATION_DEMO, results: [] };
+      },
+      fetchImpl: async (_url, opts) => {
+        requests.push(JSON.parse(opts.body));
+        return reply(
+          step++ === 0
+            ? {
+                tool_calls: [
+                  call(name, {
+                    display_ids: [],
+                    command: 'next',
+                    explanation: CONVERSATION_DEMO,
+                  }),
+                ],
+              }
+            : { content: 'Antwort im Chat.' },
+        );
+      },
+    });
+    const events = [];
+    await agent.turn(
+      { text: 'Untersuche das Thema', mode: 'chat', visuals: true },
+      { emit: (e) => events.push(e) },
+    );
+    assert.equal(executed, 0);
+    assert.ok(JSON.parse(requests[1].messages.at(-1).content).error);
+    assert.equal(
+      events.some((e) => ['explanation', 'control'].includes(e.type)),
+      false,
+    );
+  }
+});
+
+test('presentation policy separates voice, explicit visual chat and negated requests', async () => {
+  const { allowsPresentation } =
+    await import('../../public/stark/presentation-policy.js');
+  for (const text of ['Erklär mir Motoren', 'Untersuche das Beispiel']) {
+    assert.equal(allowsPresentation({ mode: 'voice', text }), true);
+    assert.equal(allowsPresentation({ mode: 'chat', text }), false);
+  }
+  for (const text of [
+    'Zeig mir die Quellen',
+    'Zeichne das bitte',
+    'Erklär das visuell',
+    'show me a diagram',
+  ])
+    assert.equal(allowsPresentation({ mode: 'chat', text }), true);
+  for (const mode of ['chat', 'voice']) {
+    for (const text of [
+      'Zeig mir das ohne Fenster',
+      'Bitte keine Grafiken',
+      'nicht zeichnen',
+      'nur im Chat antworten',
+    ])
+      assert.equal(allowsPresentation({ mode, text }), false);
+    assert.equal(
+      allowsPresentation({ mode, text: 'Zeig mir das', visuals: false }),
+      false,
+    );
+  }
+});
