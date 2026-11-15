@@ -174,3 +174,52 @@ test('an unlisted Host cannot reach a route a plugin mounts', async (t) => {
   assert.equal(await get(`evil.example:${port}`), 403);
   assert.equal(await get(`mybox.local:${port}`), 403);
 });
+
+test('configured HTTPS controller host is admitted only on native TLS with exact hostname matching', () => {
+  for (const hook of ['configureServer', 'configurePreviewServer']) {
+    let middleware;
+    hostCheckPlugin(['localhost'], 'stark.example.test')[hook]({
+      config: { server: { host: '127.0.0.1' }, preview: {} },
+      middlewares: {
+        use: (fn) => {
+          middleware = fn;
+        },
+      },
+    });
+    const accepts = (host, encrypted, headers = {}) => {
+      let accepted = false;
+      const res = {
+        writeHead(status) {
+          assert.equal(status, 403);
+        },
+        end() {},
+      };
+      middleware(
+        {
+          headers: { host, ...headers },
+          socket: { encrypted, remoteAddress: '203.0.113.10' },
+        },
+        res,
+        () => {
+          accepted = true;
+        },
+      );
+      return accepted;
+    };
+    assert.equal(accepts('stark.example.test:8789', true), true);
+    assert.equal(accepts('STARK.EXAMPLE.TEST:8789', true), true);
+    assert.equal(accepts('stark.example.test:8789', false), false);
+    assert.equal(
+      accepts('stark.example.test:8789', false, {
+        'x-forwarded-proto': 'https',
+      }),
+      false,
+    );
+    for (const host of [
+      'other.example.test',
+      'child.stark.example.test',
+      'stark.example.test.evil.test',
+    ])
+      assert.equal(accepts(host, true), false, host);
+  }
+});

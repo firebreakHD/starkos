@@ -19,6 +19,7 @@ Object.assign(process.env, {
   STARK_MODEL_PROVIDER: 'gateway',
   STARK_HTTPS_ENABLED: 'true',
   STARK_HTTPS_PASSWORD: password,
+  STARK_HTTPS_URL: 'https://stark-public.test:8789/stark/',
   GEV_KEY_SETUP_TRUSTED_PEERS: 'none',
 });
 execFileSync(
@@ -34,7 +35,7 @@ execFileSync(
     '-subj',
     '/CN=localhost',
     '-addext',
-    'subjectAltName=DNS:localhost,IP:127.0.0.1',
+    'subjectAltName=DNS:localhost,DNS:stark-public.test,IP:127.0.0.1',
     '-keyout',
     path.join(directory, 'privkey.pem'),
     '-out',
@@ -77,7 +78,7 @@ try {
     host: '127.0.0.1',
     port: 0,
   });
-  const origin = `https://127.0.0.1:${tls.address().port}`;
+  const origin = `https://stark-public.test:${tls.address().port}`;
   process.env.STARK_HTTPS_URL = `${origin}/stark/`;
   const ingressHeaders = await new Promise((resolve, reject) => {
     http
@@ -176,7 +177,7 @@ try {
     args: [
       '--no-sandbox',
       '--no-proxy-server',
-      '--host-resolver-rules=MAP stark-insecure.test 127.0.0.1',
+      '--host-resolver-rules=MAP stark-insecure.test 127.0.0.1, MAP stark-public.test 127.0.0.1',
     ],
   });
   const page = await browser.newPage();

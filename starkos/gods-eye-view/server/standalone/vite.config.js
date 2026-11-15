@@ -9,6 +9,7 @@ import { standaloneVoiceTools } from './voiceTools.js';
 import { unwatchedRuntimeDirsPlugin } from './unwatched-cache.js';
 import { starkAuthPlugin } from '../stark/auth.js';
 import { starkReceiverPlugin } from '../stark/receiver.js';
+import { normalizeHttpsEntry } from '../stark/https-entry.js';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
 
@@ -19,6 +20,11 @@ export default defineConfig(({ command, mode }) => {
     if (process.env[key] === undefined) process.env[key] = value;
   }
   const tools = standaloneVoiceTools();
+  const httpsUrl =
+    process.env.STARK_ADDON === 'true' &&
+    process.env.STARK_HTTPS_ENABLED === 'true'
+      ? normalizeHttpsEntry(process.env.STARK_HTTPS_URL)
+      : null;
   return createBrowserViteConfig({
     plugins: [
       starkAuthPlugin(),
@@ -34,6 +40,7 @@ export default defineConfig(({ command, mode }) => {
     host: process.env.HOST,
     port: process.env.PORT,
     allowedHosts: resolveAllowedHosts(process.env.GEV_ALLOWED_HOSTS),
+    httpsControllerHost: httpsUrl ? new URL(httpsUrl).hostname : null,
     trustHomeAssistantIngress: process.env.STARK_ADDON === 'true',
     command,
   });

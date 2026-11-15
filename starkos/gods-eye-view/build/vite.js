@@ -131,6 +131,7 @@ export function createBrowserViteConfig({
   port = 4173,
   allowedHosts = DEFAULT_ALLOWED_HOSTS,
   trustHomeAssistantIngress = false,
+  httpsControllerHost = null,
   command,
 } = {}) {
   return {
@@ -142,7 +143,7 @@ export function createBrowserViteConfig({
       // First, so every API response, including a Host refusal, carries them.
       apiResponseHeadersPlugin(),
       // Next, so no provider route answers a Host the server does not allow.
-      hostCheckPlugin(allowedHosts),
+      hostCheckPlugin(allowedHosts, httpsControllerHost),
       cesium(),
       applicationHtmlPlugin(),
       ...plugins,

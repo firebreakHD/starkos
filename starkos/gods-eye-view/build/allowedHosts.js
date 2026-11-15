@@ -76,7 +76,10 @@ export function isHomeAssistantIngress(req) {
  * Host, including a DNS-rebinding name. It runs first (`enforce: 'pre'`) and
  * uses the same allowed hosts as Vite, on the dev and preview servers.
  */
-export function hostCheckPlugin(policyAllowedHosts) {
+export function hostCheckPlugin(
+  policyAllowedHosts,
+  httpsControllerHost = null,
+) {
   const middleware = (config, preview) => {
     // Vite's own allowlist may intentionally be `true` behind Home Assistant:
     // HA forwards the user's public Host header, which cannot be predicted at
@@ -95,6 +98,16 @@ export function hostCheckPlugin(policyAllowedHosts) {
       // Supervisor ingress proxy address and never arbitrary LAN clients.
       if (isHomeAssistantIngress(req)) return next();
       if (isAllowedHost(req.headers.host, allowed, additional)) return next();
+      // The configured public controller name is admitted only on the native
+      // TLS socket. Forwarded headers cannot grant this exception to HTTP.
+      if (
+        httpsControllerHost &&
+        req.socket?.encrypted === true &&
+        String(req.headers.host || '')
+          .replace(/:\d+$/, '')
+          .toLowerCase() === httpsControllerHost
+      )
+        return next();
       res.writeHead(403, { 'Content-Type': 'text/plain' });
       res.end('Blocked request. This host is not allowed.');
     };
