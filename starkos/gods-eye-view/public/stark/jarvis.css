@@ -289,7 +289,7 @@ blockquote.explain-text {
   border-bottom: 2px solid var(--cyan);
   box-decoration-break: clone;
 }
-.explain-source {
+a.explain-source {
   color: var(--cyan);
   text-underline-offset: 4px;
 }
@@ -575,5 +575,348 @@ blockquote.explain-text {
 @media (prefers-reduced-motion: reduce) {
   .jarvis-chat-grip {
     transition: none;
+  }
+}
+
+/* A drawing workspace: open space, luminous ink, independent floating windows. */
+.explanation-surface {
+  max-width: 1500px;
+  margin-top: 0;
+}
+.explain-header {
+  font:
+    12px/1.5 ui-monospace,
+    monospace;
+  letter-spacing: 0.06em;
+  color: #98c5c0;
+  padding: 0 4px 14px;
+}
+.explain-header small {
+  color: #6d9b99;
+  font-size: 11px;
+}
+.explain-windows {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 28px;
+  align-items: start;
+  padding: 8px;
+}
+.explain-window {
+  position: relative;
+  grid-column: span 6;
+  min-width: 0;
+  padding: 0;
+  border: 1px solid #66e6d49c;
+  border-radius: 2px;
+  background: linear-gradient(135deg, #062326d6, #031417bc);
+  box-shadow:
+    0 0 0 3px #69f5db09,
+    0 0 22px #5df8d617,
+    inset 0 0 28px #4fe4c706;
+  font:
+    16px/1.7 system-ui,
+    sans-serif;
+  color: #d2eee8;
+}
+.explain-window::before,
+.explain-window::after {
+  content: '';
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  pointer-events: none;
+  border-color: #87ffe5;
+  border-style: solid;
+  filter: drop-shadow(0 0 4px #6fffe0);
+}
+.explain-window::before {
+  left: -3px;
+  top: -3px;
+  border-width: 2px 0 0 2px;
+}
+.explain-window::after {
+  right: -3px;
+  bottom: -3px;
+  border-width: 0 2px 2px 0;
+}
+.explain-window:nth-child(2) {
+  margin-top: 30px;
+}
+.explain-window:nth-child(3) {
+  margin-top: 0;
+  grid-column: 7 / -1;
+}
+.explain-windows[data-count='1'] .explain-window {
+  grid-column: 2 / 12;
+}
+.explain-windows.has-visual .explain-source,
+.explain-windows.has-visual .explain-note {
+  grid-column: span 4;
+}
+.explain-windows.has-visual .explain-drawing,
+.explain-windows.has-visual .explain-model,
+.explain-windows.has-visual .explain-diagram {
+  grid-column: span 8;
+}
+.explain-windows.has-visual[data-count='1'] .explain-window {
+  grid-column: 2 / 12;
+}
+.explain-window-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 15px;
+  border-bottom: 1px solid #5bd7c345;
+  font:
+    12px/1.45 ui-monospace,
+    monospace;
+  background: #3dbeac08;
+}
+.explain-kind {
+  color: #68c9b7;
+  font-size: 10px;
+  white-space: nowrap;
+  letter-spacing: 0.06em;
+}
+.explain-window-title {
+  min-width: 0;
+  flex: 1;
+  overflow-wrap: anywhere;
+  color: #c0eee3;
+}
+.window-signal {
+  flex: none;
+  width: 5px;
+  height: 5px;
+  background: #7cffe3;
+  box-shadow: 0 0 8px #7cffe3;
+}
+.explain-text {
+  padding: 20px 24px;
+  margin: 0;
+  font-size: clamp(16px, 1.5vw, 20px);
+}
+blockquote.explain-text {
+  margin: 18px 20px;
+  padding: 0 0 0 15px;
+  border-color: #60bba9;
+}
+.explain-text mark {
+  color: #ebfff8;
+  background: #4bfbc71a;
+  border: 0;
+  position: relative;
+  text-decoration: underline;
+  text-decoration-color: #7fffe0;
+  text-decoration-thickness: 3px;
+  text-underline-offset: 5px;
+}
+a.explain-source {
+  display: block;
+  padding: 0 24px 10px;
+  font-size: 14px;
+  color: #82f7d8;
+}
+.explain-attribution {
+  margin: 0;
+  padding: 0 24px 20px;
+  font-size: 11px;
+  color: #8faaa5;
+}
+.ink-canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: hidden;
+  filter: drop-shadow(0 0 4px #63ffdb35);
+}
+.ink-label {
+  font:
+    25px/1.25 ui-monospace,
+    monospace;
+  letter-spacing: -0.025em;
+}
+.ink-detail {
+  font:
+    20px/1.3 system-ui,
+    sans-serif;
+}
+.ink-number {
+  font:
+    16px/1 ui-monospace,
+    monospace;
+  fill: #acffe7;
+}
+.ink-orbit {
+  fill: #103f3c;
+  stroke: #80ffe0;
+  stroke-width: 1.5;
+}
+.explain-node {
+  border: 0;
+  background: none;
+  padding: 0;
+}
+.model-ground {
+  fill: none;
+  stroke: #79e7d12b;
+  stroke-width: 1;
+  stroke-dasharray: 3 7;
+}
+.model-leader {
+  stroke-width: 1;
+  opacity: 0.55;
+}
+.explain-drawing > .explain-text,
+.explain-model > .explain-text,
+.explain-diagram > .explain-text,
+.explain-timeline > .explain-text {
+  padding: 12px 20px 18px;
+  font-size: 14px;
+  color: #91b9ad;
+  border-top: 1px solid #4ec5b51c;
+}
+.explain-calculation > .explain-text {
+  font:
+    clamp(17px, 2vw, 24px)/1.9 ui-monospace,
+    monospace;
+  color: #e1f7e3;
+}
+.explain-caption {
+  width: fit-content;
+  max-width: min(850px, 100%);
+  padding: 12px 20px;
+  margin: 38px auto 0;
+  border-left: 2px solid #75f3d7;
+  background: #08231ed9;
+  color: #c9f2e5;
+  font:
+    17px/1.6 system-ui,
+    sans-serif;
+}
+.explain-enter .explain-window {
+  animation: window-materialize 0.65s ease both;
+}
+.explain-enter .explain-window:nth-child(2) {
+  animation-delay: 0.3s;
+}
+.explain-enter .explain-window:nth-child(3) {
+  animation-delay: 0.6s;
+}
+.explain-enter .ink-stroke {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: ink-draw 1.3s ease forwards;
+  animation-delay: var(--ink-delay, 0s);
+}
+.explain-enter .explain-node {
+  animation: ink-label-in 0.5s ease both;
+}
+.explain-enter .ink-label {
+  animation: ink-label-in 0.7s ease 0.5s both;
+}
+@keyframes ink-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes ink-label-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes window-materialize {
+  from {
+    opacity: 0;
+    clip-path: inset(0 100% 0 0);
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    clip-path: inset(0);
+    transform: translateY(0);
+  }
+}
+@media (min-width: 1000px) {
+  .explain-windows {
+    padding: 22px 24px;
+    gap: 32px;
+  }
+  .explain-window:nth-child(2) {
+    margin-top: 65px;
+  }
+}
+@media (max-width: 700px) {
+  .explain-windows {
+    display: block;
+    padding: 4px;
+  }
+  .explain-window,
+  .explain-window:nth-child(2),
+  .explain-window:nth-child(3) {
+    margin-top: 0;
+  }
+  .explain-window-bar {
+    padding: 12px;
+    gap: 8px;
+    font-size: 13px;
+  }
+  .explain-kind {
+    font-size: 9px;
+  }
+  .explain-text {
+    font-size: 18px;
+    padding: 20px;
+  }
+  .ink-label {
+    font-size: 28px;
+  }
+  .explain-caption {
+    margin-top: 22px;
+    padding: 12px 14px;
+    font-size: 17px;
+  }
+  .explain-header {
+    padding-bottom: 14px;
+    font-size: 12px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .explain-enter .explain-window,
+  .explain-enter .ink-stroke,
+  .explain-enter .ink-label,
+  .explain-enter .explain-node {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+}
+
+@media (min-width: 701px) {
+  .ink-canvas {
+    max-height: 480px;
+  }
+  .explain-windows[data-count='1'] .explain-window,
+  .explain-windows.has-visual[data-count='1'] .explain-window {
+    grid-column: 3 / 11;
+  }
+}
+.explain-caption {
+  max-height: calc(4.8em + 24px);
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+@media (min-width: 701px) {
+  .explain-window-bar {
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+  }
+  .explain-window-bar:active {
+    cursor: grabbing;
   }
 }

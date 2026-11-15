@@ -453,3 +453,161 @@ test('a rejected presentation does not fulfill an explicit visual request; valid
   assert.equal(events.filter((e) => e.type === 'explanation').length, 1);
   assert.equal(events.at(-1).type, 'answer');
 });
+
+test('drawings, 3D parts and timelines survive the explanation contract as bounded data', async () => {
+  const { USB_DEMO } = await import('../../public/stark/visual-demo.js');
+  const { EXPLANATION_SCHEMA } =
+    await import('../../public/stark/explanation-contract.js');
+  const { modelSegments } = await import('../../public/stark/visual-canvas.js');
+  const plan = validateExplanation(USB_DEMO);
+  assert.equal(plan.scenes[0].windows[0].model.parts.length, 4);
+  assert.equal(plan.scenes[1].windows[0].drawing.elements.length, 15);
+  const properties =
+    EXPLANATION_SCHEMA.properties.scenes.items.properties.windows.items
+      .properties;
+  for (const name of ['drawing', 'model', 'entries'])
+    assert.ok(properties[name]);
+  const wrap = (win) => ({
+    title: 'Test',
+    scenes: [{ title: 'Szene', narration: 'Erklärung', windows: [win] }],
+  });
+  assert.deepEqual(
+    validateExplanation(
+      wrap({
+        kind: 'timeline',
+        title: 'Ablauf',
+        text: 'Beispiel',
+        entries: [
+          { label: 'A', detail: 'Erster Schritt' },
+          { label: 'B', detail: 'Zweiter Schritt' },
+        ],
+      }),
+    ).scenes[0].windows[0].entries.map((e) => e.label),
+    ['A', 'B'],
+  );
+  for (const shape of ['box', 'sphere', 'ring', 'cylinder']) {
+    const lines = modelSegments({
+      shape,
+      x: 0,
+      y: 0,
+      z: 0,
+      width: 50,
+      height: 40,
+      depth: 30,
+    });
+    assert.ok(lines.length > 2);
+    assert.ok(lines.flat(2).every(Number.isFinite));
+  }
+});
+
+test('visual data rejects scripts, unlimited geometry, bad coordinates and non-finite 3D dimensions', async () => {
+  const { USB_DEMO } = await import('../../public/stark/visual-demo.js');
+  const wrap = (win) => ({
+    title: 'Test',
+    scenes: [{ title: 'Szene', narration: 'Text', windows: [win] }],
+  });
+  for (const element of [
+    { kind: 'script', text: 'alert(1)' },
+    { kind: 'label', x: NaN, y: 1, text: 'X' },
+    { kind: 'rect', x: 90, y: 0, width: 20, height: 10 },
+    {
+      kind: 'arrow',
+      points: [
+        [0, 0],
+        [101, 10],
+      ],
+    },
+    { kind: 'stroke', points: Array.from({ length: 25 }, () => [1, 1]) },
+    { kind: 'label', x: 1, y: 1, text: 'X', tone: 'url(https://evil.test)' },
+  ])
+    assert.throws(() =>
+      validateExplanation(
+        wrap({
+          kind: 'drawing',
+          title: 'T',
+          text: 'T',
+          drawing: { elements: [element] },
+        }),
+      ),
+    );
+  const bad = structuredClone(USB_DEMO);
+  bad.scenes[0].windows[0].model.parts[0].width = Infinity;
+  assert.throws(() => validateExplanation(bad));
+  bad.scenes[0].windows[0].model.parts[0].width = 50;
+  bad.scenes[0].windows[0].model.parts = Array(9).fill(
+    bad.scenes[0].windows[0].model.parts[0],
+  );
+  assert.throws(() => validateExplanation(bad));
+  assert.throws(() =>
+    validateExplanation(
+      wrap({
+        kind: 'timeline',
+        title: 'T',
+        text: 'T',
+        entries: [{ label: 'A', detail: 'X' }],
+      }),
+    ),
+  );
+});
+
+test('an explicit visual explanation cannot be satisfied by a plain note alone', async () => {
+  const { USB_DEMO } = await import('../../public/stark/visual-demo.js');
+  let step = 0,
+    executed = 0;
+  const requests = [];
+  const note = {
+    title: 'T',
+    scenes: [
+      {
+        title: 'T',
+        narration: 'Text',
+        windows: [{ kind: 'note', title: 'USB', text: 'Computer → Speicher' }],
+      },
+    ],
+  };
+  const agent = createJarvis({
+    env,
+    fetchImpl: async (_url, opts) => {
+      requests.push(JSON.parse(opts.body));
+      return reply(
+        step++ === 0
+          ? {
+              tool_calls: [
+                call('present_explanation', {
+                  display_ids: [],
+                  explanation: note,
+                }),
+              ],
+            }
+          : step === 2
+            ? {
+                tool_calls: [
+                  call('present_explanation', {
+                    display_ids: [],
+                    explanation: USB_DEMO,
+                  }),
+                ],
+              }
+            : { content: 'Hier ist die Zeichnung.' },
+      );
+    },
+    executeTool: async (_name, args) => {
+      executed++;
+      return {
+        explanation: validateExplanation(args.explanation),
+        results: [],
+      };
+    },
+  });
+  const events = [];
+  await agent.turn(
+    { text: 'USB visuell erklären', mode: 'chat' },
+    { emit: (e) => events.push(e) },
+  );
+  assert.match(
+    JSON.parse(requests[1].messages.at(-1).content).error,
+    /Textnotiz allein/,
+  );
+  assert.equal(executed, 1);
+  assert.equal(events.filter((e) => e.type === 'explanation').length, 1);
+});
