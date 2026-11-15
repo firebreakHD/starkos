@@ -21,6 +21,14 @@ Voice still requires browser microphone permission and SpeechRecognition support
 
 HTTPS is disabled by default. If the password is too short, files are missing, or the certificate/key is invalid, the direct entry stays closed and the add-on log explains why. Ingress remains available to correct the settings. The existing HTTP port remains a passive receiver entry and cannot use HTTPS credentials or cookies to access the controller.
 
+## Open HTTPS from the Home Assistant app
+
+After direct HTTPS is configured, enter its complete URL in **STARK HTTPS URL**, for example `https://<certificate-hostname>:8789/stark/`, and enable **Automatically open HTTPS in the app**. Save and restart. The configured hostname/port must be reachable from the phone, including away from home.
+
+When STARK loads inside an insecure Ingress page, it attempts to navigate the **entire view** to that URL. Moving only the iframe would retain the insecure ancestor and keep Voice blocked. Already-secure Ingress is preserved; the settings link can still open the direct entry manually. A direct entry requires the HTTPS access password from the previous section.
+
+App/WebView sandbox policies can block automatic top-level navigation or hand external URLs to the browser. STARK keeps **Open HTTPS in this view** available in settings and the insecure-Voice error, plus an explicit browser fallback. Browser fixtures verify automatic and user-activated transitions; native iPhone app policies are not certified by those tests. Back navigation is protected against repeated automatic attempts in the same tab. No configured URL, inactive HTTPS, or unavailable metadata leaves normal Ingress in place.
+
 ## Pairing a receiver
 
 1. Open `/stark/receiver.html` on your own TV, computer or tablet. The receiver is passive and has no pairing controls.

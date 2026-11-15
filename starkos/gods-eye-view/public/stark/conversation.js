@@ -6,7 +6,7 @@ import { allowsPresentation } from './presentation-policy.js';
 
 export function createConversation(
   root,
-  { displays, openModule, account } = {},
+  { displays, openModule, account, onInsecureVoice = () => {} } = {},
 ) {
   const $ = (s) => root.querySelector(s);
   const mic = $('[data-mic]'),
@@ -384,6 +384,7 @@ export function createConversation(
         ? 'Voice braucht HTTPS. Öffne STARK über die sichere Home-Assistant-Adresse.'
         : 'Dieser Browser unterstützt die Spracheingabe nicht. Bitte Mikrofonunterstützung im Browser prüfen.';
       notice(message);
+      if (!window.isSecureContext) onInsecureVoice($('[data-notice]'));
       setStatus(message);
       return;
     }

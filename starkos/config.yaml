@@ -1,7 +1,7 @@
 name: STARK OS
 slug: starkos
 description: Mobile-first research, media and geospatial interface powered by God's Eye View.
-version: "0.4.0"
+version: "0.4.1"
 stage: experimental
 startup: services
 boot: auto
@@ -32,6 +32,8 @@ options:
   certfile: fullchain.pem
   keyfile: privkey.pem
   https_password: ""
+  https_url: ""
+  https_auto_open: true
   codex_model: ""
   searxng_url: ""
   google_maps_api_key: ""
@@ -48,6 +50,8 @@ schema:
   certfile: str
   keyfile: str
   https_password: password
+  https_url: str
+  https_auto_open: bool
   codex_model: str
   searxng_url: str
   google_maps_api_key: password

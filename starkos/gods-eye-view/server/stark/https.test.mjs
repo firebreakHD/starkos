@@ -298,3 +298,44 @@ test('real TLS login admits controllers, secure cookies cannot admit HTTP, Ingre
     }
   }
 });
+
+test('app entry uses only explicit credential-free HTTPS URLs and only an active listener', async () => {
+  const { normalizeHttpsEntry, httpsEntry } = await import('./https-entry.js');
+  assert.equal(
+    normalizeHttpsEntry('https://stark.example:8789'),
+    'https://stark.example:8789/stark/',
+  );
+  for (const value of [
+    '',
+    null,
+    'http://stark.example',
+    'javascript:alert(1)',
+    'https://user:secret@stark.example/',
+    'https://stark.example/?code=secret',
+    'https://stark.example/#token',
+    'https://' + 'x'.repeat(2050),
+  ])
+    assert.equal(normalizeHttpsEntry(value), null);
+  const enabled = {
+    STARK_HTTPS_ENABLED: 'true',
+    STARK_HTTPS_ACTIVE: 'true',
+    STARK_HTTPS_URL: 'https://stark.example:8789/stark/',
+    STARK_HTTPS_PASSWORD: 'never returned',
+  };
+  assert.deepEqual(httpsEntry(enabled), {
+    enabled: true,
+    url: enabled.STARK_HTTPS_URL,
+    autoOpen: true,
+  });
+  assert.equal(
+    httpsEntry({ ...enabled, STARK_HTTPS_AUTO_OPEN: 'false' }).autoOpen,
+    false,
+  );
+  for (const field of ['STARK_HTTPS_ENABLED', 'STARK_HTTPS_ACTIVE'])
+    assert.deepEqual(httpsEntry({ ...enabled, [field]: 'false' }), {
+      enabled: false,
+      url: null,
+      autoOpen: false,
+    });
+  assert.doesNotMatch(JSON.stringify(httpsEntry(enabled)), /never returned/);
+});

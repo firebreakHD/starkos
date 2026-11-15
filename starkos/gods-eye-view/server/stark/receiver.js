@@ -1,3 +1,4 @@
+import { httpsEntry } from './https-entry.js';
 import { randomBytes } from 'node:crypto';
 import { WebSocketServer, WebSocket } from 'ws';
 import { DisplayStore, createDeviceToken } from './display-store.js';
@@ -471,6 +472,8 @@ export function starkReceiverPlugin({
           return json(res, 403, {
             error: 'Nur gleichseitige JSON-Anfragen sind erlaubt.',
           });
+        if (req.method === 'GET' && url.pathname === '/api/stark/https-entry')
+          return json(res, 200, httpsEntry());
         if (req.method === 'GET' && url.pathname === '/api/stark/jarvis/status')
           return json(res, 200, await jarvis.status());
         if (req.method === 'POST' && url.pathname === '/api/stark/jarvis/login')

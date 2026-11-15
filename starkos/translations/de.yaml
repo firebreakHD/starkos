@@ -50,3 +50,13 @@ configuration:
   ll2_api_token:
     name: Launch Library 2 Token
     description: Optional für Launch-Library-2-Daten.
+  https_url:
+    name: STARK-HTTPS-Adresse
+    description: Vollständige direkte STARK-Adresse, z. B. https://stark.example.com:8789/stark/.
+      Passender Zertifikatsname und erreichbarer Port erforderlich. Keine Passwörter
+      oder Anmeldelinks eintragen.
+  https_auto_open:
+    name: HTTPS automatisch in der App öffnen
+    description: Versucht bei unsicherem Ingress die gesamte Ansicht auf die konfigurierte
+      HTTPS-Adresse umzuschalten. Wenn die App das blockiert, bleibt ein Öffnen-Link
+      verfügbar. Bei bereits sicherer Verbindung bleibt Ingress erhalten.

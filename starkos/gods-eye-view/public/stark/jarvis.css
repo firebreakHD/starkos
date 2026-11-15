@@ -1263,3 +1263,19 @@ a.explain-source {
 .jarvis-chat-grip.is-ready span {
   right: 22px;
 }
+
+.https-entry a,
+.jarvis-notice a {
+  display: block;
+  padding: 12px 0;
+  color: #adffec;
+  font:
+    500 18px/1.5 system-ui,
+    sans-serif;
+  text-underline-offset: 4px;
+}
+.https-entry {
+  padding-bottom: 24px;
+  border-bottom: 1px solid #25434d;
+  margin-bottom: 24px;
+}

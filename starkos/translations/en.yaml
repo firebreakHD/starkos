@@ -49,3 +49,13 @@ configuration:
   ll2_api_token:
     name: Launch Library 2 token
     description: Optional for Launch Library 2 data.
+  https_url:
+    name: STARK HTTPS URL
+    description: Full direct STARK URL, for example https://stark.example.com:8789/stark/.
+      Requires a matching certificate and reachable port. Never enter passwords or
+      sign-in links.
+  https_auto_open:
+    name: Automatically open HTTPS in the app
+    description: When Ingress is insecure, try switching the entire view to the configured
+      HTTPS URL. If the app blocks it, an opening link remains available. Already
+      secure Ingress is preserved.

@@ -17,6 +17,7 @@ test('Jarvis and tool endpoints remain controller-only in the Home Assistant add
       middlewares: { use: (fn) => middleware.push(fn) },
     });
     for (const url of [
+      '/api/stark/https-entry',
       '/api/stark/jarvis/status',
       '/api/stark/jarvis/turn',
       '/api/stark/jarvis/login',

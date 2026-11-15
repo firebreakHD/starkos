@@ -3,9 +3,12 @@ import { readFileSync, realpathSync, statSync } from 'node:fs';
 import path from 'node:path';
 
 const connections = new WeakMap();
+const environments = new WeakMap();
 
 export async function closeHttps(server) {
   if (!server) return;
+  const env = environments.get(server);
+  if (env) env.STARK_HTTPS_ACTIVE = 'false';
   for (const socket of connections.get(server) || []) socket.destroy();
   await new Promise((resolve) => server.close(resolve));
 }
@@ -67,6 +70,7 @@ export async function startHttps({
   port = 8443,
   host = '0.0.0.0',
 } = {}) {
+  env.STARK_HTTPS_ACTIVE = 'false';
   const options = httpsOptions({ env, sslDirectory });
   if (!options) return null;
   let server;
@@ -79,6 +83,7 @@ export async function startHttps({
   }
   const sockets = new Set();
   connections.set(server, sockets);
+  environments.set(server, env);
   server.on('connection', (socket) => {
     sockets.add(socket);
     socket.on('close', () => sockets.delete(socket));
@@ -101,6 +106,7 @@ export async function startHttps({
       resolve();
     });
   });
+  env.STARK_HTTPS_ACTIVE = 'true';
   server.on('tlsClientError', () => {}); // Never log handshake material.
   return server;
 }
