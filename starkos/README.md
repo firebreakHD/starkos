@@ -13,7 +13,7 @@ Mobile-first STARK interface for research, geospatial data and secure control of
 - authenticated direct access and Home Assistant Ingress
 - Hermes display tools using the same authorization and capability checks as the UI
 
-See [DOCS.md](DOCS.md) for installation and operation. Current version: **0.4.3**.
+See [DOCS.md](DOCS.md) for installation and operation. Current version: **0.4.4**.
 
 The start screen is the menu ring with **Media, Gods Eye, Receiver and Assistant**. The bottom-left gear opens settings, including Codex sign-in and source status. Assistant starts with an empty canvas and a large bottom-center **J**: hold to speak, release to send; double-tap to toggle hands-free voice. A single tap does nothing and never opens chat. Voice answers show helpful windows automatically; phones use larger text and one window at a time. Hold the small bottom-left handle for half a second and drag right for text chat. Typed questions stay in chat unless an explicit request asks to show/draw a visual explanation; that closes chat and uses the main canvas. Reopening Assistant restores the empty voice view while preserving conversation history. The small back arrow returns to the menu.
 

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.4
+
+- Raised the Home Assistant add-on version to deliver the HTTPS hostname fix and optional-password login as a fresh update. Reload the add-on store, update STARK OS, and restart before opening through Home Assistant.
+
 ## 0.4.3
 
 - Fixed “Blocked request. This host is not allowed” when opening the configured public STARK HTTPS address. Its exact hostname is now admitted on the native TLS listener, while HTTP and unrelated or wildcard hostnames retain their existing restrictions.
