@@ -208,13 +208,25 @@ try {
   assert.equal(await page.$eval('[data-chat]', (el) => el.open), false);
   assert.equal(await page.$('[data-text-options]'), null);
   const openChatByDrag = async () => {
+    await page.waitForFunction(() => {
+      const e = document.querySelector('[data-chat-grip]');
+      return !e.hidden && e.getBoundingClientRect().width <= 54;
+    });
     const box = await page.$eval('[data-chat-grip]', (el) => {
       const b = el.getBoundingClientRect();
       return { x: b.x + b.width / 2, y: b.y + b.height / 2, width: b.width };
     });
     await page.mouse.move(box.x, box.y);
     await page.mouse.down();
-    await new Promise((resolve) => setTimeout(resolve, 550));
+    await new Promise((resolve) => setTimeout(resolve, 140));
+    assert.equal(
+      await page.$eval('[data-chat-grip]', (el) =>
+        el.classList.contains('is-pressed'),
+      ),
+      true,
+      'press morphs the handle into a circle',
+    );
+    await new Promise((resolve) => setTimeout(resolve, 410));
     assert.equal(
       await page.$eval('[data-chat-grip]', (el) =>
         el.classList.contains('is-ready'),
@@ -227,11 +239,69 @@ try {
         (el) => el.getBoundingClientRect().width,
       )) > box.width,
     );
+    const left = await page.$eval(
+      '[data-chat-grip]',
+      (el) => el.getBoundingClientRect().left,
+    );
+    await page.mouse.move(box.x + 50, box.y, { steps: 3 });
+    const stretching = await page.$eval('[data-chat-grip]', (el) => ({
+      left: el.getBoundingClientRect().left,
+      width: el.getBoundingClientRect().width,
+    }));
+    assert.ok(
+      Math.abs(stretching.left - left) < 1,
+      'the pill stays anchored at the edge',
+    );
+    assert.ok(
+      stretching.width > 100,
+      'drag stretches the pill instead of translating it',
+    );
+    assert.equal(
+      await page.$eval('[data-chat]', (el) => el.open),
+      false,
+      'drag preview never opens/focuses the real dialog',
+    );
+    assert.equal(
+      await page.$eval('.chat-pull-preview', (el) => el.hidden),
+      false,
+      'real conversation layout is revealed during the pull',
+    );
+    assert.equal(
+      await page.$eval('.chat-pull-preview', (el) => el.inert),
+      true,
+      'preview stays inert',
+    );
+    assert.equal(
+      await page.$$eval('.chat-pull-preview [id]', (nodes) => nodes.length),
+      0,
+      'preview creates no duplicate IDs',
+    );
+    assert.ok(
+      await page.$eval(
+        '[data-mic]',
+        (el) => Number(getComputedStyle(el).opacity) < 1,
+      ),
+      'voice control yields to the reveal',
+    );
+    if (
+      process.env.STARK_QA_OUTPUT &&
+      (await page.evaluate(() => innerWidth <= 700))
+    )
+      await page.screenshot({
+        path: path.join(process.env.STARK_QA_OUTPUT, 'stark-chat-pull.png'),
+      });
     await page.mouse.move(box.x + 140, box.y, { steps: 5 });
     await page.mouse.up();
     await page.waitForSelector('[data-chat][open]');
   };
   await page.click('[data-chat-grip]');
+  assert.equal(
+    await page.$eval('[data-chat-grip]', (el) =>
+      el.classList.contains('is-tapped'),
+    ),
+    true,
+    'a short tap gives round visual feedback',
+  );
   assert.equal(
     await page.$eval('[data-chat]', (el) => el.open),
     false,
@@ -278,6 +348,7 @@ try {
   await page.mouse.move(cancelPoint.x, cancelPoint.y);
   await page.mouse.down();
   await new Promise((resolve) => setTimeout(resolve, 550));
+  await page.mouse.move(cancelPoint.x + 50, cancelPoint.y, { steps: 3 });
   await page.$eval('[data-chat-grip]', (el) =>
     el.dispatchEvent(
       new PointerEvent('pointercancel', { pointerId: 1, bubbles: true }),
@@ -292,6 +363,18 @@ try {
   assert.equal(
     await page.$eval('[data-chat-grip]', (el) =>
       el.classList.contains('is-ready'),
+    ),
+    false,
+  );
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  assert.equal(
+    await page.$eval('.chat-pull-preview', (el) => el.hidden),
+    true,
+    'cancelled pull retracts the preview',
+  );
+  assert.equal(
+    await page.$eval('#jarvisHome', (el) =>
+      el.classList.contains('chat-pulling'),
     ),
     false,
   );

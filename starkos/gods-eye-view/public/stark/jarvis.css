@@ -1144,3 +1144,122 @@ a.explain-source {
   font-size: 18px;
   line-height: 1.5;
 }
+
+/* Pull the edge into a pill: the trailing edge stays anchored while the
+   actual conversation is revealed underneath. The voice control yields. */
+.jarvis-chat-grip {
+  width: 52px;
+  height: 56px;
+  left: max(6px, env(safe-area-inset-left));
+  bottom: calc(36px + env(safe-area-inset-bottom));
+  border-radius: 18px;
+  transform: none;
+  transition:
+    width 0.22s cubic-bezier(0.2, 0.8, 0.2, 1),
+    height 0.22s ease,
+    border-radius 0.22s ease;
+}
+.jarvis-chat-grip::before {
+  inset: 4px;
+  border: 1px solid #6398a6;
+  border-radius: 14px;
+  background: #10313b;
+  transition:
+    inset 0.2s ease,
+    border-radius 0.2s ease,
+    background 0.2s ease,
+    box-shadow 0.2s ease;
+}
+.jarvis-chat-grip span {
+  position: absolute;
+  right: 18px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+.jarvis-chat-grip.is-pressed,
+.jarvis-chat-grip.is-tapped {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+}
+.jarvis-chat-grip.is-pressed::before,
+.jarvis-chat-grip.is-tapped::before {
+  inset: 0;
+  border-radius: inherit;
+  background: #174653;
+  box-shadow: 0 0 0 4px #6de7d511;
+}
+.jarvis-chat-grip.is-ready {
+  width: calc(64px + var(--chat-stretch, 0px));
+  height: 64px;
+  border-radius: 32px;
+  transition:
+    height 0.2s ease,
+    border-radius 0.2s ease;
+}
+.jarvis-chat-grip.is-ready::before {
+  inset: 0;
+  border-radius: inherit;
+  border-color: #8af4dc;
+  background: linear-gradient(90deg, #16453c, #133841);
+  box-shadow:
+    inset 0 0 22px #6fffd512,
+    0 0 18px #6fffd51c;
+}
+.jarvis-chat-grip.is-ready::after {
+  content: 'Chat';
+  position: absolute;
+  left: 18px;
+  top: 50%;
+  transform: translateY(-50%);
+  font:
+    500 17px/1 system-ui,
+    sans-serif;
+  color: #e4fff7;
+  opacity: var(--chat-progress, 0);
+  pointer-events: none;
+}
+.chat-pull-preview {
+  display: flex;
+  flex-direction: column;
+  z-index: 10;
+  pointer-events: none;
+  transform: translateX(calc((var(--chat-progress, 0) - 1) * 100%));
+  transition: transform 0.24s cubic-bezier(0.2, 0.8, 0.2, 1);
+  box-shadow: 16px 0 45px #0008;
+}
+.chat-pulling .chat-pull-preview {
+  transition: none;
+}
+.jarvis-mic,
+.jarvis-back {
+  transition:
+    opacity 0.24s ease,
+    translate 0.24s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.chat-pulling .jarvis-mic {
+  opacity: calc(1 - var(--chat-progress, 0));
+  translate: calc(var(--chat-progress, 0) * 70px) 0;
+  pointer-events: none;
+}
+.chat-pulling .jarvis-back {
+  opacity: calc(1 - var(--chat-progress, 0));
+}
+@media (prefers-reduced-motion: reduce) {
+  .jarvis-chat-grip,
+  .jarvis-chat-grip::before,
+  .chat-pull-preview,
+  .jarvis-mic,
+  .jarvis-back {
+    transition: none;
+  }
+}
+.chat-pulling .jarvis-controls > button:not([data-chat-grip]) {
+  opacity: calc(1 - var(--chat-progress, 0));
+  pointer-events: none;
+}
+.jarvis-chat-grip.is-pressed span,
+.jarvis-chat-grip.is-tapped span,
+.jarvis-chat-grip.is-ready span {
+  right: 22px;
+}
