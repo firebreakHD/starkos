@@ -1,6 +1,6 @@
 # Jarvis with Codex and normal ChatGPT login
 
-STARK OS 0.4.2 starts with the original menu ring. The ring contains **Media, Gods Eye, Receiver and Assistant**. The bottom-left gear opens settings, source status and Codex sign-in. **Assistant** opens Jarvis on an empty canvas and starts its connection when opened. It uses the pinned official `@openai/codex` package as the model provider for the single Hermes/Jarvis orchestrator. There is no Claude Code dependency. Research and display actions continue through STARK's authenticated tool contract.
+STARK OS 0.4.3 starts with the original menu ring. The ring contains **Media, Gods Eye, Receiver and Assistant**. The bottom-left gear opens settings, source status and Codex sign-in. **Assistant** opens Jarvis on an empty canvas and starts its connection when opened. It uses the pinned official `@openai/codex` package as the model provider for the single Hermes/Jarvis orchestrator. There is no Claude Code dependency. Research and display actions continue through STARK's authenticated tool contract.
 
 ## Normal browser sign-in
 
@@ -55,4 +55,4 @@ The drawing workspace runs inside STARK and its paired browser receivers. Native
 
 ## Release status
 
-Home Assistant metadata declares `0.4.2`. The change must be merged to the branch consumed by Home Assistant before reloading the store offers the update. A development branch, draft pull request or local patch is not an installed update. Update packages contain application instructions, not credentials.
+Home Assistant metadata declares `0.4.3`. The change must be merged to the branch consumed by Home Assistant before reloading the store offers the update. A development branch, draft pull request or local patch is not an installed update. Update packages contain application instructions, not credentials.

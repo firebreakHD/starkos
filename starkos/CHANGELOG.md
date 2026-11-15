@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.3
+
+- Fixed “Blocked request. This host is not allowed” when opening the configured public STARK HTTPS address. Its exact hostname is now admitted on the native TLS listener, while HTTP and unrelated or wildcard hostnames retain their existing restrictions.
+- Browser regression fixtures now use a public-style hostname instead of a loopback IP, exercising the configured host through the complete HTTPS login and Home Assistant handoff.
+
 ## 0.4.2
 
 - The HTTPS password is now optional. Empty passwords no longer prevent TLS startup: open STARK through Home Assistant and its authenticated session is transferred using a one-use, 60-second POST handoff. Anonymous direct controller access remains disabled. Configured passwords still require at least 12 characters.
