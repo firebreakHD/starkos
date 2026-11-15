@@ -310,6 +310,8 @@ test('presentation policy separates voice, explicit visual chat and negated requ
     'Zeig mir die Quellen',
     'Zeichne das bitte',
     'Erklär das visuell',
+    'Erklär mir kurz Wie ein usb Stick funktioniert visuel',
+    'visuele Erklärung bitte',
     'show me a diagram',
   ])
     assert.equal(allowsPresentation({ mode: 'chat', text }), true);
@@ -317,6 +319,8 @@ test('presentation policy separates voice, explicit visual chat and negated requ
     for (const text of [
       'Zeig mir das ohne Fenster',
       'Bitte keine Grafiken',
+      'Bitte nicht visuel erklären',
+      'nicht zeigen',
       'nicht zeichnen',
       'nur im Chat antworten',
     ])
@@ -326,4 +330,126 @@ test('presentation policy separates voice, explicit visual chat and negated requ
       false,
     );
   }
+});
+
+test('the screenshot USB question requires a real Codex visual action and suppresses a text-only draft', async () => {
+  const events = [],
+    requests = [];
+  let executions = 0;
+  const agent = createJarvis({
+    env: {},
+    codex: {
+      status: async () => ({ provider: 'codex', available: true }),
+      completion: async ({ messages }) => {
+        requests.push(structuredClone(messages));
+        if (requests.length === 1)
+          return { content: 'Computer → USB → Speicher (nur Text)' };
+        if (requests.length === 2)
+          return {
+            tool_calls: [
+              call('present_explanation', {
+                display_ids: [],
+                explanation: CONVERSATION_DEMO,
+              }),
+            ],
+          };
+        return { content: 'Hier ist die visuelle Erklärung.' };
+      },
+    },
+    executeTool: async (_name, args) => {
+      executions++;
+      return {
+        explanation: validateExplanation(args.explanation),
+        results: [],
+      };
+    },
+  });
+  await agent.turn(
+    {
+      text: 'Erklär mir kurz Wie ein usb Stick funktioniert visuel',
+      mode: 'chat',
+      visuals: true,
+    },
+    { emit: (e) => events.push(e) },
+  );
+  assert.equal(executions, 1);
+  assert.equal(requests.length, 3);
+  assert.match(
+    requests[0].find((m) => m.role === 'system' && m.content.includes('MUST'))
+      .content,
+    /present_explanation/,
+  );
+  assert.match(requests[1].at(-1).content, /NOT been presented/);
+  assert.equal(events.filter((e) => e.type === 'answer').length, 1);
+  assert.equal(
+    events.find((e) => e.type === 'answer').text,
+    'Hier ist die visuelle Erklärung.',
+  );
+  assert.ok(
+    events.findIndex((e) => e.type === 'explanation') <
+      events.findIndex((e) => e.type === 'answer'),
+  );
+});
+
+test('an ignored explicit visual request fails after bounded correction without a fake successful answer', async () => {
+  let completions = 0;
+  const events = [];
+  const agent = createJarvis({
+    env,
+    fetchImpl: async () => {
+      completions++;
+      return reply({ content: 'Ich habe es gezeichnet: Computer -> USB.' });
+    },
+    executeTool: () => assert.fail('no tools were requested'),
+  });
+  await assert.rejects(
+    () =>
+      agent.turn(
+        { text: 'Erklär USB visuel', mode: 'chat' },
+        { emit: (e) => events.push(e) },
+      ),
+    /visuelle Darstellung konnte nicht erstellt/,
+  );
+  assert.equal(completions, 3);
+  assert.equal(
+    events.some((e) => e.type === 'answer' || e.type === 'explanation'),
+    false,
+  );
+});
+
+test('a rejected presentation does not fulfill an explicit visual request; valid retry does', async () => {
+  let completions = 0,
+    executions = 0;
+  const events = [];
+  const agent = createJarvis({
+    env,
+    fetchImpl: async () => {
+      completions++;
+      if ([1, 3].includes(completions))
+        return reply({
+          tool_calls: [
+            call('present_explanation', {
+              display_ids: [],
+              explanation: CONVERSATION_DEMO,
+            }),
+          ],
+        });
+      return reply({ content: 'Fertig.' });
+    },
+    executeTool: async (_name, args) => {
+      if (++executions === 1) throw new Error('Ungültige Szene');
+      return {
+        explanation: validateExplanation(args.explanation),
+        results: [],
+      };
+    },
+  });
+  await agent.turn(
+    { text: 'Bitte visuell erklären', mode: 'chat' },
+    { emit: (e) => events.push(e) },
+  );
+  assert.equal(completions, 4);
+  assert.equal(executions, 2);
+  assert.equal(events.filter((e) => e.type === 'explanation').length, 1);
+  assert.equal(events.at(-1).type, 'answer');
 });

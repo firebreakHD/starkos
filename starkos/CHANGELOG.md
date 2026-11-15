@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.6
+
+- Visual requests also recognize common spelling such as “visuel”, including the USB-stick question. Explicit visual chat requests now require an executed presentation tool before returning a final answer, rather than accepting an emoji/ASCII diagram in chat.
+- A bounded correction step asks the model to create the missing visual or fix a rejected presentation. If it still cannot, STARK reports the failure instead of claiming success. Ordinary text chat stays text-only; successful explanations close chat and use the main canvas as before.
+
 ## 0.2.5
 
 - World is now named **Gods Eye**. The menu contains Media, Gods Eye, Receiver and Assistant; Investigation is removed from the ring. Settings and source status are reached through the gear at the bottom left of the menu.

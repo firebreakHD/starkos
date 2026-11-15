@@ -46,35 +46,71 @@ async function openRingModule(page, title) {
 
 const temporary = await mkdtemp(path.join(tmpdir(), 'stark-qa-'));
 const calls = [];
+const USB_QUESTION = 'Erklär mir kurz Wie ein usb Stick funktioniert visuel';
+const USB_EXPLANATION = {
+  title: 'So funktioniert ein USB-Stick',
+  scenes: [
+    {
+      title: 'Vom Computer in den Flash-Speicher',
+      narration:
+        'Über USB kommen Strom und Daten. Der Controller organisiert den Zugriff auf den Flash-Speicher.',
+      seconds: 30,
+      windows: [
+        {
+          kind: 'diagram',
+          title: 'Datenweg',
+          text: 'Flash-Speicher hält die Daten auch ohne Strom. Dies ist ein lokales QA-Beispiel.',
+          nodes: [
+            'Computer',
+            'USB: Daten und Strom',
+            'Controller',
+            'Flash-Speicher',
+          ],
+        },
+      ],
+    },
+  ],
+};
 const mock = http.createServer(async (req, res) => {
   const chunks = [];
   for await (const chunk of req) chunks.push(chunk);
   const body = JSON.parse(Buffer.concat(chunks));
   calls.push(body);
   const last = body.messages.at(-1);
+  const usbRequest = body.messages.some(
+    (m) => m.role === 'user' && m.content === USB_QUESTION,
+  );
   const message =
-    last.role === 'tool'
+    usbRequest && last.role === 'user'
       ? {
           role: 'assistant',
-          content: 'Die lokale Testdarstellung ist geöffnet.',
+          content:
+            'USB-Stick: Computer → Controller → Flash-Speicher (Textdiagramm)',
         }
-      : {
-          role: 'assistant',
-          content: null,
-          tool_calls: [
-            {
-              id: 'qa-visual',
-              type: 'function',
-              function: {
-                name: 'present_explanation',
-                arguments: JSON.stringify({
-                  display_ids: [],
-                  explanation: CONVERSATION_DEMO,
-                }),
+      : last.role === 'tool'
+        ? {
+            role: 'assistant',
+            content: 'Die lokale Testdarstellung ist geöffnet.',
+          }
+        : {
+            role: 'assistant',
+            content: null,
+            tool_calls: [
+              {
+                id: 'qa-visual',
+                type: 'function',
+                function: {
+                  name: 'present_explanation',
+                  arguments: JSON.stringify({
+                    display_ids: [],
+                    explanation: usbRequest
+                      ? USB_EXPLANATION
+                      : CONVERSATION_DEMO,
+                  }),
+                },
               },
-            },
-          ],
-        };
+            ],
+          };
   res.setHeader('Content-Type', 'application/json');
   res.end(JSON.stringify({ choices: [{ message }] }));
 });
@@ -413,7 +449,7 @@ try {
     JSON.parse(calls[1].messages.at(-1).content).error,
     'server enforces text-only independently',
   );
-  await send('Zeig mir das Beispiel visuell');
+  await send(USB_QUESTION);
   await page.waitForFunction(
     () =>
       !document.querySelector('[data-chat]').open &&
@@ -424,8 +460,25 @@ try {
       .querySelector('[data-answer]')
       .textContent.includes('Testdarstellung'),
   );
-  assert.equal(calls.length, 4);
-  assert.ok(!JSON.parse(calls[3].messages.at(-1).content).error);
+  assert.equal(
+    calls.length,
+    5,
+    'text-only draft is corrected through a real tool call',
+  );
+  assert.ok(!JSON.parse(calls[4].messages.at(-1).content).error);
+  assert.equal(await page.$$eval('.explain-node', (nodes) => nodes.length), 4);
+  assert.match(
+    await page.$eval('[data-explanation]', (el) => el.textContent),
+    /USB: Daten und Strom/,
+  );
+  assert.doesNotMatch(
+    await page.$eval('[data-chat-log]', (el) => el.textContent),
+    /\(Textdiagramm\)/,
+  );
+  if (process.env.STARK_QA_OUTPUT)
+    await page.screenshot({
+      path: path.join(process.env.STARK_QA_OUTPUT, 'stark-usb-visual.png'),
+    });
   await send('bleib hier');
   const output =
     process.env.STARK_QA_OUTPUT || path.join(temporary, 'screenshots');
