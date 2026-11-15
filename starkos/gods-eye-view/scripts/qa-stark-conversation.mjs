@@ -154,7 +154,7 @@ try {
   await page.goto(`${origin}/stark/`, { waitUntil: 'networkidle0' });
   assert.equal(await page.$eval('#device', (el) => el.hidden), false);
   assert.equal(await page.$eval('#jarvisHome', (el) => el.hidden), true);
-  assert.equal(await page.$$eval('.ring-item', (entries) => entries.length), 6);
+  assert.equal(await page.$$eval('.ring-item', (entries) => entries.length), 4);
   assert.equal(
     statusRequests,
     0,
@@ -167,18 +167,27 @@ try {
       fullPage: true,
     });
   }
-  await openRingModule(page, 'INVESTIGATION');
-  await page.waitForSelector('.panel.open .investigation-module');
-  assert.equal(
-    await page.$$eval('.evidence-node', (entries) => entries.length),
-    4,
-    'original Investigation case board remains reachable',
+  assert.deepEqual(
+    await page.$$eval('.ring-item strong', (nodes) =>
+      nodes.map((n) => n.textContent),
+    ),
+    ['MEDIA', 'Gods Eye', 'RECEIVER', 'ASSISTANT'],
   );
+  await page.click('#openSettings');
+  await page.waitForSelector('.panel.open #accountSettings');
   await page.click('#closePanel');
   await openRingModule(page, 'ASSISTANT');
   await page.waitForFunction(() =>
-    document.querySelector('[data-status]').textContent.startsWith('Bereit.'),
+    document.querySelector('[data-scope]').textContent.includes('Recherche:'),
   );
+  assert.equal(await page.$eval('[data-explanation]', (el) => el.hidden), true);
+  assert.equal(await page.$eval('[data-answer]', (el) => el.hidden), true);
+  assert.equal(await page.$('#jarvisHome [data-auth]'), null);
+  assert.equal(await page.$('#jarvisHome h1'), null);
+  if (process.env.STARK_QA_OUTPUT)
+    await page.screenshot({
+      path: path.join(process.env.STARK_QA_OUTPUT, 'stark-empty-assistant.png'),
+    });
   assert.equal(await page.$eval('#device', (el) => el.hidden), true);
   assert.equal(await page.$eval('[data-chat]', (el) => el.open), false);
   assert.equal(await page.$('[data-text-options]'), null);
@@ -283,8 +292,31 @@ try {
     false,
     'Escape returns to voice',
   );
-  await page.click('[data-mic]');
+  await page.focus('[data-mic]');
+  await page.keyboard.down(' ');
+  await new Promise((resolve) => setTimeout(resolve, 80));
+  await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+  await page.keyboard.up(' ');
+  assert.equal(
+    await page.$eval('[data-explanation]', (el) => el.hidden),
+    true,
+    'focus loss discards recording',
+  );
+  const micBox = await page.$eval('[data-mic]', (el) => {
+    const r = el.getBoundingClientRect();
+    return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+  });
+  await page.mouse.move(micBox.x, micBox.y);
+  await page.mouse.down();
+  await new Promise((resolve) => setTimeout(resolve, 80));
+  assert.equal(
+    await page.$eval('[data-explanation]', (el) => el.hidden),
+    true,
+    'hold buffers recognition without sending',
+  );
+  await page.mouse.up();
   await page.waitForSelector('.explain-window');
+  console.log('PASS: hold-to-talk release and cancellation');
   assert.equal(await page.$$eval('.explain-window', (els) => els.length), 1);
   assert.match(
     await page.$eval('[data-status]', (el) => el.textContent),
@@ -349,7 +381,7 @@ try {
   await send('Untersuche das Beispiel');
   await page.waitForFunction(() =>
     document
-      .querySelector('[data-answer]')
+      .querySelector('[data-chat-log]')
       .textContent.includes('Testdarstellung'),
   );
   assert.equal(calls.length, 2, 'one real server-side tool loop');
@@ -367,17 +399,38 @@ try {
     'text mode must not speak replies',
   );
   assert.equal(
-    await page.$eval(
-      '[data-chat-visual] [data-explanation]',
-      (el) => el.hidden,
-    ),
-    false,
-    'visuals stay usable in text chat',
+    await page.$eval('[data-chat]', (el) => el.open),
+    true,
+    'ordinary chat keeps its drawer open',
   );
+  assert.equal(
+    await page.$eval('[data-explanation]', (el) => el.hidden),
+    true,
+    'server rejects unsolicited chat visuals',
+  );
+  assert.equal(await page.$eval('[data-answer]', (el) => el.hidden), true);
+  assert.ok(
+    JSON.parse(calls[1].messages.at(-1).content).error,
+    'server enforces text-only independently',
+  );
+  await send('Zeig mir das Beispiel visuell');
+  await page.waitForFunction(
+    () =>
+      !document.querySelector('[data-chat]').open &&
+      !document.querySelector('[data-explanation]').hidden,
+  );
+  await page.waitForFunction(() =>
+    document
+      .querySelector('[data-answer]')
+      .textContent.includes('Testdarstellung'),
+  );
+  assert.equal(calls.length, 4);
+  assert.ok(!JSON.parse(calls[3].messages.at(-1).content).error);
   await send('bleib hier');
   const output =
     process.env.STARK_QA_OUTPUT || path.join(temporary, 'screenshots');
   await mkdir(output, { recursive: true });
+  await openChatByDrag();
   await page.screenshot({
     path: path.join(output, 'stark-chat-phone.png'),
     fullPage: true,
@@ -423,6 +476,11 @@ try {
   );
   await page.waitForSelector('.panel.open .stark-browser');
   await page.click('#browserBack');
+  await page.waitForFunction(
+    () =>
+      document.querySelector('#panel').getBoundingClientRect().top >=
+      innerHeight,
+  );
   await page.click('#browseModules');
   assert.equal(await page.$eval('#device', (el) => el.hidden), false);
   await openRingModule(page, 'ASSISTANT');
@@ -438,9 +496,13 @@ try {
     'history is preserved across the voice/text view change',
   );
   assert.equal(
-    statusRequests,
-    1,
-    'reopening Assistant reuses its conversation',
+    await page.$eval('[data-explanation]', (el) => el.hidden),
+    true,
+    'reentry clears the presentation canvas',
+  );
+  assert.equal(await page.$eval('[data-answer]', (el) => el.hidden), true);
+  console.log(
+    'PASS: empty canvas, menu, chat presentation policy and responsive layouts',
   );
   // Real paired receiver + authenticated WebSocket command/ack path.
   const post = async (endpoint, body) => {
@@ -503,6 +565,7 @@ try {
       document.querySelector('#receiverState').textContent === 'SECURE LINK',
   );
   await receiver.close();
+  console.log('PASS: paired receiver path');
   // Account UX fixture only: never opens a real OpenAI login or uses credentials.
   const authPage = await browser.newPage();
   let signedIn = false,
@@ -588,7 +651,11 @@ try {
     hasTouch: true,
   });
   await authPage.goto(`${origin}/stark/`, { waitUntil: 'networkidle0' });
-  await openRingModule(authPage, 'ASSISTANT');
+  await authPage.click('#openSettings');
+  await authPage.waitForSelector('.panel.open #accountSettings');
+  await authPage.waitForFunction(
+    () => document.querySelector('#panel').getBoundingClientRect().top <= 1,
+  );
   await authPage.waitForSelector('[data-auth]:not([hidden])');
   await authPage.waitForSelector('[data-callback]', {
     visible: true,
@@ -599,7 +666,11 @@ try {
   for (const mode of ['unavailable', 'status-error', 'pending']) {
     authStatusMode = mode;
     await authPage.reload({ waitUntil: 'networkidle0' });
-    await openRingModule(authPage, 'ASSISTANT');
+    await authPage.click('#openSettings');
+    await authPage.waitForSelector('.panel.open #accountSettings');
+    await authPage.waitForFunction(
+      () => document.querySelector('#panel').getBoundingClientRect().top <= 1,
+    );
     await authPage.waitForSelector('[data-callback]', { visible: true });
     assert.equal(
       await authPage.$eval('[data-remote]', (el) => el.hidden),
@@ -607,6 +678,12 @@ try {
       `return field remains reachable: ${mode}`,
     );
   }
+  await authPage.waitForFunction(
+    () => document.querySelector('#panel').getBoundingClientRect().top <= 1,
+  );
+  await authPage.screenshot({
+    path: path.join(output, 'stark-settings-check.png'),
+  });
   assert.equal(
     await authPage.$eval('[data-callback]', (el) => {
       const box = el.getBoundingClientRect();
@@ -619,15 +696,10 @@ try {
     path: path.join(output, 'stark-login-field.png'),
     fullPage: true,
   });
-  await authPage.focus('[data-chat-grip]');
-  await authPage.keyboard.press('Enter');
-  await authPage.waitForSelector('[data-chat][open] [data-callback]', {
-    visible: true,
-  });
-  await authPage.click('[data-chat-close]');
-  await authPage.waitForSelector(
-    '#jarvisHome > .jarvis-dialog [data-callback]',
-    { visible: true },
+  assert.equal(
+    await authPage.$('#jarvisHome [data-callback]'),
+    null,
+    'account stays in menu settings',
   );
   await authPage.click('[data-login]');
   await authPage.waitForSelector('[data-remote]:not([hidden])');
@@ -639,7 +711,11 @@ try {
     /^https:\/\/auth.openai.com\//,
   );
   await authPage.reload({ waitUntil: 'networkidle0' });
-  await openRingModule(authPage, 'ASSISTANT');
+  await authPage.click('#openSettings');
+  await authPage.waitForSelector('.panel.open #accountSettings');
+  await authPage.waitForFunction(
+    () => document.querySelector('#panel').getBoundingClientRect().top <= 1,
+  );
   await authPage.waitForSelector('[data-callback]', { visible: true });
   await authPage.type(
     '[data-callback]',

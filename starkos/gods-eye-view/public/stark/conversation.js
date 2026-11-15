@@ -1,8 +1,12 @@
 import { createExplanationPlayer } from './explanation-player.js';
 import { CONVERSATION_DEMO } from './conversation-demo.js';
 import { createChatDrawer } from './chat-drawer.js';
+import { allowsPresentation } from './presentation-policy.js';
 
-export function createConversation(root, { displays, openModule } = {}) {
+export function createConversation(
+  root,
+  { displays, openModule, account } = {},
+) {
   const $ = (s) => root.querySelector(s);
   const mic = $('[data-mic]'),
     status = $('[data-status]'),
@@ -12,7 +16,6 @@ export function createConversation(root, { displays, openModule } = {}) {
   const Recognition =
     window.SpeechRecognition || window.webkitSpeechRecognition;
   let recognition = null,
-    listening = false,
     pending = false,
     abort = null,
     conversationId = null,
@@ -22,15 +25,10 @@ export function createConversation(root, { displays, openModule } = {}) {
     speechQueue = [],
     speaking = false,
     available = false;
-  let loginPoll = null,
-    loginExpiresAt = null,
-    pollBusy = false,
-    completingLogin = false;
   const chat = createChatDrawer(root, {
     onOpen() {
       cancelSpeech();
-      recognition?.abort();
-      listening = false;
+      cancelRecording();
       mic.setAttribute('aria-pressed', 'false');
       showStop(pending);
     },
@@ -112,8 +110,7 @@ export function createConversation(root, { displays, openModule } = {}) {
   function interrupt() {
     abort?.abort();
     abort = null;
-    recognition?.abort();
-    listening = false;
+    cancelRecording();
     pending = false;
     cancelSpeech();
     control('pause');
@@ -134,6 +131,8 @@ export function createConversation(root, { displays, openModule } = {}) {
       targets = [];
       visuals = true;
       player.setVisible(true);
+      chat.close({ focus: false });
+      answer.hidden = true;
       player.show(CONVERSATION_DEMO);
       setStatus('Demo mit festen Beispieldaten · keine Live-Recherche');
       return true;
@@ -178,8 +177,10 @@ export function createConversation(root, { displays, openModule } = {}) {
     const modules = {
       medien: 'MEDIA',
       media: 'MEDIA',
-      karte: 'WORLD',
-      welt: 'WORLD',
+      karte: 'Gods Eye',
+      welt: 'Gods Eye',
+      'gods eye': 'Gods Eye',
+      "god's eye": 'Gods Eye',
       receiver: 'RECEIVER',
       bildschirme: 'RECEIVER',
       system: 'SYSTEM',
@@ -192,7 +193,7 @@ export function createConversation(root, { displays, openModule } = {}) {
     }
     return false;
   }
-  async function send(text) {
+  async function send(text, { mode = chat.isOpen() ? 'chat' : 'voice' } = {}) {
     if (!text.trim()) return;
     transcript.textContent = text;
     chat.append('user', text);
@@ -203,13 +204,18 @@ export function createConversation(root, { displays, openModule } = {}) {
     }
     cancelSpeech();
     control('pause');
+    if (!available) await account.refresh(false);
     if (!available) {
+      openModule('SYSTEM');
       setStatus('Bitte zuerst mit deinem ChatGPT-Konto bei Codex anmelden.');
       return;
     }
     pending = true;
     showStop(true);
     answer.textContent = '';
+    answer.hidden = true;
+    $('[data-notice]').hidden = true;
+    const present = allowsPresentation({ mode, text, visuals });
     setStatus('Ich kümmere mich darum …');
     const requestAbort = new AbortController();
     abort = requestAbort;
@@ -217,7 +223,7 @@ export function createConversation(root, { displays, openModule } = {}) {
       const response = await fetch(new URL('jarvis/turn', displays.base), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text, conversationId, visuals }),
+        body: JSON.stringify({ text, conversationId, visuals: present, mode }),
         signal: requestAbort.signal,
       });
       if (!response.ok) {
@@ -233,7 +239,9 @@ export function createConversation(root, { displays, openModule } = {}) {
         if (message.type === 'conversation')
           conversationId = message.conversationId;
         if (message.type === 'tool') setStatus(message.label + ' …');
-        if (message.type === 'explanation' && visuals) {
+        if (message.type === 'explanation' && present) {
+          chat.close({ focus: false });
+          player.setVisible(true);
           hasExplanation = true;
           targets = message.targets || [];
           player.show(message.explanation);
@@ -242,9 +250,12 @@ export function createConversation(root, { displays, openModule } = {}) {
         if (message.type === 'control') player.control(message.command);
         if (message.type === 'answer') {
           complete = true;
-          answer.textContent = message.text;
+          if (mode === 'voice' || hasExplanation) {
+            answer.textContent = message.text;
+            answer.hidden = !message.text;
+          }
           chat.append('assistant', message.text);
-          if (!hasExplanation) say(message.text);
+          if (!hasExplanation && mode === 'voice') say(message.text);
           setStatus('Bereit. Sag mir, was du genauer wissen möchtest.');
         }
         if (message.type === 'error') {
@@ -272,6 +283,7 @@ export function createConversation(root, { displays, openModule } = {}) {
       if (!requestAbort.signal.aborted) {
         requestAbort.abort();
         setStatus(error.message);
+        if (mode === 'voice' || !chat.isOpen()) notice(error.message);
       }
     } finally {
       if (abort === requestAbort) {
@@ -281,11 +293,26 @@ export function createConversation(root, { displays, openModule } = {}) {
       }
     }
   }
-  mic.addEventListener('click', () => {
-    if (listening) {
-      recognition?.stop();
-      return;
+  // One recording per hold. Interim/final text is buffered until release;
+  // cancellations, hidden tabs and late permission grants cannot send a turn.
+  let recording = null;
+  function notice(text) {
+    const element = $('[data-notice]');
+    element.textContent = text;
+    element.hidden = !text;
+  }
+  function cancelRecording() {
+    const session = recording;
+    recording = null;
+    if (session) {
+      clearTimeout(session.timer);
+      session.cancelled = true;
+      session.recognition.abort();
     }
+    mic.setAttribute('aria-pressed', 'false');
+  }
+  function beginRecording() {
+    if (recording || root.hidden || chat.isOpen()) return;
     if (!Recognition || !window.isSecureContext) {
       chat.open();
       setStatus(
@@ -293,49 +320,139 @@ export function createConversation(root, { displays, openModule } = {}) {
       );
       return;
     }
+    if (pending) interrupt();
     cancelSpeech();
     player.control('pause');
+    notice('');
     recognition = new Recognition();
     recognition.lang = 'de-DE';
     recognition.interimResults = true;
-    recognition.continuous = false;
+    recognition.continuous = true;
+    const session = {
+      recognition,
+      held: true,
+      ended: false,
+      cancelled: false,
+      parts: [],
+      timer: null,
+    };
+    recording = session;
+    mic.setAttribute('aria-pressed', 'true');
+    const finish = () => {
+      if (recording !== session || session.held) return;
+      clearTimeout(session.timer);
+      recording = null;
+      mic.setAttribute('aria-pressed', 'false');
+      const text = session.parts.join(' ').trim();
+      if (!session.cancelled && !root.hidden && !chat.isOpen() && text)
+        send(text, { mode: 'voice' });
+    };
+    session.finish = finish;
     recognition.onstart = () => {
-      if (chat.isOpen() || root.hidden) {
-        recognition?.abort();
+      if (
+        recording !== session ||
+        !session.held ||
+        root.hidden ||
+        chat.isOpen()
+      ) {
+        session.recognition.abort();
         return;
       }
-      listening = true;
-      mic.setAttribute('aria-pressed', 'true');
       setStatus('Ich höre zu …');
     };
     recognition.onresult = (event) => {
-      if (chat.isOpen() || root.hidden) return;
-      let final = '';
-      let partial = '';
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const words = event.results[i][0].transcript;
-        if (event.results[i].isFinal) final += words;
-        else partial += words;
-      }
-      transcript.textContent = final || partial;
-      if (final) send(final);
+      if (recording !== session || session.cancelled) return;
+      for (let i = event.resultIndex; i < event.results.length; i++)
+        session.parts[i] = event.results[i][0].transcript;
+      transcript.textContent = session.parts.join(' ');
     };
-    recognition.onerror = (event) =>
-      setStatus(
+    recognition.onerror = (event) => {
+      if (recording !== session) return;
+      session.cancelled = true;
+      const message =
         event.error === 'not-allowed'
-          ? 'Mikrofon nicht freigegeben. Bitte schreiben oder die Browserfreigabe ändern.'
-          : `Spracheingabe: ${event.error}. Schreiben ist weiterhin möglich.`,
-      );
+          ? 'Mikrofon nicht freigegeben. Bitte die Browserfreigabe ändern oder schreiben.'
+          : `Spracheingabe: ${event.error}. Schreiben ist weiterhin möglich.`;
+      notice(message);
+      setStatus(message);
+      cancelRecording();
+    };
     recognition.onend = () => {
-      listening = false;
-      mic.setAttribute('aria-pressed', 'false');
+      session.ended = true;
+      finish();
     };
     try {
       recognition.start();
     } catch {
-      setStatus('Mikrofon konnte nicht gestartet werden. Bitte schreiben.');
+      notice('Mikrofon konnte nicht gestartet werden. Bitte schreiben.');
+      cancelRecording();
+    }
+  }
+  function releaseRecording() {
+    const session = recording;
+    if (!session) return;
+    session.held = false;
+    mic.setAttribute('aria-pressed', 'false');
+    if (session.ended) {
+      session.finish();
+      return;
+    }
+    // onend normally delivers final results. A bounded fallback handles stalled engines.
+    session.timer = setTimeout(() => {
+      session.recognition.abort();
+      session.finish();
+    }, 2000);
+    try {
+      session.recognition.stop();
+    } catch {
+      session.finish();
+    }
+  }
+  let micPointer = null;
+  mic.addEventListener('pointerdown', (event) => {
+    if (!event.isPrimary || event.button !== 0 || micPointer !== null) return;
+    event.preventDefault();
+    micPointer = event.pointerId;
+    mic.setPointerCapture(micPointer);
+    beginRecording();
+  });
+  mic.addEventListener('pointerup', (event) => {
+    if (event.pointerId !== micPointer) return;
+    micPointer = null;
+    releaseRecording();
+  });
+  mic.addEventListener('pointercancel', () => {
+    micPointer = null;
+    cancelRecording();
+  });
+  mic.addEventListener('lostpointercapture', () => {
+    if (micPointer !== null) {
+      micPointer = null;
+      cancelRecording();
     }
   });
+  mic.addEventListener('contextmenu', (event) => event.preventDefault());
+  mic.addEventListener('keydown', (event) => {
+    if ([' ', 'Enter'].includes(event.key)) {
+      event.preventDefault();
+      if (!event.repeat) beginRecording();
+    }
+  });
+  mic.addEventListener('keyup', (event) => {
+    if ([' ', 'Enter'].includes(event.key)) {
+      event.preventDefault();
+      releaseRecording();
+    }
+  });
+  const suspendRecording = () => {
+    micPointer = null;
+    cancelRecording();
+  };
+  const visibility = () => {
+    if (document.hidden) suspendRecording();
+  };
+  window.addEventListener('blur', suspendRecording);
+  document.addEventListener('visibilitychange', visibility);
   stop.addEventListener('click', interrupt);
   $('[data-chat-stop]').addEventListener('click', interrupt);
   $('[data-text-form]').addEventListener('submit', (event) => {
@@ -352,210 +469,31 @@ export function createConversation(root, { displays, openModule } = {}) {
       } else interrupt();
     }
   });
-  function authProgress(text, error = false) {
-    $('[data-auth-progress]').textContent = text;
-    $('[data-auth-progress]').classList.toggle('auth-error', error);
-  }
-  function stopLoginPolling() {
-    clearInterval(loginPoll);
-    loginPoll = null;
-  }
-  function pollLogin(expiresAt) {
-    loginExpiresAt = expiresAt;
-    if (loginPoll) return;
-    loginPoll = setInterval(async () => {
-      if (document.hidden || pollBusy || completingLogin) return;
-      if (loginExpiresAt && Date.now() > loginExpiresAt) {
-        stopLoginPolling();
-        authProgress(
-          'Anmeldung abgelaufen. Bitte mit ChatGPT neu anmelden.',
-          true,
-        );
-        setStatus('Anmeldung abgelaufen. Bitte neu starten.');
-        return;
-      }
-      pollBusy = true;
-      try {
-        await refreshConnection(false);
-      } finally {
-        pollBusy = false;
-      }
-    }, 2500);
-  }
-  async function refreshConnection(announce = true) {
-    try {
-      const response = await fetch(new URL('jarvis/status', displays.base), {
-        cache: 'no-store',
-      });
-      if (!response.ok)
-        throw new Error(
-          'Der Anmeldestatus konnte nicht geladen werden. Bitte STARK über Home Assistant öffnen.',
-        );
-      const state = await response.json();
-      available = state.available;
-      if (announce)
-        setStatus(
-          state.available
-            ? 'Bereit. Tippe auf Jarvis und sprich.'
-            : state.reason,
-        );
-      // Keep the return field reachable whenever the user is signed out,
-      // including lost/expired pending state and unavailable status checks.
-      const authVisible = !state.available && state.provider !== 'gateway';
-      $('[data-auth]').hidden = !authVisible;
-      $('[data-account]').hidden =
-        state.provider !== 'codex' || !state.available;
-      const waiting =
-        state.provider === 'codex' && state.loginPending && !state.available;
-      root.classList.toggle('jarvis-signing-in', authVisible);
-      $('[data-login]').textContent = waiting
-        ? 'Browseranmeldung erneut öffnen'
-        : 'Mit ChatGPT anmelden';
-      if (state.available) {
-        const wasWaiting = Boolean(loginPoll || loginExpiresAt);
-        stopLoginPolling();
-        loginExpiresAt = null;
-        $('[data-auth-link]').hidden = true;
-        authProgress('');
-        if (wasWaiting)
-          setStatus('Codex ist verbunden. Du kannst mit Jarvis sprechen.');
-      } else if (waiting) {
-        pollLogin(
-          state.loginExpiresAt || loginExpiresAt || Date.now() + 600000,
-        );
-      } else if (state.provider === 'codex') {
-        stopLoginPolling();
-        if (state.loginError) authProgress(state.loginError, true);
-      }
-      $('[data-scope]').textContent =
-        state.searchScope === 'web'
-          ? 'Recherche: Websuche + Originalquellen'
-          : 'Recherche: Wikipedia · Websuche noch nicht konfiguriert';
-      return state;
-    } catch (error) {
-      if (!available) {
-        $('[data-auth]').hidden = false;
-        root.classList.add('jarvis-signing-in');
-      }
-      setStatus(error.message);
-      return null;
-    }
-  }
-  async function authRequest(path, body = {}) {
-    let response;
-    try {
-      response = await fetch(new URL(`jarvis/${path}`, displays.base), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-        signal: AbortSignal.timeout(45000),
-      });
-    } catch {
-      throw new Error(
-        'Verbindung unterbrochen. Bitte zu STARK zurückkehren und erneut versuchen.',
-      );
-    }
-    let result;
-    try {
-      result = await response.json();
-    } catch {
-      throw new Error(
-        'Home Assistant hat keine lesbare Antwort geliefert. Bitte STARK über die Seitenleiste erneut öffnen.',
-      );
-    }
-    if (!response.ok)
-      throw new Error(result.error || 'Codex-Anmeldung fehlgeschlagen.');
-    return result;
-  }
-  $('[data-login]').addEventListener('click', async () => {
-    const button = $('[data-login]');
-    button.disabled = true;
-    const popup = window.open('about:blank', '_blank');
-    if (popup) popup.opener = null;
-    try {
-      authProgress('Browseranmeldung wird gestartet …');
-      const login = await authRequest('login');
-      const url = new URL(login.authUrl);
-      if (url.origin !== 'https://auth.openai.com')
-        throw new Error('Ungültige Codex-Anmeldeadresse.');
-      const link = $('[data-auth-link]');
-      link.href = url.href;
-      link.hidden = false;
-      $('[data-remote]').hidden = false;
-      root.classList.add('jarvis-signing-in');
-      pollLogin(login.expiresAt);
-      button.textContent = 'Browseranmeldung erneut öffnen';
-      authProgress(
-        'Nach der Anmeldung hierher zurückkehren und den Link aus der Browser-Adresszeile einfügen.',
-      );
-      setStatus(
-        'Browseranmeldung läuft. Der zweite Schritt steht direkt darunter.',
-      );
-      if (popup) popup.location.replace(url.href);
-    } catch (error) {
-      popup?.close();
-      authProgress(error.message, true);
-      setStatus(error.message);
-    } finally {
-      button.disabled = false;
-    }
-  });
-  $('[data-callback-form]').addEventListener('submit', async (event) => {
-    event.preventDefault();
-    if (completingLogin) return;
-    const field = $('[data-callback]');
-    const callbackUrl = field.value;
-    field.value = '';
-    const button = $('[data-callback-submit]');
-    completingLogin = true;
-    button.disabled = true;
-    $('[data-login]').disabled = true;
-    button.textContent = 'Wird verbunden …';
-    authProgress('Weiterleitung wird an Codex übergeben …');
-    try {
-      await authRequest('login/complete', { callbackUrl });
-      const state = await refreshConnection(false);
-      if (!state?.available)
-        throw new Error(
-          'Die Rückgabe ist angekommen. Bitte kurz warten; der Status wird weiter automatisch geprüft.',
-        );
-      setStatus('Codex ist verbunden. Du kannst mit Jarvis sprechen.');
-    } catch (error) {
-      authProgress(error.message, true);
-      setStatus(error.message);
-    } finally {
-      completingLogin = false;
-      button.disabled = false;
-      $('[data-login]').disabled = false;
-      button.textContent = 'Anmeldung abschließen';
-    }
-  });
-  const resumeLogin = () => {
-    if (!root.hidden && !document.hidden && !completingLogin && !pollBusy)
-      refreshConnection(false);
-  };
-  window.addEventListener('focus', resumeLogin);
-  document.addEventListener('visibilitychange', resumeLogin);
-  $('[data-logout]').addEventListener('click', async () => {
-    interrupt();
-    try {
-      await authRequest('logout');
+  const unsubscribe = account.subscribe((state) => {
+    if (available && !state.available) {
+      interrupt();
       conversationId = null;
-      await refreshConnection();
-    } catch (error) {
-      setStatus(error.message);
     }
+    available = state.available;
   });
-  refreshConnection();
+  available = account.isAvailable();
   return {
     send,
     interrupt,
-    showVoice: () => chat.close({ focus: false }),
+    showVoice() {
+      chat.close({ focus: false });
+      interrupt();
+      player.control('close');
+      answer.textContent = '';
+      answer.hidden = true;
+      notice('');
+      account.refresh(false);
+    },
     player,
     destroy() {
-      stopLoginPolling();
-      window.removeEventListener('focus', resumeLogin);
-      document.removeEventListener('visibilitychange', resumeLogin);
+      unsubscribe();
+      window.removeEventListener('blur', suspendRecording);
+      document.removeEventListener('visibilitychange', visibility);
       interrupt();
       chat.destroy();
       player.destroy();

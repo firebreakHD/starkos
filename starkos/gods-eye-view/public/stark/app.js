@@ -2,6 +2,7 @@ import { InertialRing } from './ring.js';
 import { DisplayApi, capability } from './display-api.js';
 import { createMediaBrowser } from './media-browser.js';
 import { createConversation } from './conversation.js';
+import { createCodexAccount } from './account.js';
 
 const modules = [
   {
@@ -11,34 +12,22 @@ const modules = [
     code: 'MODULE 01',
   },
   {
-    title: 'INVESTIGATION',
-    detail: 'Fälle, Orte und Ereignisse verbinden',
-    glyph: '⌬',
-    code: 'MODULE 02',
-  },
-  {
-    title: 'WORLD',
+    title: 'Gods Eye',
     detail: 'Echte Cesium-Geodatenengine öffnen',
     glyph: '◎',
-    code: 'MODULE 03',
+    code: 'MODULE 02',
   },
   {
     title: 'RECEIVER',
     detail: 'Autorisierte Bildschirme koppeln',
     glyph: '▣',
-    code: 'MODULE 04',
-  },
-  {
-    title: 'SYSTEM',
-    detail: 'Quellenstatus und lokale Konfiguration',
-    glyph: '◇',
-    code: 'MODULE 05',
+    code: 'MODULE 03',
   },
   {
     title: 'ASSISTANT',
     detail: 'Mit Jarvis sprechen, recherchieren und Werkzeuge steuern',
     glyph: '✧',
-    code: 'MODULE 06',
+    code: 'MODULE 04',
   },
 ];
 
@@ -51,11 +40,20 @@ const selectedDisplays = new Set();
 const receiverPreviewCache = new Map();
 let mediaBrowser = null;
 let conversation = null;
+const settings = { title: 'EINSTELLUNGEN', code: 'STARK OS' };
+const accountRoot = $('#accountSettings');
+const account = createCodexAccount(accountRoot, { displays });
+$('#openSettings').addEventListener('click', () => openPanel(settings));
 function showJarvis() {
   conversation ??= createConversation($('#jarvisHome'), {
     displays,
+    account,
     openModule: (title) =>
-      openPanel(modules.find((item) => item.title === title)),
+      openPanel(
+        title === 'SYSTEM'
+          ? settings
+          : modules.find((item) => item.title === title),
+      ),
   });
   conversation.showVoice();
   $('#device').hidden = true;
@@ -90,20 +88,26 @@ function openPanel(item = active) {
     return;
   }
   document.body.classList.remove('jarvis-active');
-  if (item.title === 'WORLD') {
+  if (item.title === 'Gods Eye') {
     // Ohne `embed=1`: God's Eye View zeigt seine eigene Oberfläche mit
     // Filtern, Adresssuche und Einstellungen. `stark=1` blendet nur den
     // Rückweg zum STARK-Ring ein.
     window.location.assign('../?world=1&stark=1');
     return;
   }
+  if (item === settings) {
+    conversation?.showVoice();
+    $('#jarvisHome').hidden = true;
+    $('#device').hidden = false;
+    document.body.classList.remove('jarvis-active');
+  }
   const panel = $('#panel');
   $('#panelCode').textContent = item.code;
   $('#panelTitle').textContent = item.title;
   const body = $('#panelBody');
+  $('#settingsHost').append(accountRoot);
   body.replaceChildren();
   if (item.title === 'MEDIA') mountMedia(body);
-  else if (item.title === 'INVESTIGATION') mountInvestigation(body);
   else if (item.title === 'RECEIVER') mountReceiver(body);
   else mountSystem(body);
   panel.classList.add('open');
@@ -773,7 +777,8 @@ function mountSystem(body) {
     <div class="source-row muted"><b>LIVE AIS</b><span>AISSTREAM</span><em>OPTIONAL KEY</em></div>
     <div class="source-row muted"><b>LIVE TRAFFIC</b><span>TOMTOM</span><em>OPTIONAL KEY</em></div>
     <p class="module-note">Optionale Originalquellen bleiben erhalten. Fehlende Schlüssel erzeugen keine erfundenen Live-Daten.</p>`;
-  body.append(wrapper);
+  body.append(accountRoot, wrapper);
+  account.refresh();
 }
 
 function formatBytes(value) {
