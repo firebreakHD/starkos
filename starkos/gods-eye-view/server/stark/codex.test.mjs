@@ -13,11 +13,19 @@ import {
 
 const AUTH =
   'https://auth.openai.com/oauth/authorize?redirect_uri=http%3A%2F%2F127.0.0.1%3A1455%2Fauth%2Fcallback&state=fixture-state&code_challenge=fixture-pkce';
-function fixture({ account = null, delay = false } = {}) {
+function fixture({
+  account = null,
+  delay = false,
+  callbackDelayReads = 0,
+  callbackFailure = false,
+} = {}) {
   const directory = mkdtempSync(path.join(tmpdir(), 'stark-codex-test-'));
   const sent = [];
   let options, args;
   let current = account;
+  let delayedAccount = null,
+    remainingReads = 0;
+  const callbackRequests = [];
   const child = new EventEmitter();
   child.stdout = new EventEmitter();
   child.stderr = new EventEmitter();
@@ -31,8 +39,14 @@ function fixture({ account = null, delay = false } = {}) {
       if (message.id === undefined || !message.method) return;
       queueMicrotask(() => {
         let result = {};
-        if (message.method === 'account/read')
+        if (message.method === 'account/read') {
+          if (remainingReads > 0) remainingReads--;
+          else if (delayedAccount) {
+            current = delayedAccount;
+            delayedAccount = null;
+          }
           result = { account: current, requiresOpenaiAuth: true };
+        }
         if (message.method === 'account/login/start')
           result = { type: 'chatgpt', loginId: 'login-fixture', authUrl: AUTH };
         if (message.method === 'account/logout') current = null;
@@ -82,9 +96,20 @@ function fixture({ account = null, delay = false } = {}) {
       return child;
     },
     fetchImpl: async (url, opts) => {
+      callbackRequests.push(url.href);
       assert.equal(url.origin, 'http://127.0.0.1:1455');
       assert.equal(opts.redirect, 'manual');
-      current = { type: 'chatgpt', email: 'test@example.invalid' };
+      if (callbackFailure)
+        throw new Error('private upstream details must never reach the UI');
+      emit({
+        method: 'account/login/completed',
+        params: { loginId: 'login-fixture', success: true },
+      });
+      const nextAccount = { type: 'chatgpt', email: 'test@example.invalid' };
+      if (callbackDelayReads) {
+        delayedAccount = nextAccount;
+        remainingReads = callbackDelayReads;
+      } else current = nextAccount;
       return new Response(null, {
         status: 302,
         headers: { location: 'https://chatgpt.com/' },
@@ -95,6 +120,7 @@ function fixture({ account = null, delay = false } = {}) {
     provider,
     sent,
     emit,
+    callbackRequests,
     get options() {
       return options;
     },
@@ -151,6 +177,107 @@ test('normal browser login requests ONLY chatgpt, validates callback and never r
   } finally {
     f.cleanup();
   }
+});
+
+test('browser return accepts copied localhost aliases but always forwards to the fixed IPv4 listener', async () => {
+  for (const prefix of [
+    'http://localhost:1455',
+    'localhost:1455',
+    '127.0.0.1:1455',
+  ]) {
+    const f = fixture();
+    try {
+      await f.provider.beginLogin();
+      assert.equal((await f.provider.status()).loginPending, true);
+      assert.ok((await f.provider.status()).loginExpiresAt > Date.now());
+      await f.provider.finishLogin(
+        ` ${prefix}/auth/callback?code=fixture&state=fixture-state `,
+      );
+      assert.equal(
+        new URL(f.callbackRequests[0]).origin,
+        'http://127.0.0.1:1455',
+      );
+      await f.provider.finishLogin('already consumed');
+      assert.equal(
+        f.callbackRequests.length,
+        1,
+        'successful retries must not exchange the one-use code again',
+      );
+    } finally {
+      f.cleanup();
+    }
+  }
+});
+
+test('completion notification does not lose a pending login before account/read refreshes', async () => {
+  const f = fixture({ callbackDelayReads: 3 });
+  try {
+    await f.provider.beginLogin();
+    f.emit({
+      method: 'account/login/completed',
+      params: { loginId: 'login-fixture', success: true },
+    });
+    const pending = await f.provider.status();
+    assert.equal(pending.available, false);
+    assert.equal(pending.loginPending, true);
+    const result = await f.provider.finishLogin(
+      'http://127.0.0.1:1455/auth/callback?code=fixture&state=fixture-state',
+    );
+    assert.equal(result.available, true);
+    assert.equal(f.callbackRequests.length, 1);
+  } finally {
+    f.cleanup();
+  }
+});
+
+test('failed callback stays retryable and reports a safe actionable error', async () => {
+  const f = fixture({ callbackFailure: true });
+  try {
+    await f.provider.beginLogin();
+    await assert.rejects(
+      () =>
+        f.provider.finishLogin(
+          'http://127.0.0.1:1455/auth/callback?code=fixture&state=fixture-state',
+        ),
+      (error) =>
+        error.status === 502 &&
+        /erneut einfügen/.test(error.message) &&
+        !error.message.includes('private'),
+    );
+    assert.equal((await f.provider.status()).loginPending, true);
+  } finally {
+    f.cleanup();
+  }
+});
+
+test('wrong link types, duplicate values and provider rejection give actionable validation errors', () => {
+  const login = { ...validateLoginUrl(AUTH), expires: Date.now() + 60000 };
+  assert.throws(
+    () =>
+      validateCallback(
+        'https://auth.openai.com/oauth/authorize?state=fixture-state',
+        login,
+      ),
+    (error) => error.status === 400,
+  );
+  assert.throws(
+    () => validateCallback('not a URL', login),
+    /vollständige Weiterleitungsadresse/,
+  );
+  assert.throws(() =>
+    validateCallback(
+      'http://127.0.0.1:1455/auth/callback?code=a&code=b&state=fixture-state',
+      login,
+    ),
+  );
+  assert.throws(
+    () =>
+      validateCallback(
+        'http://127.0.0.1:1455/auth/callback?error=access_denied&state=fixture-state',
+        login,
+      ),
+    /abgebrochen oder abgelehnt/,
+  );
 });
 
 test('callback cannot fetch arbitrary hosts, ports, credentials, stale states or missing codes', () => {

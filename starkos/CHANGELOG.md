@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.4
+
+- Fixed the browser-login return flow: a pending Codex login now restores the visible link-entry step when the phone returns to STARK or reloads the page, instead of hiding it behind a collapsed section.
+- Login instructions and progress stay visible, duplicate completion attempts are blocked, and invalid links or connection failures show actionable inline errors so the form can be retried. Returning to the app immediately rechecks the account.
+- The callback accepts copied localhost/127.0.0.1 aliases, forwards only to the original fixed IPv4 listener, and waits for Codex account confirmation after delivery. Successful retries do not exchange a one-use code again. Browser OAuth remains the only Codex login flow.
+
 ## 0.2.3
 
 - Assistant opens in its normal voice view. A small bottom-left handle grows after a half-second hold; dragging it right opens the text conversation. Short taps and cancelled/early drags leave the voice view in place. Keyboard and assistive activation remain available.

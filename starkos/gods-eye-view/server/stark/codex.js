@@ -69,15 +69,36 @@ export function validateCallback(value, login) {
     throw Object.assign(new Error('Anmeldung abgelaufen. Bitte neu starten.'), {
       status: 410,
     });
-  const url = new URL(value);
+  const malformed = () =>
+    Object.assign(
+      new Error(
+        'Bitte die vollständige Weiterleitungsadresse mit localhost oder 127.0.0.1 und /auth/callback einfügen, nicht den OpenAI-Anmeldelink.',
+      ),
+      { status: 400 },
+    );
+  if (typeof value !== 'string' || value.length > 16000) throw malformed();
+  let pasted = value.trim();
   if (
-    url.origin !== login.callback.origin ||
+    /^(?:localhost|127\.0\.0\.1):(?:1455|1457)\/auth\/callback\?/i.test(pasted)
+  )
+    pasted = `http://${pasted}`;
+  let url;
+  try {
+    url = new URL(pasted);
+  } catch {
+    throw malformed();
+  }
+  if (url.origin === 'https://auth.openai.com') throw malformed();
+  if (
+    url.protocol !== 'http:' ||
+    !['127.0.0.1', 'localhost'].includes(url.hostname) ||
+    url.port !== login.callback.port ||
     url.pathname !== login.callback.pathname ||
     url.username ||
     url.password ||
     url.hash ||
-    !same(url.searchParams.get('state') || '', login.state) ||
-    !url.searchParams.get('code')
+    url.searchParams.getAll('state').length !== 1 ||
+    !same(url.searchParams.get('state') || '', login.state)
   )
     throw Object.assign(
       new Error(
@@ -85,6 +106,18 @@ export function validateCallback(value, login) {
       ),
       { status: 400 },
     );
+  if (url.searchParams.has('error'))
+    throw Object.assign(
+      new Error(
+        'Die Browseranmeldung wurde abgebrochen oder abgelehnt. Bitte erneut anmelden.',
+      ),
+      { status: 400 },
+    );
+  if (
+    url.searchParams.getAll('code').length !== 1 ||
+    !url.searchParams.get('code')
+  )
+    throw malformed();
   const clean = new URL(login.callback);
   clean.searchParams.set('state', login.state);
   clean.searchParams.set('code', url.searchParams.get('code'));
@@ -105,6 +138,7 @@ export function createCodex({
     nextId = 1,
     buffer = '',
     login = null,
+    loginFailure = null,
     disposed = false;
   const workspace = path.join(home, 'workspace');
   function send(message) {
@@ -174,8 +208,15 @@ export function createCodex({
         if (
           message.method === 'account/login/completed' &&
           message.params?.loginId === login?.id
-        )
-          login = null;
+        ) {
+          loginFailure =
+            message.params?.success === false
+              ? 'Die Browseranmeldung wurde nicht abgeschlossen. Bitte erneut anmelden.'
+              : null;
+          // Keep the pending flow until account/read confirms the new account.
+          // The completion notification and account-manager refresh can race.
+          if (message.params?.success === false) login = null;
+        }
         events.emit(message.method, message.params);
       }
     }
@@ -256,15 +297,25 @@ export function createCodex({
       await start();
       const result = await request('account/read', { refreshToken: false });
       const available = result.account?.type === 'chatgpt';
+      if (available) {
+        login = null;
+        loginFailure = null;
+      }
+      const waiting = !available && login && login.expires > Date.now();
       return {
         provider: 'codex',
         available,
         loginAvailable: true,
-        loginPending: Boolean(login),
+        loginPending: Boolean(waiting),
+        loginExpiresAt: waiting ? login.expires : null,
+        loginError: loginFailure,
         authMode: 'browser-oauth',
         reason: available
           ? null
-          : 'Mit deinem ChatGPT-Konto bei Codex anmelden.',
+          : loginFailure ||
+            (waiting
+              ? 'Browseranmeldung läuft. Danach die Weiterleitungsadresse hier einfügen.'
+              : 'Mit deinem ChatGPT-Konto bei Codex anmelden.'),
       };
     } catch {
       return {
@@ -297,6 +348,7 @@ export function createCodex({
       id: result.loginId,
       expires: Date.now() + 10 * 60_000,
     };
+    loginFailure = null;
     return {
       authUrl: login.url.href,
       expiresAt: login.expires,
@@ -304,29 +356,64 @@ export function createCodex({
     };
   }
   async function finishLogin(value) {
+    // A retry after a successful callback is harmless; authorization codes
+    // themselves are one-use and must never be exchanged a second time.
+    const before = await status();
+    if (before.available) return before;
+    if (!before.loginAvailable)
+      throw Object.assign(new Error(FAILURE), { status: 502 });
     const url = validateCallback(value, login);
+    // Codex's callback listener is IPv4 loopback. Do not let a localhost alias
+    // resolve to ::1 on the add-on host; Codex retains its own OAuth redirect URI.
+    url.hostname = '127.0.0.1';
     // Fixed local Codex callback, never a client-selected fetch destination.
-    const response = await fetchImpl(url, {
-      redirect: 'manual',
-      signal: AbortSignal.timeout(30_000),
-    });
+    let response;
+    try {
+      response = await fetchImpl(url, {
+        redirect: 'manual',
+        signal: AbortSignal.timeout(30_000),
+      });
+    } catch {
+      throw Object.assign(
+        new Error(
+          'Die Rückgabe an Codex ist fehlgeschlagen. Bitte den Link erneut einfügen; falls die Anmeldung abgelaufen ist, neu starten.',
+        ),
+        { status: 502 },
+      );
+    }
     await response.body?.cancel();
     if (!response.ok && response.status !== 302)
-      throw new Error(
-        'Codex konnte die Anmeldung nicht abschließen. Bitte neu anmelden.',
+      throw Object.assign(
+        new Error(
+          'Codex hat die Weiterleitungsadresse abgelehnt. Bitte eine neue Browseranmeldung starten.',
+        ),
+        { status: 400 },
       );
-    const result = await status();
-    if (!result.available)
-      throw new Error(
-        'Anmeldung ist noch nicht abgeschlossen. Bitte neu versuchen.',
-      );
-    login = null;
-    return result;
+    // Codex commits credentials before notifying its account manager. A read
+    // immediately after the HTTP response can still report the old account.
+    for (let attempt = 0; attempt < 20; attempt++) {
+      const result = await status();
+      if (result.available) {
+        login = null;
+        loginFailure = null;
+        return result;
+      }
+      if (!result.loginAvailable)
+        throw Object.assign(new Error(FAILURE), { status: 502 });
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+    throw Object.assign(
+      new Error(
+        'Codex hat die Rückgabe erhalten, die Anmeldung ist aber noch nicht bestätigt. Bitte kurz warten; der Verbindungsstatus wird automatisch geprüft.',
+      ),
+      { status: 409 },
+    );
   }
   async function logout() {
     await start();
     if (login) await request('account/login/cancel', { loginId: login.id });
     login = null;
+    loginFailure = null;
     await request('account/logout', {});
     return status();
   }

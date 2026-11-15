@@ -13,7 +13,7 @@ Mobile-first STARK interface for research, geospatial data and secure control of
 - authenticated direct access and Home Assistant Ingress
 - Hermes display tools using the same authorization and capability checks as the UI
 
-See [DOCS.md](DOCS.md) for installation and operation. Current version: **0.2.3**.
+See [DOCS.md](DOCS.md) for installation and operation. Current version: **0.2.4**.
 
 The start screen is the original menu ring with Media, Investigation, World, Receiver and System. **Assistant** is a new, separate sixth entry for Jarvis (Hermes), with one microphone control and a contextual Stop. Investigation keeps its case board. Phones use larger text and one explanation window at a time inside Assistant. **Bereiche** returns to the main menu. Voice is the normal Assistant view. Hold the small bottom-left handle for half a second and drag right to open text chat; close it or reopen Assistant to return to voice.
 

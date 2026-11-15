@@ -316,6 +316,14 @@ try {
   ]) {
     await page.setViewport({ ...size, isMobile: true, hasTouch: true });
     await page.waitForFunction(() => document.querySelector('.explain-header'));
+    await page.waitForFunction(
+      (narrow) =>
+        document
+          .querySelector('.explain-header')
+          .textContent.includes('Fenster') === narrow,
+      {},
+      size.width <= 700,
+    );
     assert.equal(
       await page.evaluate(
         () =>
@@ -521,6 +529,8 @@ try {
           provider: 'codex',
           available: signedIn,
           loginAvailable: true,
+          loginPending: !signedIn,
+          loginExpiresAt: Date.now() + 60000,
           searchScope: 'wikipedia-only',
           reason: 'Mit ChatGPT anmelden.',
         }),
@@ -537,6 +547,19 @@ try {
     if (endpoint === '/api/stark/jarvis/login/complete') {
       assert.equal(request.method(), 'POST');
       assert.match(request.headers()['content-type'], /application\/json/);
+      if (
+        JSON.parse(request.postData()).callbackUrl.startsWith(
+          'https://auth.openai.com',
+        )
+      )
+        return request.respond({
+          status: 400,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            error:
+              'Bitte die vollständige Weiterleitungsadresse einfügen, nicht den OpenAI-Anmeldelink.',
+          }),
+        });
       callbackSubmitted = true;
       signedIn = true;
       return request.respond({
@@ -556,14 +579,39 @@ try {
   await authPage.goto(`${origin}/stark/`, { waitUntil: 'networkidle0' });
   await openRingModule(authPage, 'ASSISTANT');
   await authPage.waitForSelector('[data-auth]:not([hidden])');
+  await authPage.waitForSelector('[data-callback]', {
+    visible: true,
+    timeout: 1500,
+  });
   await authPage.click('[data-login]');
   await authPage.waitForSelector('[data-remote]:not([hidden])');
+  await authPage.waitForFunction(
+    () => typeof window.__testAuthUrl === 'string',
+  );
   assert.match(
     await authPage.evaluate(() => window.__testAuthUrl),
     /^https:\/\/auth.openai.com\//,
   );
+  await authPage.reload({ waitUntil: 'networkidle0' });
+  await openRingModule(authPage, 'ASSISTANT');
+  await authPage.waitForSelector('[data-callback]', { visible: true });
+  await authPage.type(
+    '[data-callback]',
+    'https://auth.openai.com/oauth/authorize',
+  );
+  await authPage.click('[data-callback-submit]');
+  await authPage.waitForFunction(() =>
+    document
+      .querySelector('[data-auth-progress]')
+      .textContent.includes('nicht den OpenAI-Anmeldelink'),
+  );
+  assert.equal(
+    await authPage.$eval('[data-callback-submit]', (el) => el.disabled),
+    false,
+    'bad links must not leave the form stuck',
+  );
+  assert.equal(await authPage.$eval('[data-remote]', (el) => el.hidden), false);
   await authPage.evaluate(() => {
-    document.querySelector('[data-remote]').open = true;
     document.querySelector('[data-callback]').value =
       'http://127.0.0.1:1455/auth/callback?code=qa-fixture&state=qa-fixture';
     document.querySelector('[data-callback-form]').requestSubmit();

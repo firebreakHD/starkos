@@ -29,7 +29,8 @@
   cursor: pointer;
   min-height: 32px;
 }
-.jarvis-auth input {
+.jarvis-auth input,
+.jarvis-auth textarea {
   width: 100%;
   min-width: 0;
   margin: 8px 0;
@@ -41,6 +42,45 @@
   border: 1px solid #548c99;
   border-radius: 6px;
   padding: 10px;
+}
+.jarvis-auth textarea {
+  display: block;
+  resize: vertical;
+  min-height: 100px;
+}
+.auth-return {
+  margin-top: 18px;
+  text-align: left;
+}
+.auth-return h2 {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 500;
+}
+.auth-return p {
+  margin: 10px 0 14px;
+}
+.auth-progress {
+  margin: 12px 0 0;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.auth-error {
+  color: var(--amber);
+}
+.jarvis-auth button:disabled {
+  opacity: 0.65;
+  cursor: progress;
+}
+.jarvis-home.jarvis-signing-in .jarvis-dialog {
+  padding: 22px 0;
+}
+.jarvis-home.jarvis-signing-in .jarvis-kicker,
+.jarvis-home.jarvis-signing-in .jarvis-dialog h1,
+.jarvis-home.jarvis-signing-in .jarvis-mic,
+.jarvis-home.jarvis-signing-in .jarvis-hint,
+.jarvis-home.jarvis-signing-in .jarvis-transcript {
+  display: none;
 }
 .jarvis-account {
   text-align: center;
