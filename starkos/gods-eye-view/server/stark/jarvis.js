@@ -100,6 +100,11 @@ export function createJarvis({
     conversation.busy = true;
     active++;
     const present = allowsPresentation(input);
+    // Explicit requests require an executed display action, not a text imitation.
+    const requiredPresentation =
+      present && allowsPresentation({ ...input, mode: 'chat' });
+    let presentationDelivered = false,
+      presentationRepairs = 0;
     const messages = [
       { role: 'system', content: SYSTEM },
       ...conversation.messages,
@@ -107,7 +112,9 @@ export function createJarvis({
         role: 'system',
         content: !present
           ? 'This is a text-only turn. Reply inside the chat. Do not call present_explanation or control_explanation; do not open, change or close visual windows. Research tools remain available.'
-          : 'This turn allows visual explanations. Present helpful sources, drawings and calculations on the main canvas. In voice mode use visuals by default when useful.',
+          : requiredPresentation
+            ? 'The user explicitly requested a VISUAL explanation. You MUST call present_explanation before giving your final answer. Use a real structured scene with diagram nodes, source excerpts, or calculation windows. An ASCII/emoji diagram, Markdown code fence or a promise to draw in text does NOT fulfill this request. Start with display_ids: [] unless an external display was explicitly requested. Read sources before quoting; for a conceptual explanation use a diagram or note, never a fabricated source.'
+            : 'This turn allows visual explanations. Present helpful sources, drawings and calculations on the main canvas. In voice mode use visuals by default when useful.',
       },
       { role: 'user', content: input.text.trim() },
     ];
@@ -177,6 +184,21 @@ export function createJarvis({
         };
         messages.push(message);
         if (!message.tool_calls?.length) {
+          if (requiredPresentation && !presentationDelivered) {
+            // Retry within the existing bounded tool loop. Never expose the
+            // text-only draft as if the requested visual action succeeded.
+            messages.pop();
+            if (presentationRepairs++ >= 2)
+              throw new Error(
+                'Die visuelle Darstellung konnte nicht erstellt werden. Bitte erneut versuchen.',
+              );
+            messages.push({
+              role: 'system',
+              content:
+                'The requested visual explanation has NOT been presented successfully. Do not return a text-only answer. Call present_explanation now with a valid explanation scene (title, narration, windows; diagram windows need ordered nodes). Fix any previous tool validation errors. Do not invent source quotations. Only after the tool succeeds may you return a brief final answer.',
+            });
+            continue;
+          }
           // Trim only at complete turn boundaries; never retain orphan tool responses.
           conversation.messages.push(
             ...messages
@@ -258,7 +280,12 @@ export function createJarvis({
                   'Dieser Chat-Auftrag erlaubt keine visuellen Fenster.',
                 );
               result = await executeTool(name, args);
-              if (name === 'present_explanation')
+              if (name === 'present_explanation') {
+                if (!result?.explanation)
+                  throw new Error(
+                    'Das Darstellungswerkzeug hat keine Erklärung geliefert.',
+                  );
+                presentationDelivered = true;
                 emit({
                   type: 'explanation',
                   explanation: result.explanation,
@@ -266,6 +293,7 @@ export function createJarvis({
                     .filter((r) => r.accepted)
                     .map((r) => r.id),
                 });
+              }
               if (name === 'control_explanation')
                 emit({ type: 'control', command: args.command });
             }

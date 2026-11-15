@@ -7,10 +7,12 @@ export function allowsPresentation({
   if (visuals === false) return false;
   const words = text.toLowerCase();
   if (
-    /\b(ohne|keine?|nicht|never|no|without)\b.{0,28}\b(fenster|grafik\w*|diagramm\w*|visuell\w*|visual\w*|windows?|draw\w*)\b/u.test(
+    /\b(ohne|keine?|nicht|never|no|without)\b.{0,28}\b(fenster|grafik\w*|diagramm\w*|visuel\w*|visual\w*|windows?|draw\w*)\b/u.test(
       words,
     ) ||
-    /\b(nicht zeichnen|nur (im )?chat|text only|don't show)\b/u.test(words)
+    /\b(nicht (zeichnen|zeigen|visualisieren)|nur (im )?chat|text only|don't show)\b/u.test(
+      words,
+    )
   )
     return false;
   if (mode !== 'chat') return true;
@@ -18,7 +20,7 @@ export function allowsPresentation({
     /\b(zeig\w*|zeichne\w*|visualisier\w*|show|draw|visualize)\b/u.test(
       words,
     ) ||
-    /\b(visuell\w*|grafisch\w*|mit fenstern|als (grafik|diagramm)|visual explanation)\b/u.test(
+    /\b(visuel\w*|grafisch\w*|mit fenstern|als (grafik|diagramm)|visual explanation)\b/u.test(
       words,
     )
   );
