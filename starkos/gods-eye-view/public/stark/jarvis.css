@@ -920,3 +920,227 @@ a.explain-source {
     cursor: grabbing;
   }
 }
+
+/* Reading comes first: no screen texture over text, and labels keep their
+   actual text size when graphics or neighboring windows become smaller. */
+body.jarvis-active .boot-noise,
+body.jarvis-active::before {
+  display: none;
+}
+.jarvis-home {
+  background: #061218;
+  color: #f1fafb;
+}
+.explain-window {
+  container-type: inline-size;
+  background: #0a1c24;
+}
+.ink-canvas {
+  filter: none;
+}
+.ink-label,
+.ink-detail {
+  font-family: system-ui, sans-serif;
+  letter-spacing: 0;
+}
+.ink-reference {
+  display: none;
+  font:
+    600 36px/1 system-ui,
+    sans-serif;
+}
+.visual-legend {
+  display: none;
+  list-style: none;
+  margin: 0;
+  padding: 12px 18px 18px;
+  gap: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.visual-legend-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  min-width: 0;
+  color: #f1fafb;
+  font:
+    500 19px/1.5 system-ui,
+    sans-serif;
+  overflow-wrap: anywhere;
+}
+.visual-reference {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 27px;
+  height: 27px;
+  border: 1px solid #80e5d1;
+  border-radius: 50%;
+  font:
+    600 16px/1 system-ui,
+    sans-serif;
+  color: #adffec;
+}
+.visual-legend-item[data-tone='amber'] .visual-reference {
+  border-color: #e6ba6c;
+  color: #ffe0a5;
+}
+.visual-legend-copy small {
+  display: block;
+  margin-top: 3px;
+  font:
+    400 18px/1.5 system-ui,
+    sans-serif;
+  color: #c6d9df;
+}
+.explain-caption {
+  max-height: none;
+  overflow: visible;
+  background: #0a1c24;
+  color: #f1fafb;
+  font-size: 19px;
+  line-height: 1.6;
+}
+.explain-window-title {
+  color: #f1fafb;
+  font:
+    600 18px/1.4 system-ui,
+    sans-serif;
+}
+.explain-text {
+  color: #e4eff2;
+}
+.explain-drawing > .explain-text,
+.explain-model > .explain-text,
+.explain-diagram > .explain-text,
+.explain-timeline > .explain-text {
+  color: #bdcfd5;
+  font-size: 17px;
+  line-height: 1.6;
+}
+@container (max-width:620px) {
+  .visual-legend {
+    display: grid;
+  }
+  .ink-label,
+  .ink-detail {
+    display: none;
+  }
+  .ink-reference {
+    display: block;
+  }
+  .ink-number {
+    font:
+      600 32px/1 system-ui,
+      sans-serif;
+  }
+  .explain-window-bar {
+    gap: 8px;
+  }
+  .explain-kind {
+    display: none;
+  }
+}
+@media (max-width: 1050px) {
+  .jarvis-home {
+    padding-left: max(14px, env(safe-area-inset-left));
+    padding-right: max(14px, env(safe-area-inset-right));
+  }
+  .explain-windows {
+    display: block;
+    padding: 4px;
+  }
+  .explain-window,
+  .explain-window:nth-child(2),
+  .explain-window:nth-child(3) {
+    margin: 0;
+  }
+  .explain-window-bar {
+    padding: 14px 16px;
+  }
+  .explain-text {
+    font-size: 19px;
+    line-height: 1.65;
+    padding: 18px;
+  }
+  .explain-caption {
+    margin-top: 18px;
+    font-size: 19px;
+    padding: 16px;
+  }
+  .explain-header {
+    font:
+      14px/1.5 system-ui,
+      sans-serif;
+    color: #c3d8dd;
+    flex-wrap: wrap;
+  }
+  .explain-header small {
+    font-size: 13px;
+    color: #adc6cf;
+  }
+}
+.jarvis-mic[data-mode='toggle'] {
+  box-shadow:
+    0 0 0 3px #09232b,
+    0 0 0 5px #7ae6cf;
+}
+@container (max-width:340px) {
+  .visual-legend {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+/* The presentation scrolls above a separate control dock: no text can sit
+   behind the microphone, its glow or the bottom navigation. */
+.jarvis-home {
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 0;
+  overflow: hidden;
+}
+.jarvis-home .explanation-surface {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 8px 4px 24px;
+  margin: 0;
+}
+.jarvis-home .jarvis-answer {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  overflow-y: auto;
+  font-size: 19px;
+}
+.jarvis-controls {
+  position: relative;
+  left: auto;
+  right: auto;
+  bottom: auto;
+  width: 100%;
+  flex: none;
+  margin-top: auto;
+  background: #061218;
+}
+.jarvis-controls {
+  border-top: 1px solid #25434d;
+}
+.jarvis-home .explanation-surface {
+  scrollbar-width: thin;
+  scrollbar-color: #527a86 transparent;
+}
+a.explain-source {
+  font-size: 18px;
+  line-height: 1.5;
+  min-height: 44px;
+}
+.explain-attribution {
+  font-size: 16px;
+  line-height: 1.5;
+  color: #bdcfd5;
+}
+.jarvis-notice {
+  font-size: 18px;
+  line-height: 1.5;
+}

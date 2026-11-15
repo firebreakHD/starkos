@@ -2,11 +2,11 @@
 
 STARK OS is a mobile-first media, investigation and geospatial interface for Home Assistant hosting. The supplied God's Eye View project remains the real Cesium/data engine; STARK OS adds the phone-style ring, secured direct access and paired display control.
 
-Current Home Assistant app version: **0.3.0**
+Current Home Assistant app version: **0.3.1**
 
 ## Talk to Jarvis
 
-STARK OS starts with its menu ring: **Media, Gods Eye, Receiver, Assistant**. The bottom-left **gear** opens settings and Codex sign-in. Open **Assistant** with the ring's double tap: its canvas starts empty, with a large **J** at the bottom center. Hold J to speak and release to send. Hold the small bottom-left handle for half a second and drag right for text chat. Voice answers show useful sources, diagrams and calculations on the canvas by default. Typed questions stay in chat unless you explicitly ask to show or draw something; then chat closes and the explanation opens on the canvas. Closing/reopening Assistant restores the empty voice view while preserving the conversation. The small back arrow returns to the menu. Say or type **Demo** for the labeled fixed preview without an account. Hermes remains the sole agent and uses STARK's existing research/media/display tools.
+STARK OS starts with its menu ring: **Media, Gods Eye, Receiver, Assistant**. The bottom-left **gear** opens settings and Codex sign-in. Open **Assistant** with the ring's double tap: its canvas starts empty, with a large **J** at the bottom center. Hold J to speak and release to send; double-tap J to toggle hands-free voice. A single tap does nothing. Only the left drag handle opens chat. Hold the small bottom-left handle for half a second and drag right for text chat. Voice answers show useful sources, diagrams and calculations on the canvas by default. Typed questions stay in chat unless you explicitly ask to show or draw something; then chat closes and the explanation opens on the canvas. Closing/reopening Assistant restores the empty voice view while preserving the conversation. The small back arrow returns to the menu. Say or type **Demo** for the labeled fixed preview without an account. Hermes remains the sole agent and uses STARK's existing research/media/display tools.
 
 The bundled official **Codex** runtime supplies the model for the Hermes/Jarvis orchestrator. Choose **Mit ChatGPT anmelden** for normal browser OAuth with your ChatGPT account; no Claude Code, Device Code or model API key is needed. Credentials and refresh remain managed by Codex in a separate persistent store. Optional `codex_model` chooses an available model; blank uses Codex's default. See [the integration guide](docs/JARVIS.md).
 

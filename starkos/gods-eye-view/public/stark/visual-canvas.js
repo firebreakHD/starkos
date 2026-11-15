@@ -79,6 +79,7 @@ function arrowHead(svg, points, index, tone) {
 }
 export function drawSketch(win) {
   const svg = canvas(win.title);
+  let annotation = 0;
   win.drawing.elements.forEach((item, index) => {
     const x = item.x * 6,
       y = item.y * 4.4,
@@ -97,7 +98,19 @@ export function drawSketch(win) {
     if (item.text) {
       const isShape = ['rect', 'ellipse'].includes(item.kind);
       // Stroke annotations belong in separate labels with explicit positions.
-      if (item.kind === 'label' || isShape)
+      if (item.kind === 'label' || isShape) {
+        annotation++;
+        label(
+          svg,
+          String(annotation),
+          isShape ? x + w / 2 : x,
+          isShape ? y + h / 2 : y,
+          {
+            anchor: isShape ? 'middle' : 'start',
+            className: 'ink-reference',
+            tone: item.tone,
+          },
+        );
         label(
           svg,
           item.text,
@@ -105,6 +118,7 @@ export function drawSketch(win) {
           isShape ? y + h / 2 : y,
           { anchor: isShape ? 'middle' : 'start', tone: item.tone },
         );
+      }
     }
   });
   return svg;
@@ -165,6 +179,7 @@ export function drawTimeline(win) {
     svg.append(
       svgElement('circle', { cx: 54, cy: y, r: 6, class: 'ink-orbit' }),
     );
+    label(svg, String(i + 1), 80, y - 5, { className: 'ink-reference' });
     label(svg, entry.label, 80, y - 5, { width: 36 });
     label(svg, entry.detail, 80, y + 23, {
       width: 42,
@@ -300,6 +315,11 @@ export function drawModel(win, { isPaused = () => false } = {}) {
       y =
         40 +
         Math.floor(i / 2) * Math.min(95, 320 / Math.ceil(parts.length / 2));
+    label(svg, String(i + 1), left ? 18 : 582, y, {
+      anchor: left ? 'start' : 'end',
+      className: 'ink-reference',
+      tone: p.tone,
+    });
     label(svg, p.label, left ? 18 : 582, y, {
       anchor: left ? 'start' : 'end',
       width: 22,
