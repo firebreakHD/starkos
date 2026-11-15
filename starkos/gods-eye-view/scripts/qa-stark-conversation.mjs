@@ -140,7 +140,9 @@ try {
     });
     window.SpeechRecognition = class {
       start() {
+        window.__lastRecognition = this;
         this.onstart?.();
+        if (window.__manualRecognition) return;
         setTimeout(() => {
           this.onresult?.({
             resultIndex: 0,
@@ -306,6 +308,63 @@ try {
     false,
     'Escape returns to voice',
   );
+  await page.evaluate(() => {
+    window.__manualRecognition = true;
+    window.__lastRecognition = null;
+  });
+  await page.click('[data-mic]');
+  await new Promise((resolve) => setTimeout(resolve, 400));
+  assert.equal(
+    await page.$eval('[data-chat]', (el) => el.open),
+    false,
+    'a single J tap never opens chat',
+  );
+  assert.equal(
+    await page.evaluate(() => Boolean(window.__lastRecognition)),
+    false,
+    'a short tap does not start speech',
+  );
+  const doubleTapMic = async () => {
+    await page.click('[data-mic]');
+    await page.click('[data-mic]');
+  };
+  await doubleTapMic();
+  assert.equal(
+    await page.$eval('[data-mic]', (el) => el.dataset.mode),
+    'toggle',
+  );
+  assert.equal(
+    await page.$eval('[data-mic]', (el) => el.getAttribute('aria-pressed')),
+    'true',
+  );
+  assert.equal(await page.$eval('[data-chat]', (el) => el.open), false);
+  await page.evaluate(() => {
+    window.__previousRecognition = window.__lastRecognition;
+    window.__lastRecognition.onresult({
+      resultIndex: 0,
+      results: [
+        Object.assign([{ transcript: 'bleib hier' }], { isFinal: true }),
+      ],
+    });
+    window.__lastRecognition.onend();
+  });
+  await page.waitForFunction(
+    () => window.__lastRecognition !== window.__previousRecognition,
+  );
+  assert.equal(
+    await page.$eval('[data-mic]', (el) => el.dataset.mode),
+    'toggle',
+    'hands-free mode rearms after a turn',
+  );
+  await doubleTapMic();
+  assert.equal(
+    await page.$eval('[data-mic]', (el) => el.getAttribute('aria-pressed')),
+    'false',
+  );
+  assert.equal(await page.$eval('[data-chat]', (el) => el.open), false);
+  await page.evaluate(() => {
+    window.__manualRecognition = false;
+  });
   await page.focus('[data-mic]');
   await page.keyboard.down(' ');
   await new Promise((resolve) => setTimeout(resolve, 80));
@@ -322,7 +381,7 @@ try {
   });
   await page.mouse.move(micBox.x, micBox.y);
   await page.mouse.down();
-  await new Promise((resolve) => setTimeout(resolve, 80));
+  await new Promise((resolve) => setTimeout(resolve, 400));
   assert.equal(
     await page.$eval('[data-explanation]', (el) => el.hidden),
     true,
@@ -368,7 +427,7 @@ try {
           .querySelector('.explain-header')
           .textContent.includes('Fenster') === narrow,
       {},
-      size.width <= 700,
+      size.width < 1086,
     );
     assert.equal(
       await page.evaluate(
@@ -453,6 +512,70 @@ try {
     await page.$eval('[data-chat-log]', (el) => el.textContent),
     /\(Textdiagramm\)/,
   );
+  await page.waitForSelector('.visual-legend', { visible: true });
+  const legendMetrics = await page.$eval('.visual-legend', (el) => ({
+    font: parseFloat(
+      getComputedStyle(el.querySelector('.visual-legend-item')).fontSize,
+    ),
+    overflow: el.scrollWidth > el.clientWidth,
+  }));
+  assert.ok(
+    legendMetrics.font >= 19,
+    'mobile labels have real readable CSS pixel sizes',
+  );
+  assert.equal(legendMetrics.overflow, false);
+  assert.equal(
+    await page.$eval('.boot-noise', (el) => getComputedStyle(el).display),
+    'none',
+    'no scanline overlay over assistant text',
+  );
+  assert.equal(
+    await page.$eval(
+      '.explain-caption',
+      (el) => el.scrollHeight > el.clientHeight,
+    ),
+    false,
+    'caption is not clipped or internally scrolled',
+  );
+  assert.equal(
+    await page.evaluate(() => {
+      const content = document
+        .querySelector('[data-explanation]')
+        .getBoundingClientRect();
+      const controls = document
+        .querySelector('.jarvis-controls')
+        .getBoundingClientRect();
+      return content.bottom <= controls.top + 1;
+    }),
+    true,
+    'presentation text scrolls entirely above the control dock',
+  );
+  for (const width of [320, 375, 390]) {
+    await page.setViewport({
+      width,
+      height: 744,
+      isMobile: true,
+      hasTouch: true,
+    });
+    await page.waitForFunction(() => document.querySelector('.visual-legend'));
+    const sizes = await page.$eval('.visual-legend', (el) => ({
+      font: parseFloat(getComputedStyle(el.querySelector('li')).fontSize),
+      overflow: el.scrollWidth > el.clientWidth,
+    }));
+    assert.ok(sizes.font >= 19);
+    assert.equal(sizes.overflow, false, `readable labels fit ${width}px`);
+  }
+  if (process.env.STARK_QA_OUTPUT) {
+    await page.$eval('[data-explanation]', (el) => {
+      el.scrollTop = el.scrollHeight;
+    });
+    await page.screenshot({
+      path: path.join(process.env.STARK_QA_OUTPUT, 'stark-phone-reading.png'),
+    });
+    await page.$eval('[data-explanation]', (el) => {
+      el.scrollTop = 0;
+    });
+  }
   const modelPath = () =>
     page.$eval('.ink-model .ink-stroke', (el) => el.getAttribute('d'));
   const initialPath = await modelPath();
@@ -575,6 +698,11 @@ try {
     'opening another module leaves text mode',
   );
   await page.waitForSelector('.panel.open .stark-browser');
+  await page.waitForFunction(
+    () =>
+      Math.abs(document.querySelector('#panel').getBoundingClientRect().top) <
+      1,
+  );
   await page.click('#browserBack');
   await page.waitForFunction(
     () =>
@@ -635,6 +763,7 @@ try {
   await post(`pairing/${claim.claimId}/confirm`, { name: 'QA display' });
   const approved = await post('receiver/claim-status', claim);
   const receiver = await browser.newPage();
+  await receiver.setViewport({ width: 1440, height: 1000 });
   await receiver.evaluateOnNewDocument(
     (device) =>
       localStorage.setItem('stark-receiver-device', JSON.stringify(device)),
@@ -766,6 +895,44 @@ try {
     });
   await receiver.close();
   console.log('PASS: paired receiver path');
+  const unsupported = await browser.newPage();
+  const unsupportedErrors = [];
+  unsupported.on('pageerror', (error) => unsupportedErrors.push(error.message));
+  await unsupported.evaluateOnNewDocument(() => {
+    Object.defineProperty(window, 'SpeechRecognition', {
+      value: undefined,
+      configurable: true,
+    });
+    Object.defineProperty(window, 'webkitSpeechRecognition', {
+      value: undefined,
+      configurable: true,
+    });
+  });
+  await unsupported.setViewport({
+    width: 390,
+    height: 744,
+    isMobile: true,
+    hasTouch: true,
+  });
+  await unsupported.goto(`${origin}/stark/`, { waitUntil: 'networkidle0' });
+  await openRingModule(unsupported, 'ASSISTANT');
+  await unsupported.click('[data-mic]');
+  assert.equal(await unsupported.$eval('[data-chat]', (el) => el.open), false);
+  await unsupported.focus('[data-mic]');
+  await unsupported.keyboard.down(' ');
+  await unsupported.keyboard.up(' ');
+  await unsupported.waitForSelector('[data-notice]:not([hidden])');
+  assert.equal(
+    await unsupported.$eval('[data-chat]', (el) => el.open),
+    false,
+    'unsupported speech never opens chat',
+  );
+  assert.match(
+    await unsupported.$eval('[data-notice]', (el) => el.textContent),
+    /Spracheingabe nicht/,
+  );
+  assert.deepEqual(unsupportedErrors, []);
+  await unsupported.close();
   // Account UX fixture only: never opens a real OpenAI login or uses credentials.
   const authPage = await browser.newPage();
   let signedIn = false,

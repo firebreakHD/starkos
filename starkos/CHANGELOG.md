@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.1
+
+- Corrected J-button gestures: short tap does nothing, hold records until release, and double-tap toggles hands-free voice. Hands-free listening resumes after the reply; closing/leaving, losing focus, Stop or another double-tap disables it. Missing speech support or HTTPS reports an error without opening chat. The left hold-and-drag handle remains the only chat control.
+- Removed the scanline overlay from Assistant and increased text contrast. Narrow visual windows show numbered references with normal-size HTML labels instead of shrinking labels with an SVG. Labels keep at least 19 CSS pixels and wrap into a single column on very narrow screens.
+- Presentations adapt to the actual available width: compact controllers and embedded panels show windows sequentially; wider workspaces keep readable labels even in smaller neighboring windows. Full narration remains readable by scrolling above a separate bottom control dock, with no text behind J.
+
 ## 0.3.0
 
 - Replaced prose/flow-card presentation with a drawing workspace: floating windows with luminous outlines, staggered entrances, animated vector ink, source underlines and a separate narration caption. The idle Assistant canvas and bottom voice/chat controls stay clear.

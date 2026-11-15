@@ -23,7 +23,11 @@ export function createExplanationPlayer(
     visualDisposers.forEach((dispose) => dispose());
     visualDisposers = [];
   };
-  const narrow = matchMedia('(max-width: 700px)');
+  const narrow = {
+    get matches() {
+      return root.getBoundingClientRect().width < 1050;
+    },
+  };
   const element = (tag, className, text) => {
     const node = document.createElement(tag);
     node.className = className;
@@ -120,6 +124,37 @@ export function createExplanationPlayer(
     }
     if (win.kind === 'timeline') article.append(drawTimeline(win));
     if (win.kind === 'diagram') article.append(drawFlow(win));
+    const entries =
+      win.kind === 'model'
+        ? win.model.parts.map((part) => ({
+            label: part.label,
+            tone: part.tone,
+          }))
+        : win.kind === 'drawing'
+          ? win.drawing.elements
+              .filter((item) => item.text)
+              .map((item) => ({ label: item.text, tone: item.tone }))
+          : win.kind === 'diagram'
+            ? win.nodes.map((label) => ({ label }))
+            : win.kind === 'timeline'
+              ? win.entries
+              : [];
+    if (entries.length) {
+      const legend = element('ol', 'visual-legend');
+      legend.setAttribute('aria-label', 'Beschriftungen der Darstellung');
+      entries.forEach((entry, index) => {
+        const item = element('li', 'visual-legend-item');
+        item.dataset.tone = entry.tone || 'cyan';
+        const copy = element('span', 'visual-legend-copy', entry.label);
+        if (entry.detail) copy.append(element('small', '', entry.detail));
+        item.append(
+          element('span', 'visual-reference', String(index + 1)),
+          copy,
+        );
+        legend.append(item);
+      });
+      article.append(legend);
+    }
     const text = element(
       win.kind === 'source' ? 'blockquote' : 'p',
       'explain-text',
@@ -178,6 +213,7 @@ export function createExplanationPlayer(
     const caption = element('p', 'explain-caption', scene.narration);
     caption.setAttribute('aria-live', 'polite');
     root.append(header, windows, caption);
+    root.scrollTop = 0;
     onChange({ sceneIndex, windowIndex, paused, visible, title: scene.title });
   }
   function advance() {
@@ -251,7 +287,15 @@ export function createExplanationPlayer(
     render();
     schedule();
   };
-  narrow.addEventListener('change', onResize);
+  let previousWidth = root.getBoundingClientRect().width;
+  const observer = new ResizeObserver(() => {
+    const width = root.getBoundingClientRect().width;
+    if (width && width !== previousWidth) {
+      previousWidth = width;
+      onResize();
+    }
+  });
+  observer.observe(root);
   const onHidden = () => {
     if (document.hidden) control('pause');
   };
@@ -302,6 +346,7 @@ export function createExplanationPlayer(
         !Number.isFinite(index)
       )
         return;
+      if (caption.scrollHeight <= caption.clientHeight) return;
       const offset = Math.max(0, Math.min(text.length - 1, index));
       const range = document.createRange();
       range.setStart(caption.firstChild, offset);
@@ -315,7 +360,7 @@ export function createExplanationPlayer(
     destroy() {
       cancel();
       disposeVisuals();
-      narrow.removeEventListener('change', onResize);
+      observer.disconnect();
       document.removeEventListener('visibilitychange', onHidden);
       root.replaceChildren();
     },

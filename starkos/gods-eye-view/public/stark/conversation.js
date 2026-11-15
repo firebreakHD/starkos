@@ -25,10 +25,13 @@ export function createConversation(
     speechToken = 0,
     speechQueue = [],
     speaking = false,
-    available = false;
+    available = false,
+    voiceLatched = false,
+    restartTimer = null;
   const chat = createChatDrawer(root, {
     onOpen() {
       cancelSpeech();
+      stopVoiceMode();
       cancelRecording();
       mic.setAttribute('aria-pressed', 'false');
       showStop(pending);
@@ -66,6 +69,7 @@ export function createConversation(
   function say(text, queue = false) {
     if (chat.isOpen()) return;
     if (!window.speechSynthesis || !text) return;
+    if (voiceLatched && recording) cancelRecording();
     if (queue) {
       speechQueue.push(text);
       if (speaking) return;
@@ -77,6 +81,7 @@ export function createConversation(
       if (!speechQueue.length) {
         speaking = false;
         showStop(pending);
+        resumeVoice();
         return;
       }
       speaking = true;
@@ -115,7 +120,9 @@ export function createConversation(
       }
     }
   }
-  function interrupt() {
+  function interrupt({ keepVoice = false, keepGesture = false } = {}) {
+    if (!keepVoice) stopVoiceMode();
+    if (!keepGesture) resetMicGesture();
     abort?.abort();
     abort = null;
     cancelRecording();
@@ -137,7 +144,7 @@ export function createConversation(
         plain,
       )
     ) {
-      interrupt();
+      interrupt({ keepVoice: voiceLatched });
       targets = [];
       visuals = true;
       player.setVisible(true);
@@ -300,16 +307,64 @@ export function createConversation(
         abort = null;
         pending = false;
         showStop(speaking);
+        resumeVoice();
       }
     }
   }
-  // One recording per hold. Interim/final text is buffered until release;
-  // cancellations, hidden tabs and late permission grants cannot send a turn.
-  let recording = null;
+  // Short tap: nothing. Hold: push-to-talk. Two short taps: hands-free
+  // voice mode. This control never calls chat.open(), even on errors.
+  let recording = null,
+    micPointer = null,
+    holdTimer = null,
+    holdStarted = false,
+    lastTapAt = 0,
+    doubleCandidate = false;
+  const HOLD_MS = 250,
+    DOUBLE_MS = 360;
   function notice(text) {
     const element = $('[data-notice]');
     element.textContent = text;
     element.hidden = !text;
+  }
+  function updateMic() {
+    mic.setAttribute(
+      'aria-pressed',
+      String(voiceLatched || Boolean(recording?.held)),
+    );
+    mic.dataset.mode = voiceLatched ? 'toggle' : 'hold';
+    mic.dataset.recording = String(Boolean(recording && !recording.ended));
+  }
+  function stopVoiceMode() {
+    voiceLatched = false;
+    clearTimeout(restartTimer);
+    restartTimer = null;
+    updateMic();
+  }
+  function resumeVoice() {
+    clearTimeout(restartTimer);
+    if (
+      !voiceLatched ||
+      recording ||
+      pending ||
+      speaking ||
+      root.hidden ||
+      document.hidden ||
+      chat.isOpen()
+    )
+      return;
+    restartTimer = setTimeout(() => {
+      restartTimer = null;
+      if (
+        voiceLatched &&
+        !recording &&
+        !pending &&
+        !speaking &&
+        !root.hidden &&
+        !document.hidden &&
+        !chat.isOpen()
+      )
+        beginRecording('toggle');
+    }, 350);
   }
   function cancelRecording() {
     const session = recording;
@@ -319,27 +374,30 @@ export function createConversation(
       session.cancelled = true;
       session.recognition.abort();
     }
-    mic.setAttribute('aria-pressed', 'false');
+    updateMic();
   }
-  function beginRecording() {
+  function beginRecording(mode = 'hold') {
     if (recording || root.hidden || chat.isOpen()) return;
     if (!Recognition || !window.isSecureContext) {
-      chat.open();
-      setStatus(
-        'Sprache braucht einen unterstützten Browser und HTTPS. Du kannst hier schreiben.',
-      );
+      stopVoiceMode();
+      const message = !window.isSecureContext
+        ? 'Sprache braucht HTTPS. Öffne STARK über die sichere Home-Assistant-Adresse.'
+        : 'Dieser Browser unterstützt die Spracheingabe nicht. Bitte Mikrofonunterstützung im Browser prüfen.';
+      notice(message);
+      setStatus(message);
       return;
     }
-    if (pending) interrupt();
+    if (pending) interrupt({ keepVoice: true, keepGesture: true });
     cancelSpeech();
-    player.control('pause');
+    if (mode === 'hold') player.control('pause');
     notice('');
     recognition = new Recognition();
     recognition.lang = 'de-DE';
     recognition.interimResults = true;
-    recognition.continuous = true;
+    recognition.continuous = mode === 'hold';
     const session = {
       recognition,
+      mode,
       held: true,
       ended: false,
       cancelled: false,
@@ -347,15 +405,16 @@ export function createConversation(
       timer: null,
     };
     recording = session;
-    mic.setAttribute('aria-pressed', 'true');
+    updateMic();
     const finish = () => {
       if (recording !== session || session.held) return;
       clearTimeout(session.timer);
       recording = null;
-      mic.setAttribute('aria-pressed', 'false');
+      updateMic();
       const text = session.parts.join(' ').trim();
       if (!session.cancelled && !root.hidden && !chat.isOpen() && text)
-        send(text, { mode: 'voice' });
+        Promise.resolve(send(text, { mode: 'voice' })).finally(resumeVoice);
+      else resumeVoice();
     };
     session.finish = finish;
     recognition.onstart = () => {
@@ -378,23 +437,33 @@ export function createConversation(
     };
     recognition.onerror = (event) => {
       if (recording !== session) return;
+      if (event.error === 'no-speech' && voiceLatched) {
+        cancelRecording();
+        resumeVoice();
+        return;
+      }
       session.cancelled = true;
+      stopVoiceMode();
       const message =
         event.error === 'not-allowed'
-          ? 'Mikrofon nicht freigegeben. Bitte die Browserfreigabe ändern oder schreiben.'
-          : `Spracheingabe: ${event.error}. Schreiben ist weiterhin möglich.`;
+          ? 'Mikrofon nicht freigegeben. Bitte die Mikrofonberechtigung im Browser ändern.'
+          : `Spracheingabe: ${event.error}. Bitte die Mikrofonunterstützung prüfen.`;
       notice(message);
       setStatus(message);
       cancelRecording();
     };
     recognition.onend = () => {
       session.ended = true;
+      if (session.mode === 'toggle') session.held = false;
       finish();
     };
     try {
       recognition.start();
     } catch {
-      notice('Mikrofon konnte nicht gestartet werden. Bitte schreiben.');
+      stopVoiceMode();
+      notice(
+        'Mikrofon konnte nicht gestartet werden. Bitte die Browserfreigabe prüfen.',
+      );
       cancelRecording();
     }
   }
@@ -402,12 +471,11 @@ export function createConversation(
     const session = recording;
     if (!session) return;
     session.held = false;
-    mic.setAttribute('aria-pressed', 'false');
+    updateMic();
     if (session.ended) {
       session.finish();
       return;
     }
-    // onend normally delivers final results. A bounded fallback handles stalled engines.
     session.timer = setTimeout(() => {
       session.recognition.abort();
       session.finish();
@@ -418,34 +486,78 @@ export function createConversation(
       session.finish();
     }
   }
-  let micPointer = null;
+  function toggleVoice() {
+    if (voiceLatched) {
+      stopVoiceMode();
+      if (recording) releaseRecording();
+      else interrupt();
+      setStatus('Sprachmodus ausgeschaltet.');
+    } else {
+      voiceLatched = true;
+      cancelRecording();
+      beginRecording('toggle');
+      updateMic();
+    }
+  }
+  function resetMicGesture() {
+    clearTimeout(holdTimer);
+    holdTimer = null;
+    micPointer = null;
+    holdStarted = false;
+    doubleCandidate = false;
+    lastTapAt = 0;
+  }
   mic.addEventListener('pointerdown', (event) => {
     if (!event.isPrimary || event.button !== 0 || micPointer !== null) return;
     event.preventDefault();
     micPointer = event.pointerId;
     mic.setPointerCapture(micPointer);
-    beginRecording();
+    doubleCandidate =
+      lastTapAt > 0 && performance.now() - lastTapAt <= DOUBLE_MS;
+    holdStarted = false;
+    holdTimer = setTimeout(() => {
+      holdTimer = null;
+      doubleCandidate = false;
+      lastTapAt = 0;
+      holdStarted = true;
+      stopVoiceMode();
+      cancelRecording();
+      beginRecording('hold');
+    }, HOLD_MS);
   });
   mic.addEventListener('pointerup', (event) => {
     if (event.pointerId !== micPointer) return;
+    clearTimeout(holdTimer);
+    holdTimer = null;
     micPointer = null;
-    releaseRecording();
+    if (holdStarted) {
+      holdStarted = false;
+      lastTapAt = 0;
+      releaseRecording();
+    } else if (doubleCandidate) {
+      lastTapAt = 0;
+      doubleCandidate = false;
+      toggleVoice();
+    } else lastTapAt = performance.now();
   });
-  mic.addEventListener('pointercancel', () => {
-    micPointer = null;
+  const cancelMicGesture = () => {
+    resetMicGesture();
+    stopVoiceMode();
     cancelRecording();
-  });
+  };
+  mic.addEventListener('pointercancel', cancelMicGesture);
   mic.addEventListener('lostpointercapture', () => {
-    if (micPointer !== null) {
-      micPointer = null;
-      cancelRecording();
-    }
+    if (micPointer !== null) cancelMicGesture();
   });
   mic.addEventListener('contextmenu', (event) => event.preventDefault());
   mic.addEventListener('keydown', (event) => {
     if ([' ', 'Enter'].includes(event.key)) {
       event.preventDefault();
-      if (!event.repeat) beginRecording();
+      if (!event.repeat) {
+        stopVoiceMode();
+        cancelRecording();
+        beginRecording('hold');
+      }
     }
   });
   mic.addEventListener('keyup', (event) => {
@@ -454,10 +566,7 @@ export function createConversation(
       releaseRecording();
     }
   });
-  const suspendRecording = () => {
-    micPointer = null;
-    cancelRecording();
-  };
+  const suspendRecording = cancelMicGesture;
   const visibility = () => {
     if (document.hidden) suspendRecording();
   };
