@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.5
+
+- Empty HTTPS passwords now mean direct access without any STARK login, session cookie, prior Home Assistant visit or authorization handoff. Direct opening, refreshes and new browser tabs immediately show STARK, including Voice. Anyone who can reach that HTTPS address can control STARK in this mode.
+- Removed the login handoff and its Home Assistant instruction screen. A configured nonempty password retains the existing login. Native TLS and configured-host checks remain required; direct HTTP stays passive-only.
+- Home Assistant Ingress continues opening STARK without an additional STARK login. Voice still needs a secure browser context, supported speech recognition and microphone permission.
+
 ## 0.4.4
 
 - Raised the Home Assistant add-on version to deliver the HTTPS hostname fix and optional-password login as a fresh update. Reload the add-on store, update STARK OS, and restart before opening through Home Assistant.

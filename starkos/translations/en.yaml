@@ -13,8 +13,8 @@ configuration:
       key here.
   https_password:
     name: HTTPS access password
-    description: Optional. Leave blank to reuse Home Assistant authentication when
-      opening HTTPS. If set, at least 12 characters for direct login.
+    description: Optional. Blank opens HTTPS without login to anyone who can reach
+      the address. If set, use at least 12 characters.
   codex_model:
     name: Codex model
     description: Leave blank for the Codex default. Sign in through the gear in STARK.

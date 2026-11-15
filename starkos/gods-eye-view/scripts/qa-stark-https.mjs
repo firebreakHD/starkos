@@ -59,7 +59,7 @@ try {
     route: '',
     handle(req, res, next) {
       if (
-        ['/api/stark/https-ticket', '/stark/'].includes(req.url) &&
+        req.url === '/stark/' &&
         req.headers['x-qa-supervisor'] === 'fixture'
       ) {
         Object.defineProperty(req.socket, 'remoteAddress', {
@@ -100,42 +100,11 @@ try {
     .split(';')
     .find((part) => part.trim().startsWith('form-action'));
   assert.ok(formPolicy, 'actual Ingress document has a form policy');
-  if (!password)
-    assert.ok(
-      formPolicy.includes(`${origin}/stark/https-handoff`),
-      'Ingress allows only the configured handoff form destination',
-    );
   let entryOverride = null;
   fixture = http.createServer((req, res) => {
     if (req.url === '/api/stark/https-entry') {
       res.setHeader('content-type', 'application/json');
       res.end(JSON.stringify(entryOverride || httpsEntry()));
-      return;
-    }
-    if (req.url === '/api/stark/https-ticket') {
-      const upstream = http.request(
-        {
-          hostname: '127.0.0.1',
-          port,
-          path: '/api/stark/https-ticket',
-          method: 'POST',
-          headers: {
-            'content-type': 'application/json',
-            'x-qa-supervisor': 'fixture',
-          },
-        },
-        (response) => {
-          res.writeHead(response.statusCode, {
-            'content-type': 'application/json',
-          });
-          response.pipe(res);
-        },
-      );
-      upstream.on('error', () => {
-        res.statusCode = 503;
-        res.end();
-      });
-      req.pipe(upstream);
       return;
     }
     if (req.url === '/bootstrap.js') {
@@ -210,6 +179,24 @@ try {
     await page.evaluate(() => typeof navigator.mediaDevices?.getUserMedia),
     'function',
   );
+  if (!password) {
+    const freshContext = await browser.createBrowserContext();
+    const direct = await freshContext.newPage();
+    await direct.goto(`${origin}/stark/`, { waitUntil: 'networkidle0' });
+    await direct.waitForSelector('#device');
+    await direct.reload({ waitUntil: 'networkidle0' });
+    await direct.waitForSelector('#device');
+    assert.equal(
+      (await direct.cookies()).length,
+      0,
+      'fresh direct visit and reload need no cookies or HA history',
+    );
+    assert.equal(
+      await direct.evaluate(() => document.querySelector('#login')),
+      null,
+    );
+    await freshContext.close();
+  }
   const blockedContext = await browser.createBrowserContext();
   const blocked = await blockedContext.newPage();
   await blocked.goto(`${insecure}/blocked`, { waitUntil: 'networkidle0' });
@@ -351,7 +338,8 @@ try {
   }
   await page.waitForSelector('#device');
   const cookie = (await page.cookies()).find((c) => c.name === 'stark_session');
-  assert.ok(cookie.secure && cookie.httpOnly);
+  if (password) assert.ok(cookie.secure && cookie.httpOnly);
+  else assert.equal(cookie, undefined, 'direct HTTPS needs no login cookie');
   const api = async (endpoint, body) =>
     page.evaluate(
       async (endpoint, body) => {
@@ -377,7 +365,7 @@ try {
     (
       await fetch(`http://127.0.0.1:${port}/api/stark/jarvis/status`, {
         headers: {
-          cookie: `stark_session=${cookie.value}`,
+          cookie: cookie ? `stark_session=${cookie.value}` : '',
           'x-forwarded-proto': 'https',
         },
       })
@@ -427,7 +415,7 @@ try {
   }
   assert.deepEqual(errors, []);
   console.log(
-    'PASS: actual preview HTTPS login, Secure/HttpOnly cookie, secure browser context/media API, HTTP denial and isolated receiver over real WSS. Test certificate is trusted only by the test browser; no physical microphone or live provider account is used.',
+    `PASS: actual preview ${password ? 'HTTPS password login and Secure/HttpOnly cookie' : 'direct HTTPS without login, cookies or prior HA visit, including reloads'}, secure browser context/media API, HTTP denial and isolated receiver over real WSS. Test certificate is trusted only by the test browser; no physical microphone or live provider account is used.`,
   );
 } finally {
   await browser?.close();

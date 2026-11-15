@@ -1,5 +1,4 @@
 import test from 'node:test';
-import { Readable } from 'node:stream';
 import assert from 'node:assert/strict';
 import {
   mkdtempSync,
@@ -410,7 +409,7 @@ test('device HTTPS preflight refuses unreachable, wrong-service and unsafe targe
   );
 });
 
-test('empty HTTPS password starts TLS and accepts only a one-use POST handoff from authenticated Ingress', async () => {
+test('empty HTTPS password opens native TLS directly without login, cookies or an Ingress visit; HTTP stays restricted', async () => {
   const previous = { ...process.env };
   let secure, plain;
   try {
@@ -424,11 +423,7 @@ test('empty HTTPS password starts TLS and accepts only a one-use POST handoff fr
     starkAuthPlugin().configureServer({
       middlewares: { use: (fn) => stack.push(fn) },
     });
-    const app = (req, res) =>
-      stack[0](req, res, () => {
-        res.setHeader('content-type', 'application/json');
-        res.end('{"ok":true}');
-      });
+    const app = (req, res) => stack[0](req, res, () => res.end('{"ok":true}'));
     plain = http.createServer(app);
     await new Promise((resolve) => plain.listen(0, '127.0.0.1', resolve));
     secure = await startHttps({
@@ -437,118 +432,26 @@ test('empty HTTPS password starts TLS and accepts only a one-use POST handoff fr
       port: 0,
       host: '127.0.0.1',
     });
-    assert.ok(secure);
-    assert.equal(
-      (await request(secure, '/api/stark/jarvis/status')).status,
-      401,
-    );
-    assert.equal(
-      (
-        await request(secure, '/api/stark/https-ticket', {
-          method: 'POST',
-          body: {},
-        })
-      ).status,
-      403,
-    );
-    assert.equal(
-      (
-        await request(plain, '/api/stark/https-ticket', {
-          tls: false,
-          method: 'POST',
-          body: {},
-        })
-      ).status,
-      403,
-    );
-    const issue = async (headers = {}) => {
-      const req = Readable.from([Buffer.from('{}')]);
-      Object.assign(req, {
-        url: '/api/stark/https-ticket',
-        method: 'POST',
-        socket: { remoteAddress: '172.30.32.2' },
-        headers: { 'content-type': 'application/json', ...headers },
+    for (const route of ['/stark/', '/api/stark/jarvis/status']) {
+      const response = await request(secure, route);
+      assert.equal(response.status, 200, route);
+      assert.equal(
+        response.headers['set-cookie'],
+        undefined,
+        'no login cookie is needed',
+      );
+      const denied = await request(plain, route, {
+        tls: false,
+        headers: { 'x-forwarded-proto': 'https' },
       });
-      let payload;
-      const res = {
-        setHeader() {},
-        end(body) {
-          payload = JSON.parse(body);
-        },
-      };
-      await stack[0](req, res, () => assert.fail('mint must be handled'));
-      return { status: res.statusCode, ...payload };
-    };
-    assert.equal((await issue({ 'sec-fetch-site': 'cross-site' })).status, 403);
-    const expired = await issue();
-    const now = Date.now;
-    try {
-      Date.now = () => expired.expiresAt + 1;
-      const rejected = await request(secure, '/stark/https-handoff', {
-        method: 'POST',
-        body: new URLSearchParams({ ticket: expired.ticket }).toString(),
-        headers: { 'content-type': 'application/x-www-form-urlencoded' },
-      });
-      assert.equal(rejected.status, 401, 'expired handoff is rejected');
-    } finally {
-      Date.now = now;
+      assert.equal(denied.status, route.startsWith('/api/') ? 401 : 503);
     }
-    const minted = await issue();
-    assert.equal(minted.status, 200);
-    const body = new URLSearchParams({ ticket: minted.ticket }).toString();
-    assert.equal(
-      (
-        await request(plain, '/stark/https-handoff', {
-          tls: false,
-          method: 'POST',
-          body,
-          headers: { 'content-type': 'application/x-www-form-urlencoded' },
-        })
-      ).status,
-      403,
-    );
-    const accepted = await request(secure, '/stark/https-handoff', {
-      method: 'POST',
-      body,
-      headers: {
-        'content-type': 'application/x-www-form-urlencoded',
-        'sec-fetch-site': 'cross-site',
-      },
+    const auth = await request(secure, '/api/stark/auth');
+    assert.deepEqual(JSON.parse(auth.text), {
+      authenticated: true,
+      ingress: false,
+      setupRequired: false,
     });
-    assert.equal(accepted.status, 200);
-    assert.ok(!accepted.text.includes(minted.ticket));
-    const setCookie = accepted.headers['set-cookie'][0];
-    assert.match(setCookie, /Secure/);
-    assert.match(setCookie, /HttpOnly/);
-    assert.match(setCookie, /SameSite=Strict/);
-    const cookie = setCookie.split(';')[0];
-    assert.equal(
-      (
-        await request(secure, '/api/stark/jarvis/status', {
-          headers: { cookie },
-        })
-      ).status,
-      200,
-    );
-    assert.equal(
-      (
-        await request(plain, '/api/stark/jarvis/status', {
-          tls: false,
-          headers: { cookie },
-        })
-      ).status,
-      401,
-    );
-    assert.equal(
-      (
-        await request(secure, '/stark/https-handoff', {
-          method: 'POST',
-          body,
-          headers: { 'content-type': 'application/x-www-form-urlencoded' },
-        })
-      ).status,
-      401,
-    );
   } finally {
     await closeHttps(secure);
     plain?.closeAllConnections();
