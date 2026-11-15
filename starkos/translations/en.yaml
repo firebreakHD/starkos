@@ -13,8 +13,8 @@ configuration:
       key here.
   https_password:
     name: HTTPS access password
-    description: At least 12 characters. Protects direct HTTPS access; Ingress continues
-      using Home Assistant authentication.
+    description: Optional. Leave blank to reuse Home Assistant authentication when
+      opening HTTPS. If set, at least 12 characters for direct login.
   codex_model:
     name: Codex model
     description: Leave blank for the Codex default. Sign in through the gear in STARK.
@@ -56,6 +56,6 @@ configuration:
       sign-in links.
   https_auto_open:
     name: Automatically open HTTPS in the app
-    description: When Ingress is insecure, try switching the entire view to the configured
-      HTTPS URL. If the app blocks it, an opening link remains available. Already
-      secure Ingress is preserved.
+    description: First checks the STARK HTTPS URL from the phone. A verified target
+      allows an attempt to switch the entire view. Failed checks keep Home Assistant
+      open with explicit opening links.

@@ -10,7 +10,9 @@ import { startHttps, closeHttps } from '../server/stark/https.js';
 import { USB_DEMO } from '../public/stark/visual-demo.js';
 import { httpsEntry } from '../server/stark/https-entry.js';
 const directory = mkdtempSync(path.join(tmpdir(), 'stark-https-qa-'));
-const password = 'fixture-https-pass-123';
+const password = process.env.STARK_QA_PASSWORDLESS
+  ? ''
+  : 'fixture-https-pass-123';
 Object.assign(process.env, {
   STARK_ADDON: 'true',
   STARK_DATA_DIR: directory,
@@ -51,6 +53,23 @@ try {
     preview: { host: '127.0.0.1', port, strictPort: true },
     logLevel: 'error',
   });
+  // Fixture-only emulation before the auth middleware, never installed by the app.
+  app.middlewares.stack.unshift({
+    route: '',
+    handle(req, res, next) {
+      if (
+        ['/api/stark/https-ticket', '/stark/'].includes(req.url) &&
+        req.headers['x-qa-supervisor'] === 'fixture'
+      ) {
+        Object.defineProperty(req.socket, 'remoteAddress', {
+          value: '172.30.32.2',
+          configurable: true,
+        });
+        res.once('finish', () => delete req.socket.remoteAddress);
+      }
+      next();
+    },
+  });
   tls = await startHttps({
     app: app.middlewares,
     upgradeServer: app.httpServer,
@@ -60,10 +79,69 @@ try {
   });
   const origin = `https://127.0.0.1:${tls.address().port}`;
   process.env.STARK_HTTPS_URL = `${origin}/stark/`;
+  const ingressHeaders = await new Promise((resolve, reject) => {
+    http
+      .get(
+        {
+          hostname: '127.0.0.1',
+          port,
+          path: '/stark/',
+          headers: { 'x-qa-supervisor': 'fixture' },
+        },
+        (response) => {
+          response.resume();
+          response.on('end', () => resolve(response.headers));
+        },
+      )
+      .on('error', reject);
+  });
+  const formPolicy = String(ingressHeaders['content-security-policy'])
+    .split(';')
+    .find((part) => part.trim().startsWith('form-action'));
+  assert.ok(formPolicy, 'actual Ingress document has a form policy');
+  if (!password)
+    assert.ok(
+      formPolicy.includes(`${origin}/stark/https-handoff`),
+      'Ingress allows only the configured handoff form destination',
+    );
+  let entryOverride = null;
   fixture = http.createServer((req, res) => {
     if (req.url === '/api/stark/https-entry') {
       res.setHeader('content-type', 'application/json');
-      res.end(JSON.stringify(httpsEntry()));
+      res.end(JSON.stringify(entryOverride || httpsEntry()));
+      return;
+    }
+    if (req.url === '/api/stark/https-ticket') {
+      const upstream = http.request(
+        {
+          hostname: '127.0.0.1',
+          port,
+          path: '/api/stark/https-ticket',
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            'x-qa-supervisor': 'fixture',
+          },
+        },
+        (response) => {
+          res.writeHead(response.statusCode, {
+            'content-type': 'application/json',
+          });
+          response.pipe(res);
+        },
+      );
+      upstream.on('error', () => {
+        res.statusCode = 503;
+        res.end();
+      });
+      req.pipe(upstream);
+      return;
+    }
+    if (req.url === '/bootstrap.js') {
+      res.setHeader('content-type', 'text/javascript');
+      res.end(
+        'import {setupHttpsNavigation} from "/https-navigation.js"; setupHttpsNavigation({root:document.querySelector("#httpsEntry"),base:new URL("/api/stark/",location.href)});',
+      );
       return;
     }
     if (req.url === '/https-navigation.js') {
@@ -76,11 +154,15 @@ try {
       return;
     }
     res.setHeader('content-type', 'text/html');
-    if (req.url === '/embed')
-      res.end(
-        '<section id="httpsEntry" hidden></section><script type="module">import {setupHttpsNavigation} from "/https-navigation.js"; setupHttpsNavigation({root:document.querySelector("#httpsEntry"),base:new URL("/api/stark/",location.href)});</script>',
+    if (req.url === '/embed') {
+      res.setHeader(
+        'Content-Security-Policy',
+        `default-src 'self'; connect-src 'self' https:; ${formPolicy}`,
       );
-    else
+      res.end(
+        '<section id="httpsEntry" hidden></section><script type="module" src="/bootstrap.js"></script>',
+      );
+    } else
       res.end(
         `<iframe style="width:100%;height:90vh" ${req.url === '/blocked' ? 'sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-top-navigation-by-user-activation"' : ''} src="/embed"></iframe>`,
       );
@@ -121,7 +203,7 @@ try {
     1,
     'automatic handoff leaves the insecure parent instead of changing only the iframe',
   );
-  await page.waitForSelector('#password');
+  await page.waitForSelector(password ? '#password' : '#device');
   assert.equal(await page.evaluate(() => window.isSecureContext), true);
   assert.equal(
     await page.evaluate(() => typeof navigator.mediaDevices?.getUserMedia),
@@ -145,6 +227,7 @@ try {
     {},
     origin,
   );
+  if (!password) await blocked.waitForSelector('#device');
   assert.equal(
     await blocked.evaluate(() => isSecureContext),
     true,
@@ -168,9 +251,103 @@ try {
     .find((frame) => frame.url().endsWith('/embed'))
     .waitForSelector('#httpsEntry a[target="_top"]');
   await privateContext.close();
+  if (!password) {
+    const externalContext = await browser.createBrowserContext();
+    const externalPage = await externalContext.newPage();
+    await externalPage.evaluateOnNewDocument(() => {
+      Storage.prototype.setItem = () => {
+        throw new DOMException('blocked', 'SecurityError');
+      };
+    });
+    await externalPage.goto(`${insecure}/auto`, { waitUntil: 'networkidle0' });
+    const externalFrame = externalPage
+      .frames()
+      .find((frame) => frame.url().endsWith('/embed'));
+    await externalFrame.waitForSelector('#httpsEntry a[target="_blank"]');
+    const popupPromise = new Promise((resolve) =>
+      externalPage.once('popup', resolve),
+    );
+    await externalFrame.click('#httpsEntry a[target="_blank"]');
+    const popup = await popupPromise;
+    await popup.waitForSelector('#device');
+    assert.ok(
+      popup.url().startsWith(origin),
+      'external browser fallback also authenticates without a password',
+    );
+    assert.equal(await popup.evaluate(() => opener), null);
+    await externalContext.close();
+  }
 
-  await page.type('#password', password);
-  await page.click('#login button');
+  // A target that cannot be verified must never replace the working parent.
+  const failureContext = await browser.createBrowserContext();
+  const failure = await failureContext.newPage();
+  await failure.setRequestInterception(true);
+  failure.on('request', (request) => {
+    if (
+      request.url().startsWith(origin) &&
+      request.url().includes('/api/stark/health')
+    )
+      request.abort('connectionrefused');
+    else request.continue();
+  });
+  await failure.goto(`${insecure}/auto`, { waitUntil: 'networkidle0' });
+  const failureFrame = failure
+    .frames()
+    .find((frame) => frame.url().endsWith('/embed'));
+  await failureFrame.waitForFunction(() =>
+    document
+      .querySelector('#httpsEntry')
+      .textContent.includes('nicht bestätigt'),
+  );
+  assert.ok(
+    failure.url().startsWith(insecure),
+    'unreachable target keeps the original parent open',
+  );
+  assert.equal(
+    await failureFrame.evaluate(() =>
+      sessionStorage.getItem('stark-https-handoff-v2'),
+    ),
+    null,
+    'failed probe does not consume the next valid attempt',
+  );
+  await failureContext.close();
+  entryOverride = {
+    enabled: true,
+    url: `https://127.0.0.1:${tls.address().port}/wrong/stark/`,
+    autoOpen: true,
+  };
+  const wrongContext = await browser.createBrowserContext();
+  const wrong = await wrongContext.newPage();
+  await wrong.setRequestInterception(true);
+  wrong.on('request', (request) => {
+    if (request.url().includes('/wrong/api/stark/health'))
+      request.respond({
+        status: 200,
+        contentType: 'application/json',
+        headers: { 'access-control-allow-origin': '*' },
+        body: JSON.stringify({ message: 'Home Assistant' }),
+      });
+    else request.continue();
+  });
+  await wrong.goto(`${insecure}/auto`, { waitUntil: 'networkidle0' });
+  await wrong
+    .frames()
+    .find((frame) => frame.url().endsWith('/embed'))
+    .waitForFunction(() =>
+      document
+        .querySelector('#httpsEntry')
+        .textContent.includes('nicht als STARK'),
+    );
+  assert.ok(
+    wrong.url().startsWith(insecure),
+    'another service never causes automatic navigation',
+  );
+  await wrongContext.close();
+  entryOverride = null;
+  if (password) {
+    await page.type('#password', password);
+    await page.click('#login button');
+  }
   await page.waitForSelector('#device');
   const cookie = (await page.cookies()).find((c) => c.name === 'stark_session');
   assert.ok(cookie.secure && cookie.httpOnly);
