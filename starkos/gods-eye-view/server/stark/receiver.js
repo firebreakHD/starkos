@@ -815,7 +815,9 @@ export function starkReceiverPlugin({
         json(res, error.status || 500, {
           error: error.status
             ? error.message
-            : 'Display-Steuerung fehlgeschlagen.',
+            : url.pathname.startsWith('/api/stark/jarvis/')
+              ? 'Codex konnte den Schritt nicht abschließen. Bitte die Anmeldung erneut versuchen.'
+              : 'Display-Steuerung fehlgeschlagen.',
         });
       }
     });

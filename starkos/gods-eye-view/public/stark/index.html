@@ -54,28 +54,36 @@
           <a data-auth-link hidden target="_blank" rel="noopener noreferrer"
             >Browseranmeldung öffnen</a
           >
-          <details data-remote hidden>
-            <summary>Anmeldung am Handy / anderen Gerät</summary>
+          <section
+            class="auth-return"
+            data-remote
+            hidden
+            aria-label="Browseranmeldung abschließen"
+          >
+            <h2>Nach der Browseranmeldung</h2>
             <p>
-              Codex leitet an localhost auf dem Server zurück. Falls dein
-              Browser diese Seite nicht erreicht: Kopiere nach der
-              OpenAI-Anmeldung die vollständige Weiterleitungsadresse aus der
-              Adresszeile hierher.
+              Wenn der Browser „localhost nicht erreichbar“ zeigt, ist das am
+              Handy zu erwarten. Kopiere die vollständige Adresse dieser Seite,
+              komm zu STARK zurück und füge sie unten ein.
             </p>
             <form data-callback-form>
-              <label for="codexCallback">Weiterleitungsadresse</label
-              ><input
+              <label for="codexCallback">Link aus der Browser-Adresszeile</label
+              ><textarea
                 id="codexCallback"
                 data-callback
-                type="text"
+                rows="3"
                 autocomplete="off"
                 spellcheck="false"
                 maxlength="16000"
-                placeholder="http://127.0.0.1:1455/auth/callback?…"
+                placeholder="http://localhost:1455/auth/callback?…"
                 required
-              /><button type="submit">Anmeldung abschließen</button>
+              ></textarea
+              ><button type="submit" data-callback-submit>
+                Anmeldung abschließen
+              </button>
             </form>
-          </details>
+          </section>
+          <p class="auth-progress" data-auth-progress role="status"></p>
         </section>
         <p class="jarvis-transcript" data-transcript></p>
         <button class="jarvis-stop" data-stop type="button" hidden>

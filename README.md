@@ -2,7 +2,7 @@
 
 STARK OS is a mobile-first media, investigation and geospatial interface for Home Assistant hosting. The supplied God's Eye View project remains the real Cesium/data engine; STARK OS adds the phone-style ring, secured direct access and paired display control.
 
-Current Home Assistant app version: **0.2.3**
+Current Home Assistant app version: **0.2.4**
 
 ## Talk to Jarvis
 
@@ -10,7 +10,7 @@ STARK OS starts with its original menu ring: **Media, Investigation, World, Rece
 
 The bundled official **Codex** runtime supplies the model for the Hermes/Jarvis orchestrator. Choose **Mit ChatGPT anmelden** for normal browser OAuth with your ChatGPT account; no Claude Code, Device Code or model API key is needed. Credentials and refresh remain managed by Codex in a separate persistent store. Optional `codex_model` chooses an available model; blank uses Codex's default. See [the integration guide](docs/JARVIS.md).
 
-Codex's official browser login returns to a localhost callback on the machine running Codex. Local desktop use can complete directly. From a phone/another computer talking to Home Assistant, the browser cannot reach the server's localhost: use the optional **Anmeldung am Handy / anderen Gerät** form to pass the final redirect URL back over authenticated Ingress, or use a local SSH callback tunnel. This is browser OAuth, not a Device Code flow; a fully automatic remote callback is not claimed.
+Codex's official browser login returns to a localhost callback on the machine running Codex. Local desktop use can complete directly. From a phone/another computer talking to Home Assistant, the browser cannot reach the server's localhost: use the automatically displayed **Nach der Browseranmeldung** form to pass the final redirect URL back over authenticated Ingress, or use a local SSH callback tunnel. This is browser OAuth, not a Device Code flow; a fully automatic remote callback is not claimed.
 
 Visual explanations open source excerpts, highlighted passages, diagrams and calculation notes in timed scenes. Desktop shows up to three windows; phones show the same content one readable window at a time, with larger type and swipe navigation. Existing paired receivers learn the new capabilities after their receiver page is reloaded.
 

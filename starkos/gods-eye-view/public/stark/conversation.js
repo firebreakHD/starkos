@@ -22,7 +22,10 @@ export function createConversation(root, { displays, openModule } = {}) {
     speechQueue = [],
     speaking = false,
     available = false;
-  let loginPoll = null;
+  let loginPoll = null,
+    loginExpiresAt = null,
+    pollBusy = false,
+    completingLogin = false;
   const chat = createChatDrawer(root, {
     onOpen() {
       cancelSpeech();
@@ -349,47 +352,112 @@ export function createConversation(root, { displays, openModule } = {}) {
       } else interrupt();
     }
   });
+  function authProgress(text, error = false) {
+    $('[data-auth-progress]').textContent = text;
+    $('[data-auth-progress]').classList.toggle('auth-error', error);
+  }
+  function stopLoginPolling() {
+    clearInterval(loginPoll);
+    loginPoll = null;
+  }
+  function pollLogin(expiresAt) {
+    loginExpiresAt = expiresAt;
+    if (loginPoll) return;
+    loginPoll = setInterval(async () => {
+      if (document.hidden || pollBusy || completingLogin) return;
+      if (loginExpiresAt && Date.now() > loginExpiresAt) {
+        stopLoginPolling();
+        authProgress(
+          'Anmeldung abgelaufen. Bitte mit ChatGPT neu anmelden.',
+          true,
+        );
+        setStatus('Anmeldung abgelaufen. Bitte neu starten.');
+        return;
+      }
+      pollBusy = true;
+      try {
+        await refreshConnection(false);
+      } finally {
+        pollBusy = false;
+      }
+    }, 2500);
+  }
   async function refreshConnection(announce = true) {
-    return fetch(new URL('jarvis/status', displays.base))
-      .then((r) => {
-        if (!r.ok) throw Error('Verbindung nicht verfügbar.');
-        return r.json();
-      })
-      .then((state) => {
-        available = state.available;
-        if (announce)
-          setStatus(
-            state.available
-              ? 'Bereit. Tippe auf Jarvis und sprich.'
-              : state.reason,
-          );
-        $('[data-auth]').hidden =
-          state.provider !== 'codex' ||
-          state.available ||
-          !state.loginAvailable;
-        $('[data-account]').hidden =
-          state.provider !== 'codex' || !state.available;
-        if (state.available) {
-          clearInterval(loginPoll);
-          loginPoll = null;
-          $('[data-auth-link]').hidden = true;
-          $('[data-remote]').hidden = true;
-        }
-        $('[data-scope]').textContent =
-          state.searchScope === 'web'
-            ? 'Recherche: Websuche + Originalquellen'
-            : 'Recherche: Wikipedia · Websuche noch nicht konfiguriert';
-        return state;
-      })
-      .catch((error) => setStatus(error.message));
+    try {
+      const response = await fetch(new URL('jarvis/status', displays.base), {
+        cache: 'no-store',
+      });
+      if (!response.ok)
+        throw new Error(
+          'Der Anmeldestatus konnte nicht geladen werden. Bitte STARK über Home Assistant öffnen.',
+        );
+      const state = await response.json();
+      available = state.available;
+      if (announce)
+        setStatus(
+          state.available
+            ? 'Bereit. Tippe auf Jarvis und sprich.'
+            : state.reason,
+        );
+      $('[data-auth]').hidden =
+        state.provider !== 'codex' || state.available || !state.loginAvailable;
+      $('[data-account]').hidden =
+        state.provider !== 'codex' || !state.available;
+      const waiting =
+        state.provider === 'codex' && state.loginPending && !state.available;
+      root.classList.toggle('jarvis-signing-in', Boolean(waiting));
+      $('[data-remote]').hidden = !waiting;
+      $('[data-login]').textContent = waiting
+        ? 'Browseranmeldung erneut öffnen'
+        : 'Mit ChatGPT anmelden';
+      if (state.available) {
+        const wasWaiting = Boolean(loginPoll || loginExpiresAt);
+        stopLoginPolling();
+        loginExpiresAt = null;
+        $('[data-auth-link]').hidden = true;
+        authProgress('');
+        if (wasWaiting)
+          setStatus('Codex ist verbunden. Du kannst mit Jarvis sprechen.');
+      } else if (waiting) {
+        pollLogin(
+          state.loginExpiresAt || loginExpiresAt || Date.now() + 600000,
+        );
+      } else if (state.provider === 'codex') {
+        stopLoginPolling();
+        if (state.loginError) authProgress(state.loginError, true);
+      }
+      $('[data-scope]').textContent =
+        state.searchScope === 'web'
+          ? 'Recherche: Websuche + Originalquellen'
+          : 'Recherche: Wikipedia · Websuche noch nicht konfiguriert';
+      return state;
+    } catch (error) {
+      setStatus(error.message);
+      return null;
+    }
   }
   async function authRequest(path, body = {}) {
-    const response = await fetch(new URL(`jarvis/${path}`, displays.base), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    const result = await response.json();
+    let response;
+    try {
+      response = await fetch(new URL(`jarvis/${path}`, displays.base), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(45000),
+      });
+    } catch {
+      throw new Error(
+        'Verbindung unterbrochen. Bitte zu STARK zurückkehren und erneut versuchen.',
+      );
+    }
+    let result;
+    try {
+      result = await response.json();
+    } catch {
+      throw new Error(
+        'Home Assistant hat keine lesbare Antwort geliefert. Bitte STARK über die Seitenleiste erneut öffnen.',
+      );
+    }
     if (!response.ok)
       throw new Error(result.error || 'Codex-Anmeldung fehlgeschlagen.');
     return result;
@@ -400,6 +468,7 @@ export function createConversation(root, { displays, openModule } = {}) {
     const popup = window.open('about:blank', '_blank');
     if (popup) popup.opener = null;
     try {
+      authProgress('Browseranmeldung wird gestartet …');
       const login = await authRequest('login');
       const url = new URL(login.authUrl);
       if (url.origin !== 'https://auth.openai.com')
@@ -408,22 +477,19 @@ export function createConversation(root, { displays, openModule } = {}) {
       link.href = url.href;
       link.hidden = false;
       $('[data-remote]').hidden = false;
+      root.classList.add('jarvis-signing-in');
+      pollLogin(login.expiresAt);
+      button.textContent = 'Browseranmeldung erneut öffnen';
+      authProgress(
+        'Nach der Anmeldung hierher zurückkehren und den Link aus der Browser-Adresszeile einfügen.',
+      );
+      setStatus(
+        'Browseranmeldung läuft. Der zweite Schritt steht direkt darunter.',
+      );
       if (popup) popup.location.replace(url.href);
-      setStatus('Im Browser mit ChatGPT anmelden. Kein Device Code nötig.');
-      clearInterval(loginPoll);
-      loginPoll = setInterval(async () => {
-        if (Date.now() > login.expiresAt) {
-          clearInterval(loginPoll);
-          loginPoll = null;
-          setStatus('Anmeldung abgelaufen. Bitte erneut starten.');
-          return;
-        }
-        const state = await refreshConnection(false);
-        if (state?.available)
-          setStatus('Codex ist verbunden. Du kannst mit Jarvis sprechen.');
-      }, 2500);
     } catch (error) {
       popup?.close();
+      authProgress(error.message, true);
       setStatus(error.message);
     } finally {
       button.disabled = false;
@@ -431,16 +497,40 @@ export function createConversation(root, { displays, openModule } = {}) {
   });
   $('[data-callback-form]').addEventListener('submit', async (event) => {
     event.preventDefault();
+    if (completingLogin) return;
     const field = $('[data-callback]');
     const callbackUrl = field.value;
     field.value = '';
+    const button = $('[data-callback-submit]');
+    completingLogin = true;
+    button.disabled = true;
+    $('[data-login]').disabled = true;
+    button.textContent = 'Wird verbunden …';
+    authProgress('Weiterleitung wird an Codex übergeben …');
     try {
       await authRequest('login/complete', { callbackUrl });
-      await refreshConnection();
+      const state = await refreshConnection(false);
+      if (!state?.available)
+        throw new Error(
+          'Die Rückgabe ist angekommen. Bitte kurz warten; der Status wird weiter automatisch geprüft.',
+        );
+      setStatus('Codex ist verbunden. Du kannst mit Jarvis sprechen.');
     } catch (error) {
+      authProgress(error.message, true);
       setStatus(error.message);
+    } finally {
+      completingLogin = false;
+      button.disabled = false;
+      $('[data-login]').disabled = false;
+      button.textContent = 'Anmeldung abschließen';
     }
   });
+  const resumeLogin = () => {
+    if (!root.hidden && !document.hidden && !completingLogin && !pollBusy)
+      refreshConnection(false);
+  };
+  window.addEventListener('focus', resumeLogin);
+  document.addEventListener('visibilitychange', resumeLogin);
   $('[data-logout]').addEventListener('click', async () => {
     interrupt();
     try {
@@ -458,7 +548,9 @@ export function createConversation(root, { displays, openModule } = {}) {
     showVoice: () => chat.close({ focus: false }),
     player,
     destroy() {
-      clearInterval(loginPoll);
+      stopLoginPolling();
+      window.removeEventListener('focus', resumeLogin);
+      document.removeEventListener('visibilitychange', resumeLogin);
       interrupt();
       chat.destroy();
       player.destroy();
