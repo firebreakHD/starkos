@@ -1,6 +1,6 @@
 # Jarvis with Codex and normal ChatGPT login
 
-STARK OS 0.2.6 starts with the original menu ring. The ring contains **Media, Gods Eye, Receiver and Assistant**. The bottom-left gear opens settings, source status and Codex sign-in. **Assistant** opens Jarvis on an empty canvas and starts its connection when opened. It uses the pinned official `@openai/codex` package as the model provider for the single Hermes/Jarvis orchestrator. There is no Claude Code dependency. Research and display actions continue through STARK's authenticated tool contract.
+STARK OS 0.3.0 starts with the original menu ring. The ring contains **Media, Gods Eye, Receiver and Assistant**. The bottom-left gear opens settings, source status and Codex sign-in. **Assistant** opens Jarvis on an empty canvas and starts its connection when opened. It uses the pinned official `@openai/codex` package as the model provider for the single Hermes/Jarvis orchestrator. There is no Claude Code dependency. Research and display actions continue through STARK's authenticated tool contract.
 
 ## Normal browser sign-in
 
@@ -41,12 +41,12 @@ Codex supplies a structured answer or STARK tool requests under an enforced outp
 
 `present_explanation` / `control_explanation` use the authenticated display contract. Empty `display_ids` means the speaking controller; external receivers must be paired, online and advertise `explanation.scenes`. Reload receiver pages after updating to refresh capabilities.
 
-Explanations contain up to 12 timed scenes and three windows each: source excerpts with exact highlights, ordered diagrams, calculation notes or contextual notes. Model-authored HTML/JavaScript is never executed. Desktop shows multiple windows; phones show every window sequentially with larger text. Rotation preserves the conversation. Source links pause the scene; old scenes and the final scene close automatically after reading time.
+Explanations contain up to 12 timed scenes and three windows each: free vector drawings, labeled rotating geometric 3D schematics, timelines, source excerpts with exact highlights, ordered diagrams, calculation notes or contextual notes. Windows have luminous outlines and open in sequence; vector paths are drawn over time. The visual direction follows the floating ink windows shown in the [Roamies explanation demo](https://github.com/KenKaiii/Roamies#jarvis-explains-anything); the STARK renderer is independently implemented. Codex describes bounded shapes/coordinates/parts through the display tool, not executable markup. Drawings support rectangles, ellipses, strokes, arrows and labels. Models combine boxes, spheres, rings and cylinders; they are schematic geometry, not photographs or physical simulations. Say/type **USB Demo** for a fixed two-scene preview without an account. Pause freezes model rotation without replacing the window; hidden pages suspend rendering and reduced-motion preferences disable animation. Model-authored HTML/JavaScript is never executed. Desktop shows multiple windows; phones show every window sequentially with larger text. Rotation preserves the conversation. Source links pause the scene; old scenes and the final scene close automatically after reading time.
 
 Without SearXNG, discovery explicitly searches German Wikipedia only. With SearXNG, it covers that instance's configured engines. Public HTTPS articles/forums can be read by URL with DNS validation, pinned addresses, redirect checks and size bounds. Dynamic, login-only or anti-bot pages can fail. Snippets are leads; reading a page is not fact checking. Primary sources, dates, conflicting claims and uncertainty must be compared. Calculation notes are not a certified symbolic engine.
 
-Native drawing over unrelated applications, arbitrary desktop control, dedicated streaming voice audio and full 3D/molecule/quiz rendering are not included.
+The drawing workspace runs inside STARK and its paired browser receivers. Native drawing over unrelated applications, desktop app control, external 3D asset loading, molecular/quiz engines and dedicated streaming voice audio require separate host integrations.
 
 ## Release status
 
-Home Assistant metadata declares `0.2.6`. The change must be merged to the branch consumed by Home Assistant before reloading the store offers the update. A development branch, draft pull request or local patch is not an installed update. Update packages contain application instructions, not credentials.
+Home Assistant metadata declares `0.3.0`. The change must be merged to the branch consumed by Home Assistant before reloading the store offers the update. A development branch, draft pull request or local patch is not an installed update. Update packages contain application instructions, not credentials.

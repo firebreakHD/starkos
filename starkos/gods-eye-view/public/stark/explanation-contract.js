@@ -1,3 +1,4 @@
+import { validateVisual, VISUAL_PROPERTIES } from './visual-contract.js';
 // Data only. Neither the controller nor a receiver executes model-written HTML/JS.
 export const EXPLANATION_CAPABILITY = 'explanation.scenes';
 
@@ -52,7 +53,15 @@ export function validateExplanation(input) {
         windows: scene.windows.map((win) => {
           if (
             !win ||
-            !['source', 'diagram', 'calculation', 'note'].includes(win.kind)
+            ![
+              'source',
+              'diagram',
+              'drawing',
+              'model',
+              'timeline',
+              'calculation',
+              'note',
+            ].includes(win.kind)
           )
             fail();
           const result = {
@@ -81,7 +90,7 @@ export function validateExplanation(input) {
               fail();
             result.nodes = win.nodes.map((node) => text(node, 120));
           }
-          return result;
+          return { ...result, ...validateVisual(win) };
         }),
       };
     }),
@@ -115,9 +124,18 @@ export const EXPLANATION_SCHEMA = {
               required: ['kind', 'title', 'text'],
               additionalProperties: false,
               properties: {
+                ...VISUAL_PROPERTIES,
                 kind: {
                   type: 'string',
-                  enum: ['source', 'diagram', 'calculation', 'note'],
+                  enum: [
+                    'source',
+                    'diagram',
+                    'drawing',
+                    'model',
+                    'timeline',
+                    'calculation',
+                    'note',
+                  ],
                 },
                 title: { type: 'string' },
                 text: { type: 'string', maxLength: 4000 },

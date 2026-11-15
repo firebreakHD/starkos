@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.0
+
+- Replaced prose/flow-card presentation with a drawing workspace: floating windows with luminous outlines, staggered entrances, animated vector ink, source underlines and a separate narration caption. The idle Assistant canvas and bottom voice/chat controls stay clear.
+- Added declarative free drawings, labeled rotating geometric 3D schematics and timelines alongside source excerpts, diagrams and calculation windows. Hermes/Codex chooses and constructs the visual for the question; object explanations are instructed to draw the subject, rather than reduce it to boxes of words.
+- Say or type **USB Demo** for a fixed, labeled example: open the USB stick in 3D, identify its connector/controller/flash, then draw the data path. No account is needed for this demo. Models are schematic geometry, not photographs or measured simulations.
+- Desktop shows several independently positioned windows; phones show them sequentially with larger labels. Pause freezes model motion, source reading pauses playback, background tabs suspend animation, and reduced-motion settings disable rotation and ink animation. The same renderer runs on paired receivers.
+- Visuals remain bounded data rendered locally; no model-authored HTML, SVG markup, scripts or external models execute. Existing login, text-only chat behavior and explicit visual-request enforcement stay in place.
+
 ## 0.2.6
 
 - Visual requests also recognize common spelling such as “visuel”, including the USB-stick question. Explicit visual chat requests now require an executed presentation tool before returning a final answer, rather than accepting an emoji/ASCII diagram in chat.

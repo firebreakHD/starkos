@@ -4,7 +4,7 @@ export const STARK_DISPLAY_TOOLS = Object.freeze([
   {
     name: 'present_explanation',
     description:
-      'Show a timed visual explanation with source excerpts, highlights, diagrams and calculation steps. Empty display_ids shows on the speaking controller. External displays must support explanation.scenes.',
+      'Show a timed visual explanation with free vector drawings, rotating labeled geometric 3D models, timelines, source excerpts, highlights, diagrams and calculation steps. Use drawing/model to actually depict objects, not text boxes. Empty display_ids shows on the speaking controller. External displays must support explanation.scenes.',
     inputSchema: {
       type: 'object',
       additionalProperties: false,

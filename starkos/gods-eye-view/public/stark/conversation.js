@@ -1,5 +1,6 @@
 import { createExplanationPlayer } from './explanation-player.js';
 import { CONVERSATION_DEMO } from './conversation-demo.js';
+import { USB_DEMO } from './visual-demo.js';
 import { createChatDrawer } from './chat-drawer.js';
 import { allowsPresentation } from './presentation-policy.js';
 
@@ -83,8 +84,15 @@ export function createConversation(
       const token = speechToken;
       const utterance = new SpeechSynthesisUtterance(speechQueue.shift());
       utterance.lang = 'de-DE';
+      utterance.onboundary = (event) => {
+        if (token === speechToken)
+          player.followNarration(utterance.text, event.charIndex);
+      };
       utterance.onend = utterance.onerror = () => {
-        if (token === speechToken) next();
+        if (token === speechToken) {
+          player.followNarration(utterance.text, utterance.text.length - 1);
+          next();
+        }
       };
       window.speechSynthesis.speak(utterance);
     }
@@ -125,7 +133,9 @@ export function createConversation(
       .replace(/^(hey\s+)?jarvis\s*/, '')
       .trim();
     if (
-      /^(demo|zeig (mir )?(die |eine )?demo|starte (die )?demo)$/.test(plain)
+      /^(demo|usb demo|demo usb|zeig (mir )?(die |eine )?demo|starte (die )?demo)$/.test(
+        plain,
+      )
     ) {
       interrupt();
       targets = [];
@@ -133,7 +143,7 @@ export function createConversation(
       player.setVisible(true);
       chat.close({ focus: false });
       answer.hidden = true;
-      player.show(CONVERSATION_DEMO);
+      player.show(plain.includes('usb') ? USB_DEMO : CONVERSATION_DEMO);
       setStatus('Demo mit festen Beispieldaten · keine Live-Recherche');
       return true;
     }
@@ -252,7 +262,7 @@ export function createConversation(
           complete = true;
           if (mode === 'voice' || hasExplanation) {
             answer.textContent = message.text;
-            answer.hidden = !message.text;
+            answer.hidden = hasExplanation || !message.text;
           }
           chat.append('assistant', message.text);
           if (!hasExplanation && mode === 'voice') say(message.text);

@@ -1,4 +1,10 @@
 import { validateExplanation } from './explanation-contract.js';
+import {
+  drawSketch,
+  drawFlow,
+  drawTimeline,
+  drawModel,
+} from './visual-canvas.js';
 
 /** The same state machine renders on phone, desktop and passive receivers. */
 export function createExplanationPlayer(
@@ -12,6 +18,11 @@ export function createExplanationPlayer(
     visible = true,
     timer = null,
     closed = false;
+  let visualDisposers = [];
+  const disposeVisuals = () => {
+    visualDisposers.forEach((dispose) => dispose());
+    visualDisposers = [];
+  };
   const narrow = matchMedia('(max-width: 700px)');
   const element = (tag, className, text) => {
     const node = document.createElement(tag);
@@ -39,20 +50,76 @@ export function createExplanationPlayer(
     );
   }
   function drawWindow(win) {
-    const article = element('article', 'explain-window');
-    article.append(
+    const article = element('article', `explain-window explain-${win.kind}`);
+    article.dataset.windowKind = win.kind;
+    const bar = element('header', 'explain-window-bar');
+    bar.append(
       element(
         'small',
         'explain-kind',
         {
           source: 'QUELLE',
-          diagram: 'ZUSAMMENHANG',
+          diagram: 'VERBINDUNGEN',
+          drawing: 'ZEICHNUNG',
+          model: '3D · SCHEMA',
+          timeline: 'ZEITLINIE',
           calculation: 'RECHENWEG',
           note: 'EINORDNUNG',
         }[win.kind],
       ),
     );
-    article.append(element('h3', '', win.title));
+    bar.append(
+      element('span', 'explain-window-title', win.title),
+      element('i', 'window-signal'),
+    );
+    article.append(bar);
+    // Drag a window by its title bar on larger screens; phone swipes keep
+    // their existing scene/window navigation semantics.
+    let drag = null;
+    bar.addEventListener('pointerdown', (event) => {
+      if (narrow.matches || !event.isPrimary || event.button !== 0) return;
+      event.preventDefault();
+      const rect = article.getBoundingClientRect();
+      drag = { id: event.pointerId, x: event.clientX, y: event.clientY, rect };
+      bar.setPointerCapture(event.pointerId);
+    });
+    bar.addEventListener('pointermove', (event) => {
+      if (!drag || event.pointerId !== drag.id) return;
+      const dx = Math.max(
+        -drag.rect.left + 8,
+        Math.min(innerWidth - drag.rect.right - 8, event.clientX - drag.x),
+      );
+      const dy = Math.max(
+        -drag.rect.top + 8,
+        Math.min(
+          Math.max(0, innerHeight - drag.rect.bottom - 140),
+          event.clientY - drag.y,
+        ),
+      );
+      // Each drag starts from the current translated position.
+      article.style.translate = `${(Number(article.dataset.dragX) || 0) + dx}px ${(Number(article.dataset.dragY) || 0) + dy}px`;
+    });
+    const endDrag = () => {
+      if (!drag) return;
+      const values = article.style.translate.split(' ').map(parseFloat);
+      article.dataset.dragX = String(values[0] || 0);
+      article.dataset.dragY = String(values[1] || 0);
+      drag = null;
+    };
+    bar.addEventListener('pointerup', endDrag);
+    bar.addEventListener('pointercancel', endDrag);
+    bar.addEventListener('lostpointercapture', endDrag);
+
+    if (win.kind === 'drawing') article.append(drawSketch(win));
+    if (win.kind === 'model') {
+      const model = drawModel(win, {
+        isPaused: () => paused || !visible || closed,
+      });
+      visualDisposers.push(model.dispose);
+      article.append(model.node);
+    }
+    if (win.kind === 'timeline') article.append(drawTimeline(win));
+    if (win.kind === 'diagram') article.append(drawFlow(win));
     const text = element(
       win.kind === 'source' ? 'blockquote' : 'p',
       'explain-text',
@@ -66,19 +133,6 @@ export function createExplanationPlayer(
       );
     } else text.textContent = win.text;
     article.append(text);
-    if (win.kind === 'diagram') {
-      const diagram = element('div', 'explain-flow');
-      diagram.setAttribute('aria-label', 'Zusammenhang in Leserichtung');
-      win.nodes.forEach((label, i) => {
-        if (i) {
-          const arrow = element('div', 'explain-arrow', '↓');
-          arrow.setAttribute('aria-hidden', 'true');
-          diagram.append(arrow);
-        }
-        diagram.append(element('div', 'explain-node', label));
-      });
-      article.append(diagram);
-    }
     if (win.kind === 'source') {
       const link = element('a', 'explain-source', 'Originalquelle öffnen ↗');
       link.href = win.url;
@@ -92,6 +146,7 @@ export function createExplanationPlayer(
     return article;
   }
   function render(animate = false) {
+    disposeVisuals();
     root.replaceChildren();
     root.hidden = !explanation || !visible || closed;
     if (!explanation || closed) {
@@ -99,6 +154,7 @@ export function createExplanationPlayer(
       return;
     }
     root.classList.toggle('explain-enter', animate);
+    root.classList.toggle('explain-paused', paused);
     const scene = explanation.scenes[sceneIndex];
     const header = element('header', 'explain-header');
     header.append(
@@ -110,9 +166,18 @@ export function createExplanationPlayer(
       ),
     );
     const windows = element('div', 'explain-windows');
+    windows.dataset.count = String(scene.windows.length);
+    windows.classList.toggle(
+      'has-visual',
+      scene.windows.some((win) =>
+        ['drawing', 'model', 'diagram'].includes(win.kind),
+      ),
+    );
     const shown = narrow.matches ? [scene.windows[windowIndex]] : scene.windows;
     shown.forEach((win) => windows.append(drawWindow(win)));
-    root.append(header, windows);
+    const caption = element('p', 'explain-caption', scene.narration);
+    caption.setAttribute('aria-live', 'polite');
+    root.append(header, windows, caption);
     onChange({ sceneIndex, windowIndex, paused, visible, title: scene.title });
   }
   function advance() {
@@ -166,6 +231,13 @@ export function createExplanationPlayer(
       render(true);
       onNarration(explanation.scenes[sceneIndex].narration);
       schedule();
+      return;
+    }
+    if (command === 'pause' || command === 'resume') {
+      root.classList.toggle('explain-paused', paused);
+      const count = root.querySelector('.explain-header small');
+      if (count && explanation)
+        count.textContent = `${sceneIndex + 1}/${explanation.scenes.length}${narrow.matches ? ' · Fenster ' + (windowIndex + 1) + '/' + explanation.scenes[sceneIndex].windows.length : ''}${paused ? ' · angehalten' : ''}`;
       return;
     }
     render();
@@ -222,11 +294,27 @@ export function createExplanationPlayer(
       }
       render();
     },
+    followNarration(text, index) {
+      const caption = root.querySelector('.explain-caption');
+      if (
+        !caption?.firstChild ||
+        caption.textContent !== text ||
+        !Number.isFinite(index)
+      )
+        return;
+      const offset = Math.max(0, Math.min(text.length - 1, index));
+      const range = document.createRange();
+      range.setStart(caption.firstChild, offset);
+      range.setEnd(caption.firstChild, offset + 1);
+      const word = range.getBoundingClientRect();
+      caption.scrollTop += word.top - caption.getBoundingClientRect().top - 16;
+    },
     getState() {
       return { explanation, sceneIndex, windowIndex, paused, closed };
     },
     destroy() {
       cancel();
+      disposeVisuals();
       narrow.removeEventListener('change', onResize);
       document.removeEventListener('visibilitychange', onHidden);
       root.replaceChildren();

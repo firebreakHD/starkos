@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import puppeteer from 'puppeteer';
 import { CONVERSATION_DEMO } from '../public/stark/conversation-demo.js';
+import { USB_DEMO } from '../public/stark/visual-demo.js';
 
 async function openRingModule(page, title) {
   await page.waitForFunction(
@@ -47,30 +48,7 @@ async function openRingModule(page, title) {
 const temporary = await mkdtemp(path.join(tmpdir(), 'stark-qa-'));
 const calls = [];
 const USB_QUESTION = 'Erklär mir kurz Wie ein usb Stick funktioniert visuel';
-const USB_EXPLANATION = {
-  title: 'So funktioniert ein USB-Stick',
-  scenes: [
-    {
-      title: 'Vom Computer in den Flash-Speicher',
-      narration:
-        'Über USB kommen Strom und Daten. Der Controller organisiert den Zugriff auf den Flash-Speicher.',
-      seconds: 30,
-      windows: [
-        {
-          kind: 'diagram',
-          title: 'Datenweg',
-          text: 'Flash-Speicher hält die Daten auch ohne Strom. Dies ist ein lokales QA-Beispiel.',
-          nodes: [
-            'Computer',
-            'USB: Daten und Strom',
-            'Controller',
-            'Flash-Speicher',
-          ],
-        },
-      ],
-    },
-  ],
-};
+const USB_EXPLANATION = USB_DEMO;
 const mock = http.createServer(async (req, res) => {
   const chunks = [];
   for await (const chunk of req) chunks.push(chunk);
@@ -466,19 +444,88 @@ try {
     'text-only draft is corrected through a real tool call',
   );
   assert.ok(!JSON.parse(calls[4].messages.at(-1).content).error);
-  assert.equal(await page.$$eval('.explain-node', (nodes) => nodes.length), 4);
+  assert.equal(await page.$$eval('.ink-model', (nodes) => nodes.length), 1);
   assert.match(
     await page.$eval('[data-explanation]', (el) => el.textContent),
-    /USB: Daten und Strom/,
+    /USB-Anschluss/,
   );
   assert.doesNotMatch(
     await page.$eval('[data-chat-log]', (el) => el.textContent),
     /\(Textdiagramm\)/,
   );
+  const modelPath = () =>
+    page.$eval('.ink-model .ink-stroke', (el) => el.getAttribute('d'));
+  const initialPath = await modelPath();
+  await new Promise((resolve) => setTimeout(resolve, 500));
+  assert.notEqual(await modelPath(), initialPath, '3D geometry really rotates');
+  await send('bleib hier');
+  const pausedPath = await modelPath();
+  await new Promise((resolve) => setTimeout(resolve, 150));
+  assert.equal(await modelPath(), pausedPath, 'pause freezes model geometry');
+  await new Promise((resolve) => setTimeout(resolve, 700));
   if (process.env.STARK_QA_OUTPUT)
     await page.screenshot({
       path: path.join(process.env.STARK_QA_OUTPUT, 'stark-usb-visual.png'),
     });
+  await page.setViewport({
+    width: 1440,
+    height: 1000,
+    isMobile: true,
+    hasTouch: true,
+  });
+  await page.waitForFunction(
+    () => document.querySelectorAll('.explain-window').length === 2,
+  );
+  assert.equal(await page.$$eval('.ink-model', (nodes) => nodes.length), 1);
+  if (process.env.STARK_QA_OUTPUT)
+    await page.screenshot({
+      path: path.join(
+        process.env.STARK_QA_OUTPUT,
+        'stark-workspace-desktop.png',
+      ),
+    });
+  const windowBar = await page.$eval(
+    '.explain-note .explain-window-bar',
+    (el) => {
+      const r = el.getBoundingClientRect();
+      return { x: r.x + 50, y: r.y + r.height / 2, left: r.left };
+    },
+  );
+  await page.mouse.move(windowBar.x, windowBar.y);
+  await page.mouse.down();
+  await page.mouse.move(windowBar.x - 30, windowBar.y + 20, { steps: 4 });
+  await page.mouse.up();
+  const moved = await page.$eval(
+    '.explain-note .explain-window-bar',
+    (el) => el.getBoundingClientRect().left,
+  );
+  assert.ok(
+    Math.abs(moved - (windowBar.left - 30)) < 2,
+    'floating windows move by their title bars',
+  );
+  await page.setViewport({
+    width: 390,
+    height: 844,
+    isMobile: true,
+    hasTouch: true,
+  });
+  await page.waitForFunction(
+    () => document.querySelectorAll('.explain-window').length === 1,
+  );
+  await send('weiter');
+  await send('weiter');
+  assert.equal(await page.$$eval('.ink-canvas', (nodes) => nodes.length), 1);
+  assert.match(
+    await page.$eval('.ink-canvas', (el) => el.textContent),
+    /Flash-Speicher/,
+  );
+  await page.waitForFunction(() => document.querySelector('.explain-drawing'));
+  await new Promise((resolve) => setTimeout(resolve, 3500));
+  if (process.env.STARK_QA_OUTPUT)
+    await page.screenshot({
+      path: path.join(process.env.STARK_QA_OUTPUT, 'stark-usb-drawing.png'),
+    });
+
   await send('bleib hier');
   const output =
     process.env.STARK_QA_OUTPUT || path.join(temporary, 'screenshots');
@@ -557,6 +604,20 @@ try {
   console.log(
     'PASS: empty canvas, menu, chat presentation policy and responsive layouts',
   );
+  if (process.env.STARK_QA_VIDEO && process.env.STARK_QA_OUTPUT) {
+    const recorder = await page.screencast({
+      path: path.join(process.env.STARK_QA_OUTPUT, 'stark-usb-demo.webm'),
+      fps: 15,
+    });
+    await send('USB Demo');
+    await page.waitForSelector('.ink-model');
+    await new Promise((resolve) => setTimeout(resolve, 3500));
+    await send('weiter');
+    await page.waitForSelector('.explain-drawing');
+    await new Promise((resolve) => setTimeout(resolve, 4500));
+    await recorder.stop();
+    await send('Fenster schließen');
+  }
   // Real paired receiver + authenticated WebSocket command/ack path.
   const post = async (endpoint, body) => {
     const response = await fetch(`${origin}/api/stark/${endpoint}`, {
@@ -595,11 +656,12 @@ try {
     tool: 'present_explanation',
     arguments: {
       display_ids: [approved.device.id],
-      explanation: CONVERSATION_DEMO,
+      explanation: USB_DEMO,
     },
   });
   assert.equal(presented.results[0].accepted, true);
   await receiver.waitForSelector('.explain-window');
+  await receiver.waitForSelector('.ink-model');
   await post('tools', {
     tool: 'control_explanation',
     arguments: { display_ids: [approved.device.id], command: 'pause' },
@@ -617,6 +679,91 @@ try {
     () =>
       document.querySelector('#receiverState').textContent === 'SECURE LINK',
   );
+  const orbitPlan = {
+    title: 'QA · geometrisches Schema',
+    scenes: [
+      {
+        title: 'QA · Modell und Zeitlinie',
+        narration: 'Lokales Geometriebeispiel, keine astronomische Messung.',
+        seconds: 30,
+        windows: [
+          {
+            kind: 'model',
+            title: 'Körper und Ring',
+            text: 'Schematische Geometrie.',
+            model: {
+              parts: [
+                {
+                  shape: 'sphere',
+                  label: 'Körper',
+                  x: 0,
+                  y: 0,
+                  z: 0,
+                  width: 65,
+                  height: 65,
+                  depth: 65,
+                },
+                {
+                  shape: 'ring',
+                  label: 'Ring',
+                  x: 0,
+                  y: 0,
+                  z: 0,
+                  width: 160,
+                  height: 20,
+                  depth: 160,
+                },
+              ],
+            },
+          },
+          {
+            kind: 'timeline',
+            title: 'Beispielablauf',
+            text: 'QA-Daten.',
+            entries: [
+              { label: 'Schritt 1', detail: 'Frage' },
+              { label: 'Schritt 2', detail: 'Untersuchung' },
+              { label: 'Schritt 3', detail: 'Ergebnis' },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+  await post('tools', {
+    tool: 'present_explanation',
+    arguments: { display_ids: [approved.device.id], explanation: orbitPlan },
+  });
+  await receiver.waitForSelector('.explain-timeline .ink-canvas');
+  assert.match(
+    await receiver.$eval('.explain-timeline', (el) => el.textContent),
+    /Schritt 3/,
+  );
+  assert.equal(await receiver.$$eval('.ink-model', (nodes) => nodes.length), 1);
+  await receiver.emulateMediaFeatures([
+    { name: 'prefers-reduced-motion', value: 'reduce' },
+  ]);
+  // A fresh presentation applies the preference before creating its renderer.
+  await post('tools', {
+    tool: 'present_explanation',
+    arguments: { display_ids: [approved.device.id], explanation: orbitPlan },
+  });
+  await receiver.waitForSelector('.explain-timeline');
+  const still = await receiver.$eval('.ink-model .ink-stroke', (el) =>
+    el.getAttribute('d'),
+  );
+  await new Promise((resolve) => setTimeout(resolve, 150));
+  assert.equal(
+    await receiver.$eval('.ink-model .ink-stroke', (el) =>
+      el.getAttribute('d'),
+    ),
+    still,
+    'reduced motion disables model rotation',
+  );
+  if (process.env.STARK_QA_OUTPUT)
+    await receiver.screenshot({
+      path: path.join(process.env.STARK_QA_OUTPUT, 'stark-orbit-timeline.png'),
+    });
   await receiver.close();
   console.log('PASS: paired receiver path');
   // Account UX fixture only: never opens a real OpenAI login or uses credentials.
