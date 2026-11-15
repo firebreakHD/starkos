@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.3
+
+- The left chat handle is slightly larger. Pressing gives round feedback; after the hold it stretches into an edge-anchored pill as you pull right, rather than sliding over J.
+- The conversation is progressively revealed behind the pull while the voice controls yield to the side. Releasing past the threshold completes the transition; short taps, early drags and cancellations retract cleanly without opening chat.
+- The pull preview is inert and cannot focus an input or open the keyboard before release. Existing voice gestures, chat history, keyboard accessibility and reduced-motion preferences are preserved.
+
 ## 0.3.2
 
 - Renamed the Assistant voice-view label to **Voice**, including the chat return button and accessible mode/status labels. Gestures and microphone behavior are unchanged.

@@ -9,6 +9,46 @@ export function createChatDrawer(
   const input = root.querySelector('[data-input]');
   const scroll = root.querySelector('[data-chat-scroll]');
   const log = root.querySelector('[data-chat-log]');
+  // A visual-only copy keeps the real dialog closed and unfocused until release.
+  const preview = document.createElement('div');
+  preview.className = 'jarvis-chat chat-pull-preview';
+  preview.hidden = true;
+  preview.inert = true;
+  preview.setAttribute('aria-hidden', 'true');
+  root.append(preview);
+  let previewTimer = null,
+    tapTimer = null,
+    progress = 0;
+  function hidePreview(immediate = false) {
+    clearTimeout(previewTimer);
+    root.classList.remove('chat-pulling');
+    root.style.setProperty('--chat-progress', '0');
+    progress = 0;
+    const hide = () => {
+      preview.hidden = true;
+      preview.replaceChildren();
+    };
+    if (immediate) hide();
+    else previewTimer = setTimeout(hide, 260);
+  }
+  function beginPreview() {
+    clearTimeout(previewTimer);
+    preview.replaceChildren(
+      ...Array.from(dialog.children, (child) => child.cloneNode(true)),
+    );
+    preview
+      .querySelectorAll('[id]')
+      .forEach((node) => node.removeAttribute('id'));
+    // The copy is never interactive or submitted, including on older engines.
+    preview.querySelectorAll('input,button,textarea,select').forEach((node) => {
+      node.disabled = true;
+    });
+    layout();
+    preview.hidden = false;
+    root.classList.add('chat-pulling');
+    const copyScroll = preview.querySelector('[data-chat-scroll]');
+    if (copyScroll) copyScroll.scrollTop = copyScroll.scrollHeight;
+  }
   let pointer = null,
     start = null,
     ready = false,
@@ -17,25 +57,29 @@ export function createChatDrawer(
   const distance = () => Math.max(72, Math.min(120, innerWidth * 0.25));
   const layout = () => {
     if (window.visualViewport) {
-      dialog.style.setProperty(
-        '--chat-height',
-        `${window.visualViewport.height}px`,
-      );
-      dialog.style.setProperty(
-        '--chat-top',
-        `${window.visualViewport.offsetTop}px`,
-      );
+      for (const pane of [dialog, preview])
+        pane.style.setProperty(
+          '--chat-height',
+          `${window.visualViewport.height}px`,
+        );
+      for (const pane of [dialog, preview])
+        pane.style.setProperty(
+          '--chat-top',
+          `${window.visualViewport.offsetTop}px`,
+        );
     }
   };
-  function resetGesture() {
+  function resetGesture({ immediate = false } = {}) {
+    hidePreview(immediate);
+    clearTimeout(tapTimer);
     clearTimeout(timer);
     timer = null;
     const previous = pointer;
     pointer = null;
     start = null;
     ready = false;
-    grip.classList.remove('is-ready');
-    grip.style.removeProperty('--chat-drag');
+    grip.classList.remove('is-ready', 'is-pressed', 'is-tapped');
+    grip.style.removeProperty('--chat-stretch');
     grip.setAttribute(
       'aria-label',
       'Textchat: kurz halten und nach rechts ziehen. Mit der Tastatur direkt öffnen.',
@@ -54,7 +98,8 @@ export function createChatDrawer(
   }
   function open() {
     if (root.hidden || dialog.open) return;
-    resetGesture();
+    const from = progress;
+    resetGesture({ immediate: true });
     onOpen();
     opened = true;
     grip.hidden = true;
@@ -62,6 +107,14 @@ export function createChatDrawer(
     root.classList.add('jarvis-chat-open');
     layout();
     dialog.showModal();
+    if (!matchMedia('(prefers-reduced-motion: reduce)').matches)
+      dialog.animate(
+        [
+          { transform: `translateX(${-100 * (1 - from)}%)` },
+          { transform: 'translateX(0)' },
+        ],
+        { duration: from >= 1 ? 100 : 260, easing: 'cubic-bezier(.2,.8,.2,1)' },
+      );
     scroll.scrollTop = scroll.scrollHeight;
     input.focus({ preventScroll: true });
   }
@@ -75,6 +128,10 @@ export function createChatDrawer(
   grip.addEventListener('pointerdown', (event) => {
     if (!event.isPrimary || event.button !== 0 || pointer !== null) return;
     event.preventDefault();
+    hidePreview(true);
+    clearTimeout(tapTimer);
+    grip.classList.remove('is-tapped');
+    grip.classList.add('is-pressed');
     pointer = event.pointerId;
     start = { x: event.clientX, y: event.clientY };
     grip.setPointerCapture(pointer);
@@ -82,6 +139,7 @@ export function createChatDrawer(
       if (pointer === null) return;
       ready = true;
       grip.classList.add('is-ready');
+      beginPreview();
       grip.setAttribute(
         'aria-label',
         'Jetzt nach rechts ziehen, um den Textchat zu öffnen.',
@@ -97,11 +155,12 @@ export function createChatDrawer(
       resetGesture();
       return;
     }
-    if (ready)
-      grip.style.setProperty(
-        '--chat-drag',
-        `${Math.max(0, Math.min(180, x))}px`,
-      );
+    if (ready) {
+      const stretch = Math.max(0, Math.min(innerWidth - 88, x));
+      progress = Math.min(1, stretch / distance());
+      grip.style.setProperty('--chat-stretch', `${stretch}px`);
+      root.style.setProperty('--chat-progress', String(progress));
+    }
   });
   grip.addEventListener('pointerup', (event) => {
     if (event.pointerId !== pointer) return;
@@ -109,11 +168,22 @@ export function createChatDrawer(
       ready &&
       event.clientX - start.x >= distance() &&
       Math.abs(event.clientY - start.y) < 80;
-    resetGesture();
     if (shouldOpen) open();
+    else {
+      const tapped =
+        !ready &&
+        Math.hypot(event.clientX - start.x, event.clientY - start.y) < 12;
+      resetGesture();
+      if (tapped) {
+        grip.classList.add('is-tapped');
+        tapTimer = setTimeout(() => grip.classList.remove('is-tapped'), 220);
+      }
+    }
   });
   grip.addEventListener('pointercancel', resetGesture);
-  grip.addEventListener('lostpointercapture', resetGesture);
+  grip.addEventListener('lostpointercapture', (event) => {
+    if (event.pointerId === pointer) resetGesture();
+  });
   grip.addEventListener('contextmenu', (event) => event.preventDefault());
   grip.addEventListener('click', (event) => {
     if (event.detail === 0) open();
@@ -158,6 +228,10 @@ export function createChatDrawer(
     },
     destroy() {
       close({ focus: false });
+      hidePreview(true);
+      clearTimeout(previewTimer);
+      clearTimeout(tapTimer);
+      preview.remove();
       document.removeEventListener('visibilitychange', onVisibility);
       window.removeEventListener('blur', resetGesture);
       window.visualViewport?.removeEventListener('resize', layout);
