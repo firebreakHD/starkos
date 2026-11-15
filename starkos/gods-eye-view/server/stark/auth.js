@@ -123,9 +123,27 @@ function loginPage({ setupRequired = false } = {}) {
 export function starkAuthPlugin() {
   const addon = process.env.STARK_ADDON === 'true';
   const password = String(process.env.STARK_ACCESS_PASSWORD || '');
+  const tlsPassword = String(process.env.STARK_HTTPS_PASSWORD || '');
+  const tlsEnabled =
+    process.env.STARK_HTTPS_ENABLED === 'true' &&
+    tlsPassword.trim().length >= 12;
+  const passwordFor = (req) =>
+    addon
+      ? tlsEnabled && req.socket.encrypted === true
+        ? tlsPassword
+        : ''
+      : password;
+  const authorized = (req) =>
+    ingressRequest(req) ||
+    (!addon && !password) ||
+    (Boolean(passwordFor(req)) && sessionValid(req, sessionSecret));
+  const attempts = new Map();
   const secret = loadSecret(
     process.env.STARK_DATA_DIR || path.resolve('.stark-data'),
   );
+  const sessionSecret = addon
+    ? createHmac('sha256', secret).update(tlsPassword).digest()
+    : secret;
   const install = (server) => {
     server.middlewares.use(async (req, res, next) => {
       const url = new URL(req.url || '/', 'http://stark.local');
@@ -145,34 +163,60 @@ export function starkAuthPlugin() {
         url.pathname === '/stark/receiver.js' ||
         url.pathname === '/stark/explanation-player.js' ||
         url.pathname === '/stark/explanation-contract.js' ||
+        url.pathname === '/stark/visual-contract.js' ||
+        url.pathname === '/stark/visual-canvas.js' ||
         url.pathname === '/stark/jarvis.css' ||
         url.pathname === '/stark/stark.css'
       )
         return next();
       if (url.pathname === '/api/stark/auth' && req.method === 'GET') {
         return json(res, 200, {
-          authenticated:
-            ingressRequest(req) ||
-            (!addon && !password) ||
-            sessionValid(req, secret),
+          authenticated: Boolean(authorized(req)),
           ingress: ingressRequest(req),
-          setupRequired: addon && !password,
+          setupRequired: addon && !passwordFor(req),
         });
       }
       if (url.pathname === '/api/stark/login' && req.method === 'POST') {
-        if (!password)
+        const loginPassword = passwordFor(req);
+        if (!loginPassword)
           return json(res, 503, {
             error: 'Direkter Controllerzugriff ist deaktiviert.',
           });
+        if (
+          !String(req.headers['content-type'] || '').startsWith(
+            'application/json',
+          ) ||
+          req.headers['sec-fetch-site'] === 'cross-site'
+        )
+          return json(res, 403, {
+            error: 'Nur gleichseitige JSON-Anfragen sind erlaubt.',
+          });
+        const now = Date.now();
+        for (const [key, value] of attempts)
+          if (value.until <= now) attempts.delete(key);
+        const address = req.socket.remoteAddress || 'unknown';
+        const attempt = attempts.get(address);
+        if (attempt?.count >= 10 || (!attempt && attempts.size >= 1024))
+          return json(res, 429, {
+            error: 'Zu viele Anmeldeversuche. Bitte später erneut versuchen.',
+          });
+        attempts.set(address, {
+          count: (attempt?.count || 0) + 1,
+          until: attempt?.until || now + 15 * 60_000,
+        });
         try {
           const body = JSON.parse(await requestBody(req));
-          if (!safeEqual(password, body.password))
+          if (!safeEqual(loginPassword, body.password))
             return json(res, 401, { error: 'Passwort ist nicht korrekt.' });
           const expires = String(Date.now() + SESSION_MS);
-          const signature = createHmac('sha256', secret)
+          const signature = createHmac('sha256', sessionSecret)
             .update(expires)
             .digest('base64url');
-          const secure = req.headers['x-forwarded-proto'] === 'https';
+          attempts.delete(address);
+          const secure =
+            req.socket.encrypted === true ||
+            (ingressRequest(req) &&
+              req.headers['x-forwarded-proto'] === 'https');
           res.setHeader(
             'Set-Cookie',
             `${COOKIE}=${expires}.${signature}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${SESSION_MS / 1000}${secure ? '; Secure' : ''}`,
@@ -185,27 +229,22 @@ export function starkAuthPlugin() {
         }
       }
 
-      if (
-        ingressRequest(req) ||
-        (!addon && !password) ||
-        sessionValid(req, secret)
-      )
-        return next();
+      if (authorized(req)) return next();
       if (url.pathname.startsWith('/api/'))
         return json(res, 401, {
           error:
-            addon && !password
+            addon && !passwordFor(req)
               ? 'Controller über Home Assistant öffnen.'
               : 'Anmeldung erforderlich.',
         });
-      res.statusCode = addon && !password ? 503 : 401;
+      res.statusCode = addon && !passwordFor(req) ? 503 : 401;
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.setHeader('Cache-Control', 'no-store');
       res.setHeader(
         'Content-Security-Policy',
         "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; form-action 'self'; base-uri 'none'",
       );
-      res.end(loginPage({ setupRequired: addon && !password }));
+      res.end(loginPage({ setupRequired: addon && !passwordFor(req) }));
     });
     // Home Assistant may open the proxied root even when ingress_entry is set.
     // STARK OS is the product shell, so the add-on root always enters it. God's

@@ -21,6 +21,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isDirectInvocation } from './pinokio-install.mjs';
 import { loadViteFromCanonicalRoot } from './pinokio-start.mjs';
+import { startHttps, closeHttps } from '../server/stark/https.js';
 
 const MODULE_PATH = fileURLToPath(import.meta.url);
 const ROOT = realpathSync(path.resolve(path.dirname(MODULE_PATH), '..'));
@@ -49,10 +50,14 @@ function loadAddonOptions() {
     ll2_api_token: 'LL2_API_TOKEN',
     codex_model: 'STARK_CODEX_MODEL',
     searxng_url: 'STARK_SEARXNG_URL',
+    ssl: 'STARK_HTTPS_ENABLED',
+    certfile: 'STARK_HTTPS_CERTFILE',
+    keyfile: 'STARK_HTTPS_KEYFILE',
+    https_password: 'STARK_HTTPS_PASSWORD',
   };
   for (const [option, environment] of Object.entries(mapping)) {
     if (process.env[environment] === undefined && options[option] !== undefined)
-      process.env[environment] = String(options[option] || '');
+      process.env[environment] = String(options[option] ?? '');
   }
 }
 
@@ -203,8 +208,25 @@ async function start() {
   server.printUrls();
   console.log(`[Docker] Ready at http://localhost:${port}/`);
 
+  let httpsServer = null;
+  if (process.env.STARK_ADDON === 'true') {
+    try {
+      httpsServer = await startHttps({
+        app: server.middlewares,
+        upgradeServer: server.httpServer,
+      });
+      if (httpsServer)
+        console.log('[HTTPS] Direkter HTTPS-Zugang auf Port 8443 aktiv.');
+    } catch (error) {
+      // Invalid TLS options never fall back to HTTP and never break Ingress.
+      console.error(
+        `[HTTPS] Direkter HTTPS-Zugang deaktiviert: ${error.message}`,
+      );
+    }
+  }
   for (const signal of ['SIGINT', 'SIGTERM']) {
     process.once(signal, async () => {
+      await closeHttps(httpsServer);
       await server.close();
       process.exit(0);
     });

@@ -1,0 +1,51 @@
+configuration:
+  ssl:
+    name: Enable HTTPS
+    description: Optional direct HTTPS access, port 8789 by default. Home Assistant
+      Ingress is unchanged.
+  certfile:
+    name: Certificate file
+    description: Filename in Home Assistant /ssl, for example fullchain.pem. The certificate
+      must match the hostname and be trusted by the phone.
+  keyfile:
+    name: Private key file
+    description: Filename in /ssl, for example privkey.pem. Do not paste the private
+      key here.
+  https_password:
+    name: HTTPS access password
+    description: At least 12 characters. Protects direct HTTPS access; Ingress continues
+      using Home Assistant authentication.
+  codex_model:
+    name: Codex model
+    description: Leave blank for the Codex default. Sign in through the gear in STARK.
+  searxng_url:
+    name: SearXNG URL for web search
+    description: Optional SearXNG server with JSON search. Without it discovery searches
+      only Wikipedia.
+  google_maps_api_key:
+    name: Google Maps API key
+    description: Optional browser key for the original mapping services.
+  google_maps_server_api_key:
+    name: Google Maps server key
+    description: Optional separate server-side key.
+  cesium_ion_token:
+    name: Cesium Ion token
+    description: Optional token for Cesium sources.
+  mapillary_client_token:
+    name: Mapillary client token
+    description: Optional for Mapillary street imagery.
+  opensky_client_id:
+    name: OpenSky client ID
+    description: Optional for OpenSky aircraft data.
+  opensky_client_secret:
+    name: OpenSky client secret
+    description: Optional secret for OpenSky.
+  aisstream_api_key:
+    name: AISStream API key
+    description: Optional for AIS vessel data.
+  tomtom_api_key:
+    name: TomTom API key
+    description: Optional for TomTom traffic data.
+  ll2_api_token:
+    name: Launch Library 2 token
+    description: Optional for Launch Library 2 data.

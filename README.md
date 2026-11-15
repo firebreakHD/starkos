@@ -2,7 +2,7 @@
 
 STARK OS is a mobile-first media, investigation and geospatial interface for Home Assistant hosting. The supplied God's Eye View project remains the real Cesium/data engine; STARK OS adds the phone-style ring, secured direct access and paired display control.
 
-Current Home Assistant app version: **0.3.3**
+Current Home Assistant app version: **0.4.0**
 
 ## Talk to Jarvis
 
@@ -19,6 +19,8 @@ Optional `searxng_url` points at your SearXNG instance with JSON search enabled 
 [![Add the STARK OS repository to Home Assistant](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2FfirebreakHD%2Fstarkos)
 
 The Assistant drawing workspace uses floating luminous windows, animated vector sketches, labeled rotating 3D schematics, source underlines and timelines. Say/type **USB Demo** for a fixed, labeled preview without an account. Normal visual questions let Codex construct the drawing/model from bounded data. Phones show windows sequentially; desktop can show several together.
+
+An optional **HTTPS** switch, certificate/key filenames and access password are available in the add-on Configuration tab. Direct HTTPS defaults to port **8789** and uses existing files in Home Assistant `/ssl`. The certificate must match the hostname and be trusted by the phone. Ingress remains separate; an HTTP Home Assistant parent page is not upgraded by this switch. See [setup](starkos/DOCS.md#optional-direct-https--voice).
 
 ## Install in Home Assistant
 

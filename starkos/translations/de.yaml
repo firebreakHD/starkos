@@ -1,0 +1,52 @@
+configuration:
+  ssl:
+    name: HTTPS aktivieren
+    description: Optionaler direkter HTTPS-Zugang, standardmäßig Port 8789. Der Home-Assistant-Ingress
+      bleibt unverändert.
+  certfile:
+    name: Zertifikatsdatei
+    description: Dateiname im Home-Assistant-Ordner /ssl, z. B. fullchain.pem. Das
+      Zertifikat muss zum verwendeten Hostnamen passen und vom Handy akzeptiert werden.
+  keyfile:
+    name: Private Schlüsseldatei
+    description: Dateiname im /ssl-Ordner, z. B. privkey.pem. Den privaten Schlüssel
+      nicht hier einfügen.
+  https_password:
+    name: HTTPS-Zugangspasswort
+    description: Mindestens 12 Zeichen. Schützt den direkten HTTPS-Zugang; über Home
+      Assistant gilt weiterhin dessen Anmeldung.
+  codex_model:
+    name: Codex-Modell
+    description: Leer lassen für den Codex-Standard. Anmeldung über das Zahnrad in
+      STARK.
+  searxng_url:
+    name: SearXNG-Adresse für Websuche
+    description: Optionaler SearXNG-Server mit JSON-Suche. Ohne ihn sucht STARK nur
+      auf Wikipedia.
+  google_maps_api_key:
+    name: Google Maps API-Schlüssel
+    description: Optionaler Browser-Schlüssel für die ursprünglichen Kartendienste.
+  google_maps_server_api_key:
+    name: Google Maps Server-Schlüssel
+    description: Optionaler separater Server-Schlüssel.
+  cesium_ion_token:
+    name: Cesium-Ion-Token
+    description: Optionales Token für Cesium-Datenquellen.
+  mapillary_client_token:
+    name: Mapillary-Client-Token
+    description: Optional für Mapillary-Straßenbilder.
+  opensky_client_id:
+    name: OpenSky Client-ID
+    description: Optional für OpenSky-Flugdaten.
+  opensky_client_secret:
+    name: OpenSky Client-Secret
+    description: Optionales Geheimnis für OpenSky.
+  aisstream_api_key:
+    name: AISStream API-Schlüssel
+    description: Optional für AIS-Schiffsdaten.
+  tomtom_api_key:
+    name: TomTom API-Schlüssel
+    description: Optional für TomTom-Verkehrsdaten.
+  ll2_api_token:
+    name: Launch Library 2 Token
+    description: Optional für Launch-Library-2-Daten.

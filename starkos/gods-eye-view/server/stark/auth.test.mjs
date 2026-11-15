@@ -48,6 +48,24 @@ test('Jarvis and tool endpoints remain controller-only in the Home Assistant add
       assert.equal(res.statusCode, 401);
       assert.match(payload.error, /Home Assistant/);
     }
+    let ingress = false;
+    await middleware[0](
+      {
+        url: '/api/stark/jarvis/status',
+        method: 'GET',
+        headers: {},
+        socket: { remoteAddress: '172.30.32.2' },
+      },
+      {},
+      () => {
+        ingress = true;
+      },
+    );
+    assert.equal(
+      ingress,
+      true,
+      'native Supervisor Ingress remains authenticated without TLS/password',
+    );
     let next = false;
     await middleware[0](
       {
