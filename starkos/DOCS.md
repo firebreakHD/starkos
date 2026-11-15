@@ -8,6 +8,19 @@ Port `8788` is used by passive receiver pages such as `http://<home-assistant-ho
 
 Settings and device pairings persist in `/data`. API tokens are not written to URLs or server logs, and the server stores only hashes of receiver tokens.
 
+## Optional direct HTTPS / Voice
+
+The **Configuration** tab now includes **Enable HTTPS**, **Certificate file**, **Private key file** and **HTTPS access password**, with German/English labels. This creates an additional native HTTPS entry; Home Assistant Ingress keeps its existing internal HTTP connection.
+
+1. Put your existing certificate chain and matching private key in Home Assistant's `/ssl` directory. Defaults are `fullchain.pem` and `privkey.pem`. Enter filenames only; the add-on mounts `/ssl` read-only. The hostname and certificate chain must be accepted by your phone. A certificate for a domain does not authenticate access by its IP address.
+2. Set an HTTPS access password of at least 12 non-padding characters. This protects the direct controller entry; it is separate from the ChatGPT account login. Ingress continues using Home Assistant authentication.
+3. Enable **HTTPS**, save and restart the add-on. The standard HTTPS network mapping is **8789 → 8443**. You can change the published port in the add-on's Network section.
+4. Open `https://<certificate-hostname>:8789/stark/` directly in Safari, sign in with that HTTPS password, then use J. The hostname/port must be reachable through your existing LAN, VPN or configured proxy. The add-on does not change router forwarding or create certificates.
+
+Voice still requires browser microphone permission and SpeechRecognition support. Enabling this listener does **not** change an HTTP Home Assistant parent page into HTTPS; an Ingress iframe opened inside that page remains an insecure context. Use the direct HTTPS address or load Home Assistant itself through its trusted HTTPS address.
+
+HTTPS is disabled by default. If the password is too short, files are missing, or the certificate/key is invalid, the direct entry stays closed and the add-on log explains why. Ingress remains available to correct the settings. The existing HTTP port remains a passive receiver entry and cannot use HTTPS credentials or cookies to access the controller.
+
 ## Pairing a receiver
 
 1. Open `/stark/receiver.html` on your own TV, computer or tablet. The receiver is passive and has no pairing controls.

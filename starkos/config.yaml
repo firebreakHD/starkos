@@ -1,7 +1,7 @@
 name: STARK OS
 slug: starkos
 description: Mobile-first research, media and geospatial interface powered by God's Eye View.
-version: "0.3.3"
+version: "0.4.0"
 stage: experimental
 startup: services
 boot: auto
@@ -18,13 +18,20 @@ arch:
   - aarch64
 ports:
   4173/tcp: 8788
+  8443/tcp: 8789
 ports_description:
-  4173/tcp: STARK OS direct LAN access
+  4173/tcp: Passive receiver HTTP access
+  8443/tcp: Optional HTTPS controller (enable SSL and set a password)
 webui: http://[HOST]:[PORT:4173]/stark/
 watchdog: http://[HOST]:[PORT:4173]/api/stark/health
 map:
   - data:rw
+  - ssl:ro
 options:
+  ssl: false
+  certfile: fullchain.pem
+  keyfile: privkey.pem
+  https_password: ""
   codex_model: ""
   searxng_url: ""
   google_maps_api_key: ""
@@ -37,6 +44,10 @@ options:
   tomtom_api_key: ""
   ll2_api_token: ""
 schema:
+  ssl: bool
+  certfile: str
+  keyfile: str
+  https_password: password
   codex_model: str
   searxng_url: str
   google_maps_api_key: password

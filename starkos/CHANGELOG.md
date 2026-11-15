@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.0
+
+- Added a real optional HTTPS listener and GUI settings: enable HTTPS, certificate filename, private-key filename and an access password. Certificates are read from the read-only /ssl mount. The default direct HTTPS port is 8789; Home Assistant Ingress and the passive HTTP receiver port remain separate.
+- Direct HTTPS controllers require native TLS and their configured password. Secure, HTTP-only session cookies, same-site login checks and login throttling protect that entry. HTTP cannot use those credentials or sessions to become a controller. Ingress continues to use Home Assistant authentication.
+- Invalid certificates, mismatched keys, missing files or a password shorter than 12 characters disable the HTTPS entry with an actionable log message, while keeping Ingress available. HTTPS is off by default.
+- Added German/English labels and descriptions for every add-on configuration field. Passive receivers can load the visual renderer modules over HTTP as intended.
+- The direct HTTPS URL must use a matching, trusted certificate. Enabling this listener does not upgrade an HTTP Home Assistant page or its embedded Ingress view; open the direct HTTPS URL in Safari for that route.
+
 ## 0.3.3
 
 - The left chat handle is slightly larger. Pressing gives round feedback; after the hold it stretches into an edge-anchored pill as you pull right, rather than sliding over J.
