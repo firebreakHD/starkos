@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.2
+
+- Renamed the Assistant voice-view label to **Voice**, including the chat return button and accessible mode/status labels. Gestures and microphone behavior are unchanged.
+
 ## 0.3.1
 
 - Corrected J-button gestures: short tap does nothing, hold records until release, and double-tap toggles hands-free voice. Hands-free listening resumes after the reply; closing/leaving, losing focus, Stop or another double-tap disables it. Missing speech support or HTTPS reports an error without opening chat. The left hold-and-drag handle remains the only chat control.
