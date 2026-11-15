@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.5
+
+- The Codex return-link field is now always visible while signed out, including before starting login, with missing/expired pending state, and when Codex or its status check is unavailable. The compact sign-in view keeps it directly beneath the login action.
+- The same sign-in form is also available inside the text drawer and returns to the voice view when the drawer closes. Once connected, it hides automatically. Callback validation and the normal browser-login flow stay unchanged.
+
 ## 0.2.4
 
 - Fixed the browser-login return flow: a pending Codex login now restores the visible link-entry step when the phone returns to STARK or reloads the page, instead of hiding it behind a collapsed section.

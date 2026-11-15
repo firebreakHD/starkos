@@ -506,7 +506,8 @@ try {
   // Account UX fixture only: never opens a real OpenAI login or uses credentials.
   const authPage = await browser.newPage();
   let signedIn = false,
-    callbackSubmitted = false;
+    callbackSubmitted = false,
+    authStatusMode = 'signed-out';
   await authPage.evaluateOnNewDocument(() => {
     window.open = () => ({
       opener: null,
@@ -521,6 +522,15 @@ try {
   await authPage.setRequestInterception(true);
   authPage.on('request', (request) => {
     const endpoint = new URL(request.url()).pathname;
+    if (
+      endpoint === '/api/stark/jarvis/status' &&
+      authStatusMode === 'status-error'
+    )
+      return request.respond({
+        status: 503,
+        contentType: 'application/json',
+        body: '{"error":"temporary status failure"}',
+      });
     if (endpoint === '/api/stark/jarvis/status')
       return request.respond({
         status: 200,
@@ -528,9 +538,10 @@ try {
         body: JSON.stringify({
           provider: 'codex',
           available: signedIn,
-          loginAvailable: true,
-          loginPending: !signedIn,
-          loginExpiresAt: Date.now() + 60000,
+          loginAvailable: authStatusMode !== 'unavailable',
+          loginPending: !signedIn && authStatusMode === 'pending',
+          loginExpiresAt:
+            authStatusMode === 'pending' ? Date.now() + 60000 : null,
           searchScope: 'wikipedia-only',
           reason: 'Mit ChatGPT anmelden.',
         }),
@@ -583,6 +594,41 @@ try {
     visible: true,
     timeout: 1500,
   });
+  // The field is unconditional while signed out, even with no pending login,
+  // an unavailable Codex runtime or a failed status endpoint.
+  for (const mode of ['unavailable', 'status-error', 'pending']) {
+    authStatusMode = mode;
+    await authPage.reload({ waitUntil: 'networkidle0' });
+    await openRingModule(authPage, 'ASSISTANT');
+    await authPage.waitForSelector('[data-callback]', { visible: true });
+    assert.equal(
+      await authPage.$eval('[data-remote]', (el) => el.hidden),
+      false,
+      `return field remains reachable: ${mode}`,
+    );
+  }
+  assert.equal(
+    await authPage.$eval('[data-callback]', (el) => {
+      const box = el.getBoundingClientRect();
+      return box.top >= 0 && box.bottom <= innerHeight;
+    }),
+    true,
+    'phone return field is on screen without scrolling',
+  );
+  await authPage.screenshot({
+    path: path.join(output, 'stark-login-field.png'),
+    fullPage: true,
+  });
+  await authPage.focus('[data-chat-grip]');
+  await authPage.keyboard.press('Enter');
+  await authPage.waitForSelector('[data-chat][open] [data-callback]', {
+    visible: true,
+  });
+  await authPage.click('[data-chat-close]');
+  await authPage.waitForSelector(
+    '#jarvisHome > .jarvis-dialog [data-callback]',
+    { visible: true },
+  );
   await authPage.click('[data-login]');
   await authPage.waitForSelector('[data-remote]:not([hidden])');
   await authPage.waitForFunction(

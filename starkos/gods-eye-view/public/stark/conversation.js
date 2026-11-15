@@ -399,14 +399,15 @@ export function createConversation(root, { displays, openModule } = {}) {
             ? 'Bereit. Tippe auf Jarvis und sprich.'
             : state.reason,
         );
-      $('[data-auth]').hidden =
-        state.provider !== 'codex' || state.available || !state.loginAvailable;
+      // Keep the return field reachable whenever the user is signed out,
+      // including lost/expired pending state and unavailable status checks.
+      const authVisible = !state.available && state.provider !== 'gateway';
+      $('[data-auth]').hidden = !authVisible;
       $('[data-account]').hidden =
         state.provider !== 'codex' || !state.available;
       const waiting =
         state.provider === 'codex' && state.loginPending && !state.available;
-      root.classList.toggle('jarvis-signing-in', Boolean(waiting));
-      $('[data-remote]').hidden = !waiting;
+      root.classList.toggle('jarvis-signing-in', authVisible);
       $('[data-login]').textContent = waiting
         ? 'Browseranmeldung erneut öffnen'
         : 'Mit ChatGPT anmelden';
@@ -432,6 +433,10 @@ export function createConversation(root, { displays, openModule } = {}) {
           : 'Recherche: Wikipedia · Websuche noch nicht konfiguriert';
       return state;
     } catch (error) {
+      if (!available) {
+        $('[data-auth]').hidden = false;
+        root.classList.add('jarvis-signing-in');
+      }
       setStatus(error.message);
       return null;
     }

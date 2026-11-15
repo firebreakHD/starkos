@@ -19,7 +19,7 @@
   <body>
     <div class="boot-noise" aria-hidden="true"></div>
     <main
-      class="jarvis-home"
+      class="jarvis-home jarvis-signing-in"
       id="jarvisHome"
       aria-label="Assistant: Mit Jarvis sprechen"
       hidden
@@ -44,12 +44,7 @@
         <p class="jarvis-status" data-status role="status">
           Verbindung wird geprüft …
         </p>
-        <section
-          class="jarvis-auth"
-          data-auth
-          hidden
-          aria-label="Codex-Anmeldung"
-        >
+        <section class="jarvis-auth" data-auth aria-label="Codex-Anmeldung">
           <button type="button" data-login>Mit ChatGPT anmelden</button>
           <a data-auth-link hidden target="_blank" rel="noopener noreferrer"
             >Browseranmeldung öffnen</a
@@ -57,7 +52,6 @@
           <section
             class="auth-return"
             data-remote
-            hidden
             aria-label="Browseranmeldung abschließen"
           >
             <h2>Nach der Browseranmeldung</h2>
@@ -133,6 +127,7 @@
           ><strong>JARVIS / CHAT</strong>
         </header>
         <div class="chat-scroll" data-chat-scroll>
+          <div data-chat-auth></div>
           <div
             class="chat-log"
             data-chat-log

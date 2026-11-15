@@ -42,6 +42,7 @@ export function createJarvis({
         searchScope: env.STARK_SEARXNG_URL ? 'web' : 'wikipedia-only',
       };
     return {
+      provider: 'gateway',
       available: Boolean(configuration()),
       agent: 'Hermes',
       persona: 'Jarvis',

@@ -11,6 +11,10 @@ export function createChatDrawer(
   const log = root.querySelector('[data-chat-log]');
   const surface = root.querySelector('[data-explanation]');
   const visualSlot = root.querySelector('[data-chat-visual]');
+  const auth = root.querySelector('[data-auth]');
+  const authSlot = root.querySelector('[data-chat-auth]');
+  const authAnchor = document.createComment('voice authentication position');
+  auth.before(authAnchor);
   const anchor = document.createComment('voice explanation position');
   surface.before(anchor);
   let pointer = null,
@@ -52,6 +56,7 @@ export function createChatDrawer(
     if (!opened) return;
     opened = false;
     anchor.after(surface);
+    authAnchor.after(auth);
     grip.setAttribute('aria-expanded', 'false');
     grip.hidden = false;
     root.classList.remove('jarvis-chat-open');
@@ -66,10 +71,13 @@ export function createChatDrawer(
     grip.setAttribute('aria-expanded', 'true');
     root.classList.add('jarvis-chat-open');
     visualSlot.append(surface);
+    authSlot.append(auth);
     layout();
     dialog.showModal();
-    scroll.scrollTop = scroll.scrollHeight;
-    input.focus({ preventScroll: true });
+    scroll.scrollTop = auth.hidden ? scroll.scrollHeight : 0;
+    (auth.hidden ? input : auth.querySelector('[data-login]')).focus({
+      preventScroll: true,
+    });
   }
   function close({ focus = true } = {}) {
     resetGesture();
