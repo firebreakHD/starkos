@@ -18,9 +18,10 @@ export function httpsOptions({
   sslDirectory = '/ssl',
 } = {}) {
   if (env.STARK_HTTPS_ENABLED !== 'true') return null;
-  if (String(env.STARK_HTTPS_PASSWORD || '').trim().length < 12)
+  const password = String(env.STARK_HTTPS_PASSWORD || '');
+  if (password && password.trim().length < 12)
     throw new Error(
-      'HTTPS benötigt ein Zugangspasswort mit mindestens 12 Zeichen.',
+      'Wenn ein HTTPS-Passwort gesetzt ist, muss es mindestens 12 Zeichen enthalten.',
     );
   let root;
   try {

@@ -1,7 +1,7 @@
 name: STARK OS
 slug: starkos
 description: Mobile-first research, media and geospatial interface powered by God's Eye View.
-version: "0.4.1"
+version: "0.4.2"
 stage: experimental
 startup: services
 boot: auto
@@ -21,7 +21,7 @@ ports:
   8443/tcp: 8789
 ports_description:
   4173/tcp: Passive receiver HTTP access
-  8443/tcp: Optional HTTPS controller (enable SSL and set a password)
+  8443/tcp: Optional HTTPS controller (Home Assistant login or optional password)
 webui: http://[HOST]:[PORT:4173]/stark/
 watchdog: http://[HOST]:[PORT:4173]/api/stark/health
 map:
@@ -49,7 +49,7 @@ schema:
   ssl: bool
   certfile: str
   keyfile: str
-  https_password: password
+  https_password: password?
   https_url: str
   https_auto_open: bool
   codex_model: str

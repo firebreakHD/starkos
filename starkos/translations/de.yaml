@@ -13,8 +13,8 @@ configuration:
       nicht hier einfügen.
   https_password:
     name: HTTPS-Zugangspasswort
-    description: Mindestens 12 Zeichen. Schützt den direkten HTTPS-Zugang; über Home
-      Assistant gilt weiterhin dessen Anmeldung.
+    description: Optional. Leer lassen, um die Home-Assistant-Anmeldung beim Öffnen
+      zu übernehmen. Falls gesetzt, mindestens 12 Zeichen für den direkten Login.
   codex_model:
     name: Codex-Modell
     description: Leer lassen für den Codex-Standard. Anmeldung über das Zahnrad in
@@ -57,6 +57,6 @@ configuration:
       oder Anmeldelinks eintragen.
   https_auto_open:
     name: HTTPS automatisch in der App öffnen
-    description: Versucht bei unsicherem Ingress die gesamte Ansicht auf die konfigurierte
-      HTTPS-Adresse umzuschalten. Wenn die App das blockiert, bleibt ein Öffnen-Link
-      verfügbar. Bei bereits sicherer Verbindung bleibt Ingress erhalten.
+    description: Prüft die STARK-HTTPS-Adresse zuerst vom Handy aus. Bei erreichbarem
+      Ziel wird ein Wechsel der gesamten Ansicht versucht. Bei Fehler bleibt Home
+      Assistant geöffnet und bietet Öffnen-Links.

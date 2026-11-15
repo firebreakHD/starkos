@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.2
+
+- The HTTPS password is now optional. Empty passwords no longer prevent TLS startup: open STARK through Home Assistant and its authenticated session is transferred using a one-use, 60-second POST handoff. Anonymous direct controller access remains disabled. Configured passwords still require at least 12 characters.
+
+- Automatic HTTPS opening now first checks the configured STARK endpoint from the phone/browser, including certificate and network reachability. A running listener inside the add-on alone is no longer treated as proof that the public address works.
+- Failed, wrong-service or unconfirmed checks leave Home Assistant open and show an actionable message beside the explicit opening links. The only cross-origin probe is the public health endpoint; credentials are omitted and controller routes stay protected.
+- Clarified the standard STARK mapping: router 8789 → HA host 8789 → container 8443. Router forwarding uses the published host port, not the container-only port.
+
 ## 0.4.1
 
 - Added a configured STARK HTTPS address and an automatic in-app opening option. When Ingress is insecure, STARK attempts to navigate the entire view to that address, avoiding an insecure parent frame. Already-secure Ingress stays in place.

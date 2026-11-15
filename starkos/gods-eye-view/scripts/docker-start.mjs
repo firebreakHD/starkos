@@ -218,7 +218,9 @@ async function start() {
         upgradeServer: server.httpServer,
       });
       if (httpsServer)
-        console.log('[HTTPS] Direkter HTTPS-Zugang auf Port 8443 aktiv.');
+        console.log(
+          '[HTTPS] Direkter HTTPS-Zugang auf Container-Port 8443 aktiv (Standard-Hostport: 8789).',
+        );
     } catch (error) {
       // Invalid TLS options never fall back to HTTP and never break Ingress.
       console.error(
