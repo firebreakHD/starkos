@@ -3,6 +3,7 @@ import { DisplayApi, capability } from './display-api.js';
 import { createMediaBrowser } from './media-browser.js';
 import { createConversation } from './conversation.js';
 import { createCodexAccount } from './account.js';
+import { setupHttpsNavigation } from './https-navigation.js';
 
 const modules = [
   {
@@ -43,11 +44,16 @@ let conversation = null;
 const settings = { title: 'EINSTELLUNGEN', code: 'STARK OS' };
 const accountRoot = $('#accountSettings');
 const account = createCodexAccount(accountRoot, { displays });
+const httpsNavigation = setupHttpsNavigation({
+  root: $('#httpsEntry'),
+  base: displays.base,
+});
 $('#openSettings').addEventListener('click', () => openPanel(settings));
 function showJarvis() {
   conversation ??= createConversation($('#jarvisHome'), {
     displays,
     account,
+    onInsecureVoice: (notice) => httpsNavigation.offer(notice),
     openModule: (title) =>
       openPanel(
         title === 'SYSTEM'

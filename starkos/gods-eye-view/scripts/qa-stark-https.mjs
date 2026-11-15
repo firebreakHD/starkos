@@ -1,6 +1,6 @@
 // Integration fixture: native HTTPS + actual preview middleware + isolated WSS receiver.
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, mkdirSync } from 'node:fs';
+import { mkdtempSync, rmSync, mkdirSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
@@ -8,6 +8,7 @@ import http from 'node:http';
 import puppeteer from 'puppeteer';
 import { startHttps, closeHttps } from '../server/stark/https.js';
 import { USB_DEMO } from '../public/stark/visual-demo.js';
+import { httpsEntry } from '../server/stark/https-entry.js';
 const directory = mkdtempSync(path.join(tmpdir(), 'stark-https-qa-'));
 const password = 'fixture-https-pass-123';
 Object.assign(process.env, {
@@ -44,7 +45,7 @@ await new Promise((resolve) => probe.listen(0, '127.0.0.1', resolve));
 const port = probe.address().port;
 await new Promise((resolve) => probe.close(resolve));
 const { preview } = await import('vite');
-let app, tls, browser;
+let app, tls, browser, fixture;
 try {
   app = await preview({
     preview: { host: '127.0.0.1', port, strictPort: true },
@@ -58,11 +59,43 @@ try {
     port: 0,
   });
   const origin = `https://127.0.0.1:${tls.address().port}`;
+  process.env.STARK_HTTPS_URL = `${origin}/stark/`;
+  fixture = http.createServer((req, res) => {
+    if (req.url === '/api/stark/https-entry') {
+      res.setHeader('content-type', 'application/json');
+      res.end(JSON.stringify(httpsEntry()));
+      return;
+    }
+    if (req.url === '/https-navigation.js') {
+      res.setHeader('content-type', 'text/javascript');
+      res.end(
+        readFileSync(
+          new URL('../public/stark/https-navigation.js', import.meta.url),
+        ),
+      );
+      return;
+    }
+    res.setHeader('content-type', 'text/html');
+    if (req.url === '/embed')
+      res.end(
+        '<section id="httpsEntry" hidden></section><script type="module">import {setupHttpsNavigation} from "/https-navigation.js"; setupHttpsNavigation({root:document.querySelector("#httpsEntry"),base:new URL("/api/stark/",location.href)});</script>',
+      );
+    else
+      res.end(
+        `<iframe style="width:100%;height:90vh" ${req.url === '/blocked' ? 'sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-top-navigation-by-user-activation"' : ''} src="/embed"></iframe>`,
+      );
+  });
+  await new Promise((resolve) => fixture.listen(0, '127.0.0.1', resolve));
+  const insecure = `http://stark-insecure.test:${fixture.address().port}`;
   browser = await puppeteer.launch({
     headless: true,
     acceptInsecureCerts: true,
     executablePath: process.env.STARK_QA_CHROMIUM || '/usr/bin/chromium',
-    args: ['--no-sandbox'],
+    args: [
+      '--no-sandbox',
+      '--no-proxy-server',
+      '--host-resolver-rules=MAP stark-insecure.test 127.0.0.1',
+    ],
   });
   const page = await browser.newPage();
   const errors = [];
@@ -73,13 +106,69 @@ try {
     isMobile: true,
     hasTouch: true,
   });
-  await page.goto(`${origin}/stark/`, { waitUntil: 'networkidle0' });
+  await page
+    .goto(`${insecure}/auto`, { waitUntil: 'domcontentloaded' })
+    .catch((error) => {
+      if (!String(error).includes('ERR_ABORTED')) throw error;
+    });
+  await page.waitForFunction(
+    (origin) => location.origin === origin,
+    {},
+    origin,
+  );
+  assert.equal(
+    page.frames().length,
+    1,
+    'automatic handoff leaves the insecure parent instead of changing only the iframe',
+  );
   await page.waitForSelector('#password');
   assert.equal(await page.evaluate(() => window.isSecureContext), true);
   assert.equal(
     await page.evaluate(() => typeof navigator.mediaDevices?.getUserMedia),
     'function',
   );
+  const blockedContext = await browser.createBrowserContext();
+  const blocked = await blockedContext.newPage();
+  await blocked.goto(`${insecure}/blocked`, { waitUntil: 'networkidle0' });
+  assert.ok(
+    blocked.url().startsWith(insecure),
+    'sandbox blocks automatic top-level navigation',
+  );
+  const embedded = blocked
+    .frames()
+    .find((frame) => frame.url().endsWith('/embed'));
+  await embedded.waitForSelector('#httpsEntry a[target="_top"]');
+  assert.equal(await embedded.evaluate(() => isSecureContext), false);
+  await embedded.click('#httpsEntry a[target="_top"]');
+  await blocked.waitForFunction(
+    (origin) => location.origin === origin,
+    {},
+    origin,
+  );
+  assert.equal(
+    await blocked.evaluate(() => isSecureContext),
+    true,
+    'explicit user activation can switch the entire blocked view',
+  );
+  await blockedContext.close();
+  const privateContext = await browser.createBrowserContext();
+  const privatePage = await privateContext.newPage();
+  await privatePage.evaluateOnNewDocument(() => {
+    Storage.prototype.setItem = () => {
+      throw new DOMException('blocked', 'SecurityError');
+    };
+  });
+  await privatePage.goto(`${insecure}/auto`, { waitUntil: 'networkidle0' });
+  assert.ok(
+    privatePage.url().startsWith(insecure),
+    'restricted storage uses a manual link instead of redirect loops',
+  );
+  await privatePage
+    .frames()
+    .find((frame) => frame.url().endsWith('/embed'))
+    .waitForSelector('#httpsEntry a[target="_top"]');
+  await privateContext.close();
+
   await page.type('#password', password);
   await page.click('#login button');
   await page.waitForSelector('#device');
@@ -105,6 +194,7 @@ try {
       body,
     );
   assert.equal((await api('auth')).authenticated, true);
+  assert.equal((await api('https-entry')).url, `${origin}/stark/`);
   assert.equal(
     (
       await fetch(`http://127.0.0.1:${port}/api/stark/jarvis/status`, {
@@ -163,6 +253,7 @@ try {
   );
 } finally {
   await browser?.close();
+  if (fixture) await new Promise((resolve) => fixture.close(resolve));
   await closeHttps(tls);
   if (app) await new Promise((resolve) => app.httpServer.close(resolve));
   rmSync(directory, { recursive: true, force: true });

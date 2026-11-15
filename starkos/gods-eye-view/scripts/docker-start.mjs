@@ -54,6 +54,8 @@ function loadAddonOptions() {
     certfile: 'STARK_HTTPS_CERTFILE',
     keyfile: 'STARK_HTTPS_KEYFILE',
     https_password: 'STARK_HTTPS_PASSWORD',
+    https_url: 'STARK_HTTPS_URL',
+    https_auto_open: 'STARK_HTTPS_AUTO_OPEN',
   };
   for (const [option, environment] of Object.entries(mapping)) {
     if (process.env[environment] === undefined && options[option] !== undefined)

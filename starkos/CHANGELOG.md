@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.1
+
+- Added a configured STARK HTTPS address and an automatic in-app opening option. When Ingress is insecure, STARK attempts to navigate the entire view to that address, avoiding an insecure parent frame. Already-secure Ingress stays in place.
+- If the WebView blocks automatic navigation, settings and the Voice error offer an explicit in-view opening link plus a browser fallback. Only active HTTPS with a configured credential-free URL is used; native app policies may still require the fallback. Automatic attempts are limited per tab to keep Back usable.
+
 ## 0.4.0
 
 - Added a real optional HTTPS listener and GUI settings: enable HTTPS, certificate filename, private-key filename and an access password. Certificates are read from the read-only /ssl mount. The default direct HTTPS port is 8789; Home Assistant Ingress and the passive HTTP receiver port remain separate.
