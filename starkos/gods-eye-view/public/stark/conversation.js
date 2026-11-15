@@ -182,7 +182,7 @@ export function createConversation(
       visuals = false;
       player.setVisible(false);
       control('close');
-      setStatus('Nur Sprache. Mit „mit Fenstern“ wieder einschalten.');
+      setStatus('Nur Voice. Mit „mit Fenstern“ wieder einschalten.');
       return true;
     }
     if (/^(mit fenstern|zeig fenster|visuell erklären)$/.test(plain)) {
@@ -381,7 +381,7 @@ export function createConversation(
     if (!Recognition || !window.isSecureContext) {
       stopVoiceMode();
       const message = !window.isSecureContext
-        ? 'Sprache braucht HTTPS. Öffne STARK über die sichere Home-Assistant-Adresse.'
+        ? 'Voice braucht HTTPS. Öffne STARK über die sichere Home-Assistant-Adresse.'
         : 'Dieser Browser unterstützt die Spracheingabe nicht. Bitte Mikrofonunterstützung im Browser prüfen.';
       notice(message);
       setStatus(message);
@@ -491,7 +491,7 @@ export function createConversation(
       stopVoiceMode();
       if (recording) releaseRecording();
       else interrupt();
-      setStatus('Sprachmodus ausgeschaltet.');
+      setStatus('Voice-Modus ausgeschaltet.');
     } else {
       voiceLatched = true;
       cancelRecording();
