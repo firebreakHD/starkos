@@ -182,8 +182,17 @@ try {
   if (!password) {
     const freshContext = await browser.createBrowserContext();
     const direct = await freshContext.newPage();
-    await direct.goto(`${origin}/stark/`, { waitUntil: 'networkidle0' });
+    await direct.goto(`${origin}/stark`, { waitUntil: 'networkidle0' });
     await direct.waitForSelector('#device');
+    assert.equal(
+      await direct.$eval('#device', (el) => getComputedStyle(el).display),
+      'grid',
+      'slashless direct entry must load STARK styles',
+    );
+    assert.equal(new URL(direct.url()).pathname, '/stark/');
+    await direct.waitForFunction(
+      () => document.querySelector('#clock').textContent !== '00:00:00',
+    );
     await direct.reload({ waitUntil: 'networkidle0' });
     await direct.waitForSelector('#device');
     assert.equal(
@@ -337,6 +346,18 @@ try {
     await page.click('#login button');
   }
   await page.waitForSelector('#device');
+  await page.goto(`${origin}/stark?entry=legacy`, {
+    waitUntil: 'networkidle0',
+  });
+  assert.equal(new URL(page.url()).pathname, '/stark/');
+  assert.equal(new URL(page.url()).search, '?entry=legacy');
+  assert.equal(
+    await page.$eval('#device', (el) => getComputedStyle(el).display),
+    'grid',
+  );
+  await page.waitForFunction(
+    () => document.querySelector('#clock').textContent !== '00:00:00',
+  );
   const cookie = (await page.cookies()).find((c) => c.name === 'stark_session');
   if (password) assert.ok(cookie.secure && cookie.httpOnly);
   else assert.equal(cookie, undefined, 'direct HTTPS needs no login cookie');
