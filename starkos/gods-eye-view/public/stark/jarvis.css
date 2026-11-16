@@ -1368,3 +1368,10 @@ a.explain-source {
     font-size: 30px;
   }
 }
+
+@media (max-height: 500px) and (orientation: landscape) {
+  .roamies-narration {
+    height: 64px;
+    flex-basis: 64px;
+  }
+}

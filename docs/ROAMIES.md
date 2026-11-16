@@ -14,7 +14,7 @@ Cards, notes, lists, mind maps, exact source clippings, source links, photos, gr
 
 ## Phone adaptation
 
-The original card drawing, fonts, colors, models and interactions remain. Text cards reflow into phone width at an enlarged drawing scale; only one card is focused at a time. Swiping between steps, pausing, resuming and voice commands use the existing control path. Wide tables, mind maps and technical diagrams keep their structure and support panning rather than being compressed to tiny text. Tall card content can be scrolled. Desktop retains the original simultaneous cards, pinning between answers and PNG export. Enter in the chat stays with the chat rather than activating the underlying menu.
+The original card drawing, fonts, colors, models and interactions remain. Text cards reflow into phone width at an enlarged drawing scale; only one card is focused at a time. Swiping between steps, pausing, resuming and voice commands use the existing control path. Wide tables, mind maps and technical diagrams keep their structure and support panning rather than being compressed to tiny text. Tall card content can be scrolled. In landscape, the 3D viewport fits the available height while text keeps its drawing size. Desktop retains the original simultaneous cards, pinning between answers and PNG export. Enter in the chat stays with the chat rather than activating the underlying menu.
 
 The Voice button, menu ring, side chat gesture and direct HTTPS without login (when its password is empty) remain. Typed conversations only open the workspace when explicitly requested. The original explanation contract is retained as a compatibility path for existing sessions; the preferred model tool is `draw`.
 

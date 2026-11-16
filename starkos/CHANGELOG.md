@@ -3,7 +3,7 @@
 ## 0.5.0
 
 - Integrated the actual Roamies Ink renderer, Jarvis cursor, drawing sounds, 3D engine, fonts, map data and draw/see_photo schemas from KenKaiii/Roamies (commit e0ef435658a0206d5948142204f7be8ef5b1d969). This adds original cards, source clippings, graphs, tables, flow diagrams, timelines, photos, molecules, animated models, maps, maths, geometry and interactive quizzes to the Codex tool loop.
-- Phone explanations focus one readable card at a time, with enlarged text, swipes and scrolling for wide structures. Desktop keeps simultaneous floating cards. The Voice button and side chat gesture remain the controls; text chat opens the drawing only when explicitly requested.
+- Phone explanations focus one readable card at a time, with enlarged text, swipes and scrolling for wide structures. Model viewports adapt to short landscape screens without shrinking the labels. Desktop keeps simultaneous floating cards. The Voice button and side chat gesture remain the controls; text chat opens the drawing only when explicitly requested.
 - Source annotations use text bounds measured by the renderer. Photo labels require the actual see_photo image, delivered to Codex as image input. Edits refer to real part IDs. Paired browser receivers advertise ink.roamies; unsupported receivers reject it.
 - Added upstream provenance, AGPL source/license notices and a source link in settings. Original upstream engine MIT notices remain preserved. Desktop OS automation is unavailable in the browser and is never reported as performed.
 

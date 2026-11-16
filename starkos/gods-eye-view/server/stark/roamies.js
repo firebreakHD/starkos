@@ -25,7 +25,7 @@ export const ROAMIES_TOOL = {
   name: 'draw',
   description:
     description +
-    '\nSTARK mobile adapter: coordinates refer to the STARK workspace (0..1000 reference grid), not other apps. Only drawing actions are available; type, open, copy, handoff and desktop access are disabled. For sources use clip with url and an exact excerpt obtained via read_source. display_ids defaults to [] for this phone. On phones cards are presented one at a time at readable scale, with swipes and zoom for wide diagrams. Edits use the part IDs returned by this tool. Never invent a photo label: describe only an image actually observed. Source claims need retrieved evidence.',
+    '\nSTARK mobile adapter: coordinates refer to the STARK workspace (0..1000 reference grid), not other apps. Only drawing actions are available; type, open, copy, handoff and desktop access are disabled. For sources use clip with url and an exact excerpt obtained via read_source. display_ids defaults to [] for this phone. On phones cards are presented one at a time at readable scale, with swipes and panning for wide diagrams. Edits use the part IDs returned by this tool. Never invent a photo label: describe only an image actually observed. Source claims need retrieved evidence.',
   inputSchema: z.toJSONSchema(
     DrawArgs.extend({ display_ids: z.array(z.string()).max(12).default([]) }),
     { target: 'draft-7' },

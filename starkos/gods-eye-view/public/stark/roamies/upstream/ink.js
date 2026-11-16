@@ -1026,7 +1026,7 @@
     },
     molecule: (m) => drawMolecule(m),
     async model(m) {
-      const w = fitWidth(320), h = 26 + 236, view3d = R.ink3d?.create(m.parts, w - 24, 210);
+      const w = fitWidth(320), h = R.phone ? Math.min(26 + 236, maxCardH()) : 26 + 236, view3d = R.ink3d?.create(m.parts, w - 24, Math.max(24, h - 52));
       await card(m, w, h, function (b, l, t, x, y, age) {
         if (!view3d) { typed(b, '3D isn’t available here', x + w / 2, y + 100, SMALL, DIM, 1, { anchor: 'middle' }); return; }
         const u = clamp(age / 0.8, 0, 1), f = view3d.frame(reduced() ? 0 : t);

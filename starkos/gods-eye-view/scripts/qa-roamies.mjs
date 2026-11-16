@@ -375,6 +375,17 @@ try {
       true,
       'landscape cards fit above the dock with scrollable contents',
     );
+    await f.waitForFunction(
+      () => window.Roamie.ink.textBounds('Platine').length > 0,
+    );
+    assert.ok(
+      await f.evaluate(() =>
+        window.Roamie.ink
+          .textBounds('Platine')
+          .some(([x, y, w, h]) => y >= 0 && y + h <= innerHeight),
+      ),
+      'landscape model labels are visible without scrolling',
+    );
     if (process.env.STARK_QA_OUTPUT) {
       mkdirSync(process.env.STARK_QA_OUTPUT, { recursive: true });
       await page.screenshot({
