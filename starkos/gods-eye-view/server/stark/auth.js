@@ -72,6 +72,9 @@ export function addonEntryRedirect(
 ) {
   if (!addon) return null;
   const parsed = new URL(String(rawUrl || '/'), 'http://stark.local');
+  // A server-side rewrite alone leaves the browser resolving ./stark.css
+  // and ./app.js against the parent directory of a slashless entry.
+  if (parsed.pathname === '/stark') return `./stark/${parsed.search}`;
   if (
     (parsed.pathname === '/' || parsed.pathname === '/index.html') &&
     parsed.searchParams.get('world') !== '1'

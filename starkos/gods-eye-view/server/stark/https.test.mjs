@@ -322,6 +322,10 @@ test('app entry uses only explicit credential-free HTTPS URLs and only an active
     normalizeHttpsEntry('https://stark.example:8789'),
     'https://stark.example:8789/stark/',
   );
+  assert.equal(
+    normalizeHttpsEntry('https://stark.example:8789/stark'),
+    'https://stark.example:8789/stark/',
+  );
   for (const value of [
     '',
     null,

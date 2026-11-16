@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.6
+
+- Fixed the white, unstyled STARK page when opening /stark without the final slash. The server now redirects to /stark/ before the browser resolves relative CSS and JavaScript, preserving query parameters and Home Assistant Ingress prefixes.
+- Configured HTTPS URLs ending in /stark are normalized to /stark/. Existing bookmarks work through the server redirect. Direct no-login HTTPS behavior is preserved.
+- HTTPS browser checks now cover slashless addresses, loaded styles and a running JavaScript clock, including fresh visits, reloads and the optional password login.
+
 ## 0.4.5
 
 - Empty HTTPS passwords now mean direct access without any STARK login, session cookie, prior Home Assistant visit or authorization handoff. Direct opening, refreshes and new browser tabs immediately show STARK, including Voice. Anyone who can reach that HTTPS address can control STARK in this mode.

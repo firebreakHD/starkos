@@ -113,3 +113,17 @@ test('Home Assistant add-on enters STARK OS and opens WORLD explicitly', () => {
 test("standalone development keeps the original God's Eye root", () => {
   assert.equal(addonEntryUrl('/?embed=1', false), '/?embed=1');
 });
+
+test('slashless STARK entry redirects before relative assets load and preserves the Ingress prefix and query', () => {
+  assert.equal(addonEntryRedirect('/stark', true), './stark/');
+  const redirect = addonEntryRedirect('/stark?mode=voice', true);
+  assert.equal(redirect, './stark/?mode=voice');
+  assert.equal(
+    new URL(redirect, 'https://ha.example/api/hassio_ingress/session/stark')
+      .href,
+    'https://ha.example/api/hassio_ingress/session/stark/?mode=voice',
+  );
+  assert.equal(addonEntryRedirect('/stark/', true), null);
+  assert.equal(addonEntryRedirect('/stark/index.html', true), null);
+  assert.equal(addonEntryRedirect('/stark', false), null);
+});

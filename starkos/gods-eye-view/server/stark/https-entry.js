@@ -13,7 +13,8 @@ export function normalizeHttpsEntry(value) {
       url.hash
     )
       return null;
-    if (url.pathname === '/') url.pathname = '/stark/';
+    if (url.pathname === '/' || url.pathname === '/stark')
+      url.pathname = '/stark/';
     return url.href;
   } catch {
     return null;
