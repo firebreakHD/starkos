@@ -804,6 +804,9 @@ setInterval(() => {
 }, 250);
 window.addEventListener('keydown', (event) => {
   if (event.key === 'Escape') $('#closePanel').click();
+  if (event.target.closest?.('input,textarea,select,[contenteditable="true"]'))
+    return;
+  if ($('#device').hidden || $('#panel').classList.contains('open')) return;
   if (event.key === 'ArrowRight')
     ring.snapTo((ring.selected + 1) % modules.length);
   if (event.key === 'ArrowLeft')

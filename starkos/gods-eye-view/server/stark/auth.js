@@ -185,6 +185,8 @@ export function starkAuthPlugin() {
         // Kurzlebige, sitzungsgebundene Medienfreigabe: der Token in der
         // Anfrage ist der Ausweis, die Route prüft ihn selbst.
         url.pathname === '/api/stark/media-stream' ||
+        url.pathname.startsWith('/stark/roamies/') ||
+        url.pathname === '/stark/roamies-player.js' ||
         url.pathname === '/stark/receiver.html' ||
         url.pathname === '/stark/receiver.js' ||
         url.pathname === '/stark/explanation-player.js' ||

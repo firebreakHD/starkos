@@ -7,6 +7,38 @@ import path from 'node:path';
 import { timingSafeEqual } from 'node:crypto';
 import { EventEmitter } from 'node:events';
 
+export function codexTurnInput(messages, tools) {
+  const images = [];
+  const conversation = messages.map((message) => {
+    if (!Array.isArray(message.content)) return message;
+    const content = message.content.map((item) => {
+      if (item.type !== 'image_url') return item;
+      const url = item.image_url?.url;
+      if (
+        typeof url !== 'string' ||
+        !/^data:image\/(png|jpe?g|gif|webp);base64,[A-Za-z0-9+/=]+$/.test(
+          url,
+        ) ||
+        url.length > 1100100
+      )
+        throw new Error('Ungültiges Bild für Codex.');
+      images.push({ type: 'image', url });
+      return { type: 'text', text: '[see_photo image attached to this turn]' };
+    });
+    return { ...message, content };
+  });
+  if (images.length > 8)
+    throw new Error('Zu viele Bilder in diesem Gespräch. Bitte neu beginnen.');
+  return [
+    {
+      type: 'text',
+      text: JSON.stringify({ conversation, availableTools: tools }),
+      text_elements: [],
+    },
+    ...images,
+  ];
+}
+
 export const CODEX_RESULT_SCHEMA = {
   type: 'object',
   additionalProperties: false,
@@ -530,16 +562,7 @@ export function createCodex({
           'turn/start',
           {
             threadId,
-            input: [
-              {
-                type: 'text',
-                text: JSON.stringify({
-                  conversation: messages,
-                  availableTools: tools,
-                }),
-                text_elements: [],
-              },
-            ],
+            input: codexTurnInput(messages, tools),
             outputSchema: CODEX_RESULT_SCHEMA,
           },
           90_000,

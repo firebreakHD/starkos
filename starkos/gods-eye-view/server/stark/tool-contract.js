@@ -1,6 +1,9 @@
+import { ROAMIES_TOOL, ROAMIES_PHOTO_TOOL } from './roamies.js';
 import { EXPLANATION_SCHEMA } from '../../public/stark/explanation-contract.js';
 
 export const STARK_DISPLAY_TOOLS = Object.freeze([
+  ROAMIES_TOOL,
+  ROAMIES_PHOTO_TOOL,
   {
     name: 'present_explanation',
     description:

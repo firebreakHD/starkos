@@ -45,3 +45,6 @@ Street Level viewer; the complete resolved dependency inventory remains in
 - Source: <https://github.com/mrdoob/three.js>
 - License: MIT
 - License text: <https://github.com/mrdoob/three.js/blob/dev/LICENSE>
+
+
+Roamies Ink, Jarvis cursor, drawing validators and associated data: KenKaiii/Roamies, AGPL-3.0, pinned source and modifications in docs/ROAMIES-UPSTREAM.json and public/stark/roamies/NOTICE.md. Doto and Martian Mono fonts retain their SIL OFL files. Natural Earth map outlines are public domain. Original engine MIT notices remain in LICENSE.

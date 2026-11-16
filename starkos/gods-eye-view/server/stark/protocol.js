@@ -14,6 +14,7 @@ export const CAPABILITIES = Object.freeze([
   'image.transform',
   'file.transfer',
   'explanation.scenes',
+  'ink.roamies',
 ]);
 
 export const RECEIVER_CAPABILITIES = Object.freeze([...CAPABILITIES]);
@@ -24,6 +25,7 @@ export function sanitizeCapabilities(values) {
 }
 
 export function requiredCapability(action, payload = {}) {
+  if (action === 'ink.draw') return 'ink.roamies';
   if (action === 'explanation.show' || action === 'explanation.control')
     return 'explanation.scenes';
   if (action === 'media.show') {

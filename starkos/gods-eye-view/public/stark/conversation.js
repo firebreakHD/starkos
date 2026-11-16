@@ -16,6 +16,7 @@ export function createConversation(
     stop = $('[data-stop]');
   const Recognition =
     window.SpeechRecognition || window.webkitSpeechRecognition;
+  let inkFeedback = Promise.resolve();
   let recognition = null,
     pending = false,
     abort = null,
@@ -237,6 +238,7 @@ export function createConversation(
     const requestAbort = new AbortController();
     abort = requestAbort;
     try {
+      await inkFeedback;
       const response = await fetch(new URL('jarvis/turn', displays.base), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -256,6 +258,13 @@ export function createConversation(
         if (message.type === 'conversation')
           conversationId = message.conversationId;
         if (message.type === 'tool') setStatus(message.label + ' …');
+        if (message.type === 'drawing' && present) {
+          chat.close({ focus: false });
+          hasExplanation = true;
+          targets = message.targets || [];
+          player.showDrawing(message.drawing);
+          setStatus('Jarvis zeichnet die Erklärung.');
+        }
         if (message.type === 'explanation' && present) {
           chat.close({ focus: false });
           player.setVisible(true);
@@ -285,7 +294,7 @@ export function createConversation(
         const { done, value } = await reader.read();
         if (done) break;
         buffer += decoder.decode(value, { stream: true });
-        if (buffer.length > 250000) throw new Error('Antwort ist zu groß.');
+        if (buffer.length > 6000000) throw new Error('Antwort ist zu groß.');
         let end;
         while ((end = buffer.indexOf('\n')) >= 0) {
           const line = buffer.slice(0, end);
@@ -596,6 +605,21 @@ export function createConversation(
     }
     available = state.available;
   });
+  const drawingQuestion = (e) => send(e.detail, { mode: 'voice' });
+  root.addEventListener('roamies-question', drawingQuestion);
+  const drawingFeedback = (e) => {
+    inkFeedback = inkFeedback
+      .then(() =>
+        fetch(new URL('../api/stark/ink-event', import.meta.url), {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(e.detail),
+          signal: AbortSignal.timeout(4000),
+        }),
+      )
+      .catch(() => {});
+  };
+  root.addEventListener('roamies-feedback', drawingFeedback);
   available = account.isAvailable();
   return {
     send,
@@ -611,6 +635,8 @@ export function createConversation(
     },
     player,
     destroy() {
+      root.removeEventListener('roamies-question', drawingQuestion);
+      root.removeEventListener('roamies-feedback', drawingFeedback);
       unsubscribe();
       window.removeEventListener('blur', suspendRecording);
       document.removeEventListener('visibilitychange', visibility);

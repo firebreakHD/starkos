@@ -1,3 +1,4 @@
+import { createRoamiesPlayer } from './roamies-player.js';
 import { validateExplanation } from './explanation-contract.js';
 import {
   drawSketch,
@@ -19,6 +20,7 @@ export function createExplanationPlayer(
     timer = null,
     closed = false;
   let visualDisposers = [];
+  let inkPlayer = null;
   const disposeVisuals = () => {
     visualDisposers.forEach((dispose) => dispose());
     visualDisposers = [];
@@ -241,6 +243,7 @@ export function createExplanationPlayer(
     }
   }
   function control(command) {
+    if (inkPlayer) return inkPlayer.control(command);
     if (command === 'close') {
       closed = true;
       cancel();
@@ -319,7 +322,17 @@ export function createExplanationPlayer(
     down = null;
   });
   return {
+    showDrawing(drawing) {
+      cancel();
+      disposeVisuals();
+      explanation = null;
+      if (!inkPlayer)
+        inkPlayer = createRoamiesPlayer(root, { onNarration, onChange });
+      inkPlayer.show(drawing);
+    },
     show(input) {
+      inkPlayer?.destroy();
+      inkPlayer = null;
       explanation = validateExplanation(input);
       sceneIndex = 0;
       windowIndex = 0;
@@ -331,6 +344,7 @@ export function createExplanationPlayer(
     },
     control,
     setVisible(value) {
+      if (inkPlayer) return inkPlayer.setVisible(value);
       visible = value;
       if (!value) {
         cancel();
@@ -339,6 +353,7 @@ export function createExplanationPlayer(
       render();
     },
     followNarration(text, index) {
+      if (inkPlayer) return inkPlayer.followNarration(text, index);
       const caption = root.querySelector('.explain-caption');
       if (
         !caption?.firstChild ||
@@ -355,9 +370,12 @@ export function createExplanationPlayer(
       caption.scrollTop += word.top - caption.getBoundingClientRect().top - 16;
     },
     getState() {
+      if (inkPlayer) return inkPlayer.getState();
       return { explanation, sceneIndex, windowIndex, paused, closed };
     },
     destroy() {
+      inkPlayer?.destroy();
+      inkPlayer = null;
       cancel();
       disposeVisuals();
       observer.disconnect();

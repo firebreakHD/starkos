@@ -53,11 +53,13 @@ export function isDocumentRequest(url) {
 export function embedFramingPlugin({
   ancestors = process.env.GEV_EMBED_FRAME_ANCESTORS || '',
   allowHomeAssistantIngress = false,
+  selfFramedPaths = [],
   isHomeAssistantIngress = () => false,
 } = {}) {
   const allowed = ancestors.trim();
   // Unset: embed documents keep the server's framing protection.
-  if (!allowed && !allowHomeAssistantIngress) return { name: 'embed-framing' };
+  if (!allowed && !allowHomeAssistantIngress && !selfFramedPaths.length)
+    return { name: 'embed-framing' };
   const anywhere = allowed === '*';
   const policy = `frame-ancestors ${allowed}`;
   const install = (server) => {
@@ -66,10 +68,14 @@ export function embedFramingPlugin({
         allowHomeAssistantIngress &&
         isDocumentRequest(req.url) &&
         isHomeAssistantIngress(req);
+      const ownFrame = selfFramedPaths.includes(
+        new URL(req.url || '/', 'http://local').pathname,
+      );
       const embedded = Boolean(allowed) && isEmbedDocumentRequest(req.url);
-      if (!homeAssistant && !embedded) return next();
-      const framingPolicy = homeAssistant ? "frame-ancestors 'self'" : policy;
-      const unrestricted = !homeAssistant && anywhere;
+      if (!homeAssistant && !ownFrame && !embedded) return next();
+      const framingPolicy =
+        homeAssistant || ownFrame ? "frame-ancestors 'self'" : policy;
+      const unrestricted = !homeAssistant && !ownFrame && anywhere;
       // The server's own headers are written when the response is sent, so
       // intercept them rather than setting ours first.
       const setHeader = res.setHeader.bind(res);
@@ -83,7 +89,7 @@ export function embedFramingPlugin({
           const next = unrestricted ? kept : [...kept, framingPolicy];
           return next.length ? setHeader(name, next.join('; ')) : res;
         }
-        return homeAssistant ? setHeader(name, 'SAMEORIGIN') : res;
+        return homeAssistant || ownFrame ? setHeader(name, 'SAMEORIGIN') : res;
       };
       if (!unrestricted) setHeader('Content-Security-Policy', framingPolicy);
       next();

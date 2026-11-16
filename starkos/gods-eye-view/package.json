@@ -2,9 +2,9 @@
   "name": "gods-eye-view",
   "private": true,
   "version": "0.2.1",
-  "description": "A real-time intelligence console for planet Earth — photorealistic 3D globe, live aircraft/ships/satellites/earthquakes/CCTV, and hands-free voice control. Runs in a browser.",
+  "description": "A real-time intelligence console for planet Earth \u2014 photorealistic 3D globe, live aircraft/ships/satellites/earthquakes/CCTV, and hands-free voice control. Runs in a browser.",
   "type": "module",
-  "license": "MIT",
+  "license": "(AGPL-3.0-only AND MIT)",
   "author": "Bilawal Sidhu",
   "homepage": "https://github.com/bilawalsidhu/gods-eye-view#readme",
   "repository": {
@@ -69,7 +69,8 @@
     "mgrs": "^2.1.0",
     "pbf": "^5.1.2",
     "satellite.js": "^6.0.2",
-    "ws": "^8.21.0"
+    "ws": "^8.21.0",
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "prettier": "3.9.6",

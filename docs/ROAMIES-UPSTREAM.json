@@ -1,0 +1,18 @@
+{
+  "repository": "https://github.com/KenKaiii/Roamies",
+  "commit": "e0ef435658a0206d5948142204f7be8ef5b1d969",
+  "license": "AGPL-3.0",
+  "files": {
+    "public/stark/roamies/upstream/ink.js": "1a064534faae31abee11af28961fe9f508c22762887b3c811f512abc694becfd",
+    "public/stark/roamies/upstream/ink3d.js": "d4a21532048f2f52e66a8f54fa430cf683f9d6196e14467d3fd833627c28bfd8",
+    "public/stark/roamies/upstream/world.js": "ef4868883311dec116f9eb2f3803ff647de49df67ccc3a82ad4be38251d8ef42",
+    "server/stark/roamies-upstream/safety.mjs": "78e4b616d988477736d869a994664b68d223c0c5ac1fc5592884c52c8de25bed",
+    "server/stark/roamies-upstream/draw.mjs": "8dc51fa4b64ed7fe13f29614cdd36ca137c465cd5611a62a5b304b3a45d8cf93",
+    "server/stark/roamies-upstream/countries.mjs": "141909f131fa3f5452b6e4e152eee278ab3de6c35bee528edd058ed403bf3e98",
+    "public/stark/roamies/upstream/jarvis.js": "d62033022906b84a52c2f9cb0fd0df957fc1ab65a09f5b4591d60141aaaea407",
+    "public/stark/roamies/upstream/sfx.js": "11bf9e34ecb5db3011525347dc1c79e0de6f421ba5923ec268d025b60f9e9f17"
+  },
+  "modified": [
+    "public/stark/roamies/upstream/ink.js"
+  ]
+}

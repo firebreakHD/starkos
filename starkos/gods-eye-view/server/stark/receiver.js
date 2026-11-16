@@ -1,3 +1,4 @@
+import { createRoamies } from './roamies.js';
 import { httpsEntry } from './https-entry.js';
 import { randomBytes } from 'node:crypto';
 import { WebSocketServer, WebSocket } from 'ws';
@@ -116,6 +117,7 @@ function validateMedia(media) {
 export function createDisplayService({ store = new DisplayStore() } = {}) {
   const sockets = new Map();
   const research = createResearch();
+  const prepareDrawing = createRoamies();
 
   function sendCommand(targetIds, action, payload = {}) {
     const ids = [
@@ -145,7 +147,9 @@ export function createDisplayService({ store = new DisplayStore() } = {}) {
     const commandId = randomBytes(9).toString('base64url');
     const sessionId =
       payload.sessionId ||
-      (action === 'media.show' || action === 'explanation.show'
+      (action === 'media.show' ||
+      action === 'explanation.show' ||
+      action === 'ink.draw'
         ? randomBytes(12).toString('base64url')
         : null);
     const expiresAt = Date.now() + MEDIA_GRANT_MS;
@@ -177,12 +181,12 @@ export function createDisplayService({ store = new DisplayStore() } = {}) {
               playback: null,
               transform: null,
             }
-          : action === 'explanation.show'
+          : action === 'explanation.show' || action === 'ink.draw'
             ? {
                 status: 'explaining',
                 current: {
                   sessionId,
-                  title: payload.explanation.title,
+                  title: payload.explanation?.title || 'Roamies',
                   type: 'application/stark-explanation',
                   expiresAt,
                 },
@@ -217,6 +221,14 @@ export function createDisplayService({ store = new DisplayStore() } = {}) {
   }
 
   function executeTool(tool, args = {}) {
+    if (tool === 'see_photo') return prepareDrawing.see(args);
+    if (tool === 'draw')
+      return prepareDrawing(args).then((drawing) => ({
+        drawing,
+        ...(drawing.display_ids.length
+          ? sendCommand(drawing.display_ids, 'ink.draw', { drawing })
+          : { results: [] }),
+      }));
     if (tool === 'search_sources') return research.search(args.query);
     if (tool === 'read_source') return research.read(args.url);
     if (tool === 'present_explanation') {
@@ -308,7 +320,15 @@ export function createDisplayService({ store = new DisplayStore() } = {}) {
     return { media: session.media, sessionId, expiresAt: session.expiresAt };
   }
 
-  return { store, sockets, sessions, sendCommand, executeTool, currentMedia };
+  return {
+    store,
+    sockets,
+    sessions,
+    sendCommand,
+    executeTool,
+    currentMedia,
+    inkEvent: prepareDrawing.event,
+  };
 }
 
 /* --------------------------------------------- Sitzungsgebundene Freigaben */
@@ -448,6 +468,7 @@ export function starkReceiverPlugin({
           );
           return;
         }
+        if (message.type === 'ink.event') service.inkEvent(message);
         if (message.type === 'state.report' || message.type === 'command.ack')
           service.store.updateState(deviceId, message.state || {});
       });
@@ -472,6 +493,18 @@ export function starkReceiverPlugin({
           return json(res, 403, {
             error: 'Nur gleichseitige JSON-Anfragen sind erlaubt.',
           });
+        if (req.method === 'POST' && url.pathname === '/api/stark/ink-event') {
+          if (
+            !String(req.headers['content-type'] || '').startsWith(
+              'application/json',
+            ) ||
+            req.headers['sec-fetch-site'] === 'cross-site'
+          )
+            return json(res, 403, {
+              error: 'Nur gleichseitige JSON-Anfragen sind erlaubt.',
+            });
+          return json(res, 200, service.inkEvent(await readBody(req)));
+        }
         if (req.method === 'GET' && url.pathname === '/api/stark/https-entry')
           return json(res, 200, httpsEntry());
         if (req.method === 'GET' && url.pathname === '/api/stark/jarvis/status')
