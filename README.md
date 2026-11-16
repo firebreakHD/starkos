@@ -2,7 +2,7 @@
 
 STARK OS is a mobile-first media, investigation and geospatial interface for Home Assistant hosting. The supplied God's Eye View project remains the real Cesium/data engine; STARK OS adds the phone-style ring, secured direct access and paired display control.
 
-Current Home Assistant app version: **0.4.6**
+Current Home Assistant app version: **0.5.0**
 
 ## Talk to Jarvis
 
@@ -73,3 +73,7 @@ Home Assistant reads the latest version from `starkos/config.yaml` and builds th
 5. Reload the repository in Home Assistant. It will show the newer `config.yaml` version and build it during install/update.
 
 The optional **Publish Home Assistant app** workflow is reserved for a future public pre-built image. It is not required for installation or updates.
+
+## Original Roamies visual explanations
+
+STARK integrates the actual Roamies Ink renderer and `draw` / `see_photo` data contract, pinned to an upstream commit. See [implementation and mobile behavior](docs/ROAMIES.md) and [provenance](docs/ROAMIES-UPSTREAM.json). The combined STARK integration is distributed under [AGPL-3.0](LICENSE); the original God's Eye engine retains its MIT notice in `starkos/gods-eye-view/LICENSE`. Corresponding source and build instructions are available in this repository and linked from settings.

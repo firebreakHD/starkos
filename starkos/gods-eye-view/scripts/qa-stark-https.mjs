@@ -420,6 +420,30 @@ try {
   });
   assert.equal(presented.results[0].accepted, true);
   await receiver.waitForSelector('.ink-model');
+  const drawn = await api('tools', {
+    tool: 'draw',
+    arguments: {
+      display_ids: [approved.device.id],
+      beats: [
+        {
+          say: 'Original Ink über die sichere Display-Verbindung.',
+          marks: [
+            {
+              kind: 'card',
+              heading: 'Roamies',
+              text: 'HTTPS und WSS empfangen die originale Zeichnung.',
+            },
+          ],
+        },
+      ],
+    },
+  });
+  assert.equal(drawn.results[0].accepted, true);
+  await receiver.waitForSelector('.roamies-frame');
+  const inkFrame = await (await receiver.$('.roamies-frame')).contentFrame();
+  await inkFrame.waitForFunction(() =>
+    window.Roamie?.ink?.snapshot().some((mark) => mark.kind === 'card'),
+  );
   assert.equal(
     (await receiver.cookies()).some((c) => c.name === 'stark_session'),
     false,
@@ -436,7 +460,7 @@ try {
   }
   assert.deepEqual(errors, []);
   console.log(
-    `PASS: actual preview ${password ? 'HTTPS password login and Secure/HttpOnly cookie' : 'direct HTTPS without login, cookies or prior HA visit, including reloads'}, secure browser context/media API, HTTP denial and isolated receiver over real WSS. Test certificate is trusted only by the test browser; no physical microphone or live provider account is used.`,
+    `PASS: actual preview ${password ? 'HTTPS password login and Secure/HttpOnly cookie' : 'direct HTTPS without login, cookies or prior HA visit, including reloads'}, secure browser context/media API, HTTP denial and isolated original Roamies renderer over real WSS. Test certificate is trusted only by the test browser; no physical microphone or live provider account is used.`,
   );
 } finally {
   await browser?.close();

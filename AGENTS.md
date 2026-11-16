@@ -24,3 +24,9 @@ Changes that cannot reach the running app need no bump: `docs/`, the root `AGENT
 A task-specific instruction not to touch build, port or deployment settings does **not** exempt the version bump, because without it the delivered work never reaches the device. When such an instruction appears to forbid it, raise the conflict and ask rather than shipping an update nobody can install.
 
 After pushing, the user reloads the repository in Home Assistant (Settings → Add-ons → Add-on Store → ⋮ → Reload). The add-on then rebuilds the checked-in Dockerfile locally. A matching Git tag, for example `v0.1.9`, is optional.
+
+## Roamies visual engine
+
+- Roamies Ink is vendored at the commit in `docs/ROAMIES-UPSTREAM.json`; preserve upstream attribution and AGPL source availability. Original engine MIT notices remain intact.
+- Use the original `draw`/`see_photo` format for new visual explanations. Do not substitute fixed examples or pretend desktop app access works in the browser.
+- A phone focuses readable cards rather than shrinking simultaneous desktop windows. Preserve direct HTTPS and the existing Voice/chat gestures.

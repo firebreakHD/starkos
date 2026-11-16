@@ -149,6 +149,7 @@ export function createBrowserViteConfig({
       ...plugins,
       embedFramingPlugin({
         allowHomeAssistantIngress: trustHomeAssistantIngress,
+        selfFramedPaths: ['/stark/roamies/frame.html'],
         isHomeAssistantIngress,
       }),
       panelBuildPlugin(),

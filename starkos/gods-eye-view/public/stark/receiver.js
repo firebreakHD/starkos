@@ -12,6 +12,7 @@ const CAPABILITIES = [
   'image.transform',
   'file.transfer',
   'explanation.scenes',
+  'ink.roamies',
 ];
 const form = document.querySelector('#pairForm');
 const stage = document.querySelector('#receiveStage');
@@ -28,6 +29,10 @@ let state = {
 };
 let currentVisual = null;
 let explanationPlayer = null;
+stage.addEventListener('roamies-feedback', (event) => {
+  if (socket?.readyState === WebSocket.OPEN)
+    socket.send(JSON.stringify({ type: 'ink.event', ...event.detail }));
+});
 const mediaQueue = [];
 let queueIndex = -1;
 let lastReport = 0;
@@ -157,7 +162,7 @@ function execute(command) {
   if (command.expiresAt < Date.now())
     return acknowledge(command, { error: 'grant-expired' });
   const { action, payload, sessionId } = command;
-  if (action === 'explanation.show') {
+  if (action === 'explanation.show' || action === 'ink.draw') {
     if (currentVisual instanceof HTMLVideoElement) currentVisual.pause();
     currentVisual = null;
     explanationPlayer?.destroy();
@@ -175,13 +180,14 @@ function execute(command) {
       status: 'explaining',
       current: {
         sessionId,
-        title: payload.explanation.title,
+        title: payload.explanation?.title || 'Roamies',
         type: 'application/stark-explanation',
       },
       playback: null,
       transform: null,
     };
-    explanationPlayer.show(payload.explanation);
+    if (action === 'ink.draw') explanationPlayer.showDrawing(payload.drawing);
+    else explanationPlayer.show(payload.explanation);
     status.textContent = 'EXPLAINING';
   } else if (action === 'explanation.control') {
     if (payload.command === 'close') standby();
